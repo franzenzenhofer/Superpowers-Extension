@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <!-- IMPORTANT: Tells the extension we want superpowers enabled on this page -->
+  <meta name="superpowers" content="enabled" />
+  <title>Superpowers Recursive Pages Example</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 40px;
+      background: #fafafa;
+      color: #333;
+    }
+    button {
+      font-size: 1.1em;
+      padding: 8px 16px;
+      cursor: pointer;
+      border: 1px solid #888;
+      background: #eee;
+      margin-top: 20px;
+    }
+    button:hover {
+      background: #ddd;
+    }
+  </style>
+</head>
+<body>
+  <h1>Superpowers Recursive Pages Example</h1>
+  <p>
+    This page is superpowered. Clicking the button below spawns
+    another superpowered page with a random color and random ID.
+    That page itself has a button that can spawn a further page, etc.
+  </p>
+
+  <button id="spawnChildBtn">Spawn Child Page</button>
+
+  <script>
+    // Helper to produce random color, e.g. "#3fa2c7"
+    function randomColor() {
+      return '#' + Math.floor(Math.random() * 0xffffff).toString(16).padStart(6, '0');
+    }
+
+    // Main page's "Spawn Child" button
+    document.getElementById('spawnChildBtn').addEventListener('click', async () => {
+      const randID = Math.floor(Math.random() * 1000000);
+      const bgColor = randomColor();
+
+      // The newly created HTML also includes <meta name="superpowers" content="enabled"/>
+      // so it can do the same calls. We embed an inline <script> that repeats the logic.
+      const childPageHTML = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="superpowers" content="enabled" />
+  <title>Child Super Page #${randID}</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 40px;
+      background: ${bgColor};
+      color: #fff;
+    }
+    button {
+      font-size: 1.1em;
+      padding: 8px 16px;
+      cursor: pointer;
+      border: 1px solid #888;
+      background: #444;
+      color: #eee;
+      margin-top: 20px;
+    }
+    button:hover {
+      background: #666;
+    }
+    h1 {
+      margin-top: 0;
+    }
+  </style>
+</head>
+<body>
+  <h1>Child Page #${randID}</h1>
+  <p>
+    Hi! I'm a superpowered page because I also have
+    <code>&lt;meta name="superpowers" content="enabled"&gt;</code>.
+    Click the button to spawn another page like me (random ID & color).
+  </p>
+  <button id="spawnGrandchildBtn">Spawn Another!</button>
+
+  <script>
+    // We'll do the same approach: random ID & color
+    function randomColor() {
+      return '#' + Math.floor(Math.random() * 0xffffff).toString(16).padStart(6, '0');
+    }
+
+    document.getElementById('spawnGrandchildBtn').addEventListener('click', async () => {
+      const grandRandID = Math.floor(Math.random() * 1000000);
+      const grandColor = randomColor();
+
+      const grandchildPageHTML = \`
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="superpowers" content="enabled" />
+  <title>Grandchild Super Page #\${grandRandID}</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 40px;
+      background: \${grandColor};
+      color: #000;
+    }
+    button {
+      font-size: 1.1em;
+      padding: 8px 16px;
+      margin-top: 20px;
+    }
+    h1 {
+      margin-top: 0;
+    }
+  </style>
+</head>
+<body>
+  <h1>Grandchild Page #\${grandRandID}</h1>
+  <p>We can keep going forever in a chain of random superpowered pages!</p>
+</body>
+</html>
+\`;
+
+      try {
+        // Create a new ephemeral URL via Superpowers
+        const newUrl = await window.Superpowers.pages(grandchildPageHTML, "grandchild-\${grandRandID}.html");
+        console.log("[Child Page] Opening grandchild page =>", newUrl);
+        window.open(newUrl, "_blank");
+      } catch (err) {
+        console.error("Failed to create page:", err);
+      }
+    });
+  <\/script>
+</body>
+</html>
+      `;
+
+      try {
+        // Updated call with an options object
+        const newUrl = await window.Superpowers.pages(childPageHTML, {
+          filename: `child-${randID}.html`,
+          mimeType: 'text/html'
+        });
+        console.log("[Root Page] Opening child page =>", newUrl);
+        window.open(newUrl, "_blank");
+      } catch (err) {
+        console.error("Failed to create page:", err);
+      }
+    });
+  </script>
+</body>
+</html>

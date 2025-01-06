@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>Superpowers Side Panel</title>
+  <script type="module" src="sidepanel.js"></script>
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 0;
+      padding: 8px;
+      background: #f9f9f9;
+    }
+    h1 { margin-top: 0; }
+    #envContainer .env-row {
+      display: flex;
+      margin-bottom: 8px;
+    }
+    #envContainer .env-row input {
+      flex: 1;
+      margin-right: 6px;
+    }
+    #saveBtn, #addRowBtn, #showDebugBtn {
+      margin-top: 10px;
+    }
+    #debugOutput {
+      margin-top: 10px;
+      padding: 6px;
+      background: #eee;
+      max-height: 200px;
+      overflow-y: auto;
+      font-size: 0.9em;
+    }
+  </style>
+</head>
+<body>
+  <h1>Superpowers Env Variables</h1>
+  <p>Edit and persist environment variables for <code>superEnv</code>.</p>
+  <div id="envContainer"></div>
+  <button id="addRowBtn">+ Add Env Variable</button>
+  <button id="saveBtn">Save All</button>
+
+  <hr />
+  <button id="showDebugBtn">Show Debug Logs</button>
+  <pre id="debugOutput"></pre>
+</body>
+</html>

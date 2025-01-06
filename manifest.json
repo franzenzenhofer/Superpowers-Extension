@@ -1,0 +1,73 @@
+{
+  "name": "Superpowers by Franz Enzenhofer",
+  "version": "0.0.2",
+  "description": "A robust Chrome extension granting in-page superpowers (cross-domain fetch, env vars).",
+  "manifest_version": 3,
+
+  "permissions": [
+    "storage",
+    "scripting",
+    "sidePanel",
+    "tabs",
+    "webNavigation",
+    "sub_frames",
+    "webRequest",
+    "webRequestBlocking"
+  ],
+  "host_permissions": [
+      "<all_urls>",
+      "file://*/*",
+      "blob:*",
+      "https://api.openai.com/*"
+  ],
+
+  "background": {
+    "service_worker": "service_worker.js",
+    "type": "module"
+  },
+
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "globals_injected.js",
+        "plugin_manager.js",
+        "plugin_config.json",
+        "plugins/*/*.js",
+        "plugins/*.js"
+      ],
+      "matches": ["<all_urls>"]
+    }
+  ],
+
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+
+  "action": {
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    },
+    "default_title": "Superpowers"
+  },
+
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": [
+        "content_script.js"
+      ],
+      "all_frames": true 
+    }
+  ],
+  "options_ui": {
+    "page": "sidepanel.html",
+    "open_in_tab": false
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

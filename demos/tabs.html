@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="superpowers" content="enabled"/>
+  <title>Advanced Tabs Manager</title>
+  <style>
+    :root {
+      --primary: #1a73e8;
+      --success: #34a853;
+      --warning: #fbbc04;
+      --error: #ea4335;
+    }
+    body {
+      font-family: system-ui;
+      margin: 0;
+      padding: 20px;
+      background: #f8f9fa;
+    }
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    .card {
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+      gap: 15px;
+      margin: 15px 0;
+    }
+    .tabs-list {
+      max-height: 500px;
+      overflow-y: auto;
+    }
+    .tab-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px;
+      border: 1px solid #eee;
+      border-radius: 4px;
+      margin: 5px 0;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .tab-item:hover {
+      border-color: var(--primary);
+      background: #f8f9fa;
+    }
+    .tab-item.active {
+      border-left: 4px solid var(--primary);
+    }
+    .tab-favicon {
+      width: 16px;
+      height: 16px;
+    }
+    .tab-title {
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .button-group {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    button {
+      background: var(--primary);
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      transition: opacity 0.2s;
+    }
+    button:hover { opacity: 0.9; }
+    button.secondary { background: #5f6368; }
+    button.warning { background: var(--warning); }
+    button.danger { background: var(--error); }
+    .event-log {
+      background: #1e1e1e;
+      color: #5aff5a;
+      font-family: monospace;
+      padding: 15px;
+      border-radius: 4px;
+      height: 200px;
+      overflow-y: auto;
+    }
+    .event-entry {
+      margin: 5px 0;
+      font-size: 13px;
+    }
+    .event-time { color: #888; }
+    .event-name { color: #4fc3f7; }
+    .status { padding: 10px; border-radius: 4px; margin: 10px 0; }
+    .status.success { background: #e6f4ea; color: var(--success); }
+    .status.error { background: #fce8e6; color: var(--error); }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="card">
+      <h1>🗂️ Advanced Tab Manager</h1>
+      <div id="status"></div>
+      
+      <div class="button-group">
+        <button onclick="refreshTabs()">🔄 Refresh Tabs</button>
+        <button onclick="newTab()">📝 New Tab</button>
+        <button onclick="duplicateSelected()">👥 Duplicate</button>
+        <button onclick="groupSelected()">🎯 Group</button>
+        <button onclick="muteSelected()" class="secondary">🔇 Mute</button>
+        <button onclick="unmuteSelected()" class="secondary">🔊 Unmute</button>
+        <button onclick="reloadSelected()" class="secondary">↻ Reload</button>
+        <button onclick="pinSelected()" class="secondary">📌 Pin</button>
+        <button onclick="closeSelected()" class="danger">❌ Close</button>
+      </div>
+
+      <div class="grid">
+        <div class="card">
+          <h3>Active Tabs</h3>
+          <div id="tabsList" class="tabs-list"></div>
+        </div>
+        
+        <div class="card">
+          <h3>Tab Events</h3>
+          <div id="eventLog" class="event-log"></div>
+          <div class="button-group" style="margin-top: 10px;">
+            <button onclick="clearLog()" class="secondary">Clear Log</button>
+            <button onclick="toggleEvents(this)">Start Monitoring</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Advanced Operations</h3>
+      <div class="button-group">
+        <button onclick="moveToNewWindow()">🪟 Move to New Window</button>
+        <button onclick="captureTab()">📸 Capture Tab</button>
+        <button onclick="zoomIn()">🔍 Zoom In</button>
+        <button onclick="zoomOut()">🔍 Zoom Out</button>
+        <button onclick="resetZoom()">↩️ Reset Zoom</button>
+        <button onclick="highlightTabs()">✨ Highlight</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let selectedTabs = new Set();
+    let monitoring = false;
+    
+    // Initialize
+    async function init() {
+      while (!window.Superpowers?.tabs) {
+        await new Promise(r => setTimeout(r, 100));
+      }
+      showStatus('Tab Manager Ready!', 'success');
+      refreshTabs();
+      setupEventListeners();
+    }
+
+    function showStatus(message, type = 'success') {
+      const status = document.getElementById('status');
+      status.className = `status ${type}`;
+      status.textContent = message;
+      setTimeout(() => status.className = '', 3000);
+    }
+
+    async function refreshTabs() {
+      try {
+        const tabs = await window.Superpowers.tabs.query({});
+        const list = document.getElementById('tabsList');
+        list.innerHTML = tabs.map(tab => `
+          <div class="tab-item ${tab.active ? 'active' : ''}" 
+               data-id="${tab.id}"
+               onclick="toggleTabSelection(${tab.id})">
+            <span class="tab-title">${tab.title}</span>
+            ${tab.audible ? '🔊' : ''}
+            ${tab.pinned ? '📌' : ''}
+            ${tab.mutedInfo?.muted ? '🔇' : ''}
+          </div>
+        `).join('');
+      } catch (err) {
+        showStatus(err.message, 'error');
+      }
+    }
+
+    function toggleTabSelection(tabId) {
+      const element = document.querySelector(`[data-id="${tabId}"]`);
+      if (selectedTabs.has(tabId)) {
+        selectedTabs.delete(tabId);
+        element.style.background = '';
+      } else {
+        selectedTabs.add(tabId);
+        element.style.background = '#e8f0fe';
+      }
+    }
+
+    // Tab Operations
+    async function newTab() {
+      try {
+        await window.Superpowers.tabs.create({ url: 'chrome://newtab' });
+        refreshTabs();
+      } catch (err) {
+        showStatus(err.message, 'error');
+      }
+    }
+
+    async function duplicateSelected() {
+      for (const tabId of selectedTabs) {
+        await window.Superpowers.tabs.duplicate(tabId);
+      }
+      refreshTabs();
+    }
+
+    async function groupSelected() {
+      if (selectedTabs.size < 2) {
+        showStatus('Select at least 2 tabs to group', 'error');
+        return;
+      }
+      try {
+        await window.Superpowers.tabs.group({ tabIds: Array.from(selectedTabs) });
+        refreshTabs();
+      } catch (err) {
+        showStatus(err.message, 'error');
+      }
+    }
+
+    async function muteSelected() {
+      for (const tabId of selectedTabs) {
+        await window.Superpowers.tabs.update(tabId, { muted: true });
+      }
+      refreshTabs();
+    }
+
+    async function unmuteSelected() {
+      for (const tabId of selectedTabs) {
+        await window.Superpowers.tabs.update(tabId, { muted: false });
+      }
+      refreshTabs();
+    }
+
+    async function reloadSelected() {
+      for (const tabId of selectedTabs) {
+        await window.Superpowers.tabs.reload(tabId);
+      }
+    }
+
+    async function pinSelected() {
+      for (const tabId of selectedTabs) {
+        await window.Superpowers.tabs.update(tabId, { pinned: true });
+      }
+      refreshTabs();
+    }
+
+    async function closeSelected() {
+      await window.Superpowers.tabs.remove(Array.from(selectedTabs));
+      selectedTabs.clear();
+      refreshTabs();
+    }
+
+    // Advanced Operations
+    async function moveToNewWindow() {
+      if (selectedTabs.size === 0) return;
+      const window = await window.Superpowers.tabs.windows.create({});
+      await window.Superpowers.tabs.move(Array.from(selectedTabs), 
+        { windowId: window.id, index: -1 });
+      refreshTabs();
+    }
+
+    async function captureTab() {
+      if (selectedTabs.size !== 1) {
+        showStatus('Select exactly one tab', 'error');
+        return;
+      }
+      const tabId = Array.from(selectedTabs)[0];
+      const dataUrl = await window.Superpowers.tabs.captureVisibleTab();
+      const win = window.open();
+      win.document.write(`<img src="${dataUrl}" style="max-width:100%">`);
+    }
+
+    let currentZoom = 1;
+    async function zoomIn() {
+      currentZoom = Math.min(3, currentZoom + 0.1);
+      for (const tabId of selectedTabs) {
+        await window.Superpowers.tabs.setZoom(tabId, currentZoom);
+      }
+    }
+
+    async function zoomOut() {
+      currentZoom = Math.max(0.3, currentZoom - 0.1);
+      for (const tabId of selectedTabs) {
+        await window.Superpowers.tabs.setZoom(tabId, currentZoom);
+      }
+    }
+
+    async function resetZoom() {
+      currentZoom = 1;
+      for (const tabId of selectedTabs) {
+        await window.Superpowers.tabs.setZoom(tabId, 1);
+      }
+    }
+
+    async function highlightTabs() {
+      if (selectedTabs.size === 0) return;
+      await window.Superpowers.tabs.highlight({ 
+        tabs: Array.from(selectedTabs.values()) 
+      });
+    }
+
+    // Event Monitoring
+    function setupEventListeners() {
+      const TAB_EVENTS = [
+        'onCreated',
+        'onUpdated',
+        'onMoved',
+        'onActivated',
+        'onHighlighted',
+        'onDetached',
+        'onAttached',
+        'onRemoved',
+        'onReplaced',
+        'onZoomChange'
+      ];
+
+      const eventHandlers = {};
+
+      function logTabEvent(name, ...args) {
+        const eventLog = document.getElementById('eventLog');
+        const time = new Date().toLocaleTimeString();
+        const eventData = args.map(arg => {
+          if (typeof arg === 'object') {
+            return JSON.stringify(arg, null, 2);
+          }
+          return arg;
+        }).join(' ');
+
+        eventLog.innerHTML += `
+          <div class="event-entry">
+            <span class="event-time">[${time}]</span> 
+            <span class="event-name">${name}</span>
+            <pre class="event-data">${eventData}</pre>
+          </div>
+        `;
+        eventLog.scrollTop = eventLog.scrollHeight;
+      }
+
+      window.toggleEvents = function(btn) {
+        monitoring = !monitoring;
+        btn.textContent = monitoring ? 'Stop Monitoring' : 'Start Monitoring';
+        btn.style.background = monitoring ? '#ea4335' : '#1a73e8';
+
+        if (monitoring) {
+          TAB_EVENTS.forEach(evt => {
+            const handler = (...args) => {
+              logTabEvent(evt, ...args);
+              refreshTabs(); // Refresh tab list on any event
+            };
+            eventHandlers[evt] = handler;
+            window.Superpowers.tabs.on(evt, handler);
+          });
+        } else {
+          TAB_EVENTS.forEach(evt => {
+            if (eventHandlers[evt]) {
+              window.Superpowers.tabs.off(evt, eventHandlers[evt]);
+              delete eventHandlers[evt];
+            }
+          });
+        }
+      };
+
+      window.clearLog = function() {
+        document.getElementById('eventLog').innerHTML = '';
+      };
+    }
+
+    // Additional Advanced Tab Operations
+    async function moveTabs(direction) {
+      if (selectedTabs.size === 0) return;
+      const tabs = await window.Superpowers.tabs.query({currentWindow: true});
+      const tabIds = Array.from(selectedTabs);
+      
+      for (const tabId of tabIds) {
+        const tab = tabs.find(t => t.id === tabId);
+        if (tab) {
+          const newIndex = Math.max(0, Math.min(tabs.length - 1, 
+            tab.index + (direction === 'left' ? -1 : 1)));
+          await window.Superpowers.tabs.move(tabId, {index: newIndex});
+        }
+      }
+      refreshTabs();
+    }
+
+    async function searchTabs() {
+      const query = prompt('Enter search term:');
+      if (!query) return;
+
+      const tabs = await window.Superpowers.tabs.query({
+        title: `*${query}*`,
+        currentWindow: true
+      });
+
+      selectedTabs.clear();
+      tabs.forEach(tab => selectedTabs.add(tab.id));
+      refreshTabs();
+      showStatus(`Found ${tabs.length} matching tabs`);
+    }
+
+    // Add to the grid of advanced operations:
+    document.querySelector('.card:last-child .button-group').innerHTML += `
+      <button onclick="moveTabs('left')">⬅️ Move Left</button>
+      <button onclick="moveTabs('right')">➡️ Move Right</button>
+      <button onclick="searchTabs()">🔍 Search Tabs</button>
+      <button onclick="window.Superpowers.tabs.query({discarded: true}).then(tabs => {
+        selectedTabs = new Set(tabs.map(t => t.id));
+        refreshTabs();
+        showStatus('Selected ' + tabs.length + ' discarded tabs');
+      })">💤 Show Discarded</button>
+      <button onclick="window.Superpowers.tabs.query({audible: true}).then(tabs => {
+        selectedTabs = new Set(tabs.map(t => t.id));
+        refreshTabs();
+        showStatus('Selected ' + tabs.length + ' audible tabs');
+      })">🔊 Show Playing</button>
+    `;
+
+    // Keyboard Shortcuts
+    document.addEventListener('keydown', e => {
+      if (e.ctrlKey || e.metaKey) {
+        switch(e.key) {
+          case 'f':
+            e.preventDefault();
+            searchTabs();
+            break;
+          case 'r':
+            e.preventDefault();
+            refreshTabs();
+            break;
+          case 'w':
+            e.preventDefault();
+            if (selectedTabs.size > 0) closeSelected();
+            break;
+        }
+      }
+    });
+
+    // Start the app
+    init();
+  </script>
+</body>
+</html>

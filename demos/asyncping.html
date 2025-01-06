@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta name="superpowers" content="enabled"/>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Superpowers Async Ping Demo</title>
+</head>
+<body>
+  <h1>Superpowers Async Ping Demo</h1>
+  <p>Open the console to see the results.</p>
+
+  <script>
+    // Wait until Superpowers loads
+    function waitForSuperpowers() {
+      return new Promise((resolve) => {
+        if (window.Superpowers) {
+          resolve();
+        } else {
+          const checkInterval = setInterval(() => {
+            if (window.Superpowers) {
+              clearInterval(checkInterval);
+              resolve();
+            }
+          }, 100);
+        }
+      });
+    }
+
+    (async () => {
+      try {
+        console.log("Waiting for Superpowers to load...");
+        await waitForSuperpowers();
+        console.log("Superpowers loaded. Performing first async ping...");
+
+        // First ping immediately
+        let pong = await Superpowers.asyncPing("Hello from async ping (first)!");
+        console.log("Resolved from asyncPing():", pong);
+
+        // Subsequent pings with exponential delays: 10s, 20s, 40s, 80s...
+        let delay = 10;
+        while (true) {
+          console.log(`Waiting ${delay} seconds before next ping...`);
+          await new Promise(r => setTimeout(r, delay * 1000));
+
+          console.log(`Performing async ping after ${delay}s...`);
+          pong = await Superpowers.asyncPing(`Ping after ${delay}s`);
+          console.log("Resolved from asyncPing():", pong);
+
+          delay *= 2; // Exponential backoff
+        }
+      } catch (err) {
+        console.error("Error in asyncPing:", err);
+      }
+    })();
+  </script>
+</body>
+</html>

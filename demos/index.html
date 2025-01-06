@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <!-- Tells our extension that superpowers are enabled -->
+  <meta name="superpowers" content="enabled"/>
+  <title>Superpowers Debugger (Pro Edition)</title>
+  <style>
+    body {
+      margin: 12px;
+      font-family: sans-serif;
+      background: #f9f9f9;
+    }
+    h1 {
+      margin-bottom: 0.4em;
+    }
+    .section {
+      border: 1px solid #ccc;
+      background: #fff;
+      padding: 12px;
+      margin-bottom: 12px;
+      border-radius: 4px;
+    }
+    .section h2 {
+      margin-top: 0;
+    }
+    #analysisOutput, #fetchOutput, #envOutput {
+      white-space: pre;
+      border: 1px solid #ddd;
+      padding: 10px;
+      margin-top: 10px;
+      max-height: 400px;
+      overflow-y: auto;
+      background: #fafafa;
+      font-size: 0.9em;
+      line-height: 1.4em;
+    }
+    button {
+      cursor: pointer;
+      margin-right: 6px;
+    }
+    label {
+      margin-right: 4px;
+    }
+    .debugNote {
+      font-size: 0.85em;
+      color: #666;
+      margin-top: 10px;
+    }
+    .smallHeading {
+      font-size: 1em;
+      margin-top: 0;
+    }
+    /* Minor utility to highlight object structure logs */
+    .json-highlight {
+      font-family: monospace;
+      white-space: pre-wrap;
+    }
+  </style>
+</head>
+<body>
+  <h1>Superpowers Debugger (Pro Edition)</h1>
+  <p>
+    This page has 
+    <code>&lt;meta name="superpowers" content="enabled"&gt;</code>
+    so the <code>superfetch</code> and <code>superEnv</code> functions are bridged in by the extension
+    onto a <code>Superpowers</code> object.
+    <br/>
+    We use them to demonstrate cross-domain fetch or environment variable storage. 
+    **All requests** are logged thoroughly, including full objects, headers, and errors.
+  </p>
+
+  <!-- 0) Automatic Analysis Section -->
+  <div class="section">
+    <h2>0) Automatic Analysis of Superpowers</h2>
+    <p>
+      On page load, we check if <code>superfetch</code> and <code>superEnv</code> appear. 
+      If so, we do a quick test fetch + environment check behind the scenes, 
+      logging every detail.
+    </p>
+    <div id="analysisOutput"></div>
+  </div>
+
+  <!-- 1) Full Superfetch Debugging -->
+  <div class="section">
+    <h2>1) Superfetch Debugging</h2>
+    <p>
+      Enter a URL and choose whether to fetch only headers or the entire body. 
+      Then we show the **full request** and **deconstructed response** (headers, body, status, etc.).
+    </p>
+    <label>URL to fetch:
+      <input type="text" id="urlInput" size="50" value="https://www.fullstackoptimization.com/"/>
+    </label>
+    <br/><br/>
+    <label><input type="radio" name="fetchType" value="headers" checked/> Headers only</label>
+    <label><input type="radio" name="fetchType" value="body"/> Entire Body</label>
+    <button id="goBtn">Fetch!</button>
+
+    <div id="fetchOutput"></div>
+  </div>
+
+  <!-- 2) Environment Variables Debugging -->
+  <div class="section">
+    <h2>2) Env Vars Debugging</h2>
+    <p>
+      We can fetch existing environment variables (if any) or set them. 
+      All steps are logged, including the raw request to the extension 
+      and the full response from the background.
+    </p>
+    <button id="checkEnvBtn">Get Env Vars</button>
+    <button id="setEnvBtn">Set Env Vars (demo)</button>
+    <p class="debugNote">
+      We'll just set some dummy <code>API_TOKEN</code> and <code>MODE</code> to demonstrate.
+    </p>
+    <div id="envOutput"></div>
+  </div>
+
+  <div class="section">
+    <h2>3) Advanced Debugging</h2>
+    <p>Collect more diagnostic data from the browser and extension.</p>
+    <button id="advancedDebugBtn">Run Advanced Debug</button>
+    <div id="advancedDebugOutput" style="white-space: pre; margin-top: 10px;"></div>
+  </div>
+
+  <!-- Add this after the Advanced Debugging section -->
+  <div class="section">
+    <h2>4) Superpowers Debug Testing</h2>
+    <p>Test the Superpowers.debugLog functionality directly. Messages appear in console, sidepanel, and below.</p>
+    
+    <div class="debug-controls">
+        <select id="debugLevel">
+            <option value="info">Info</option>
+            <option value="debug">Debug</option>
+            <option value="warning">Warning</option>
+            <option value="error">Error</option>
+        </select>
+        <input type="text" id="debugMessage" placeholder="Enter debug message" 
+               value="Test debug message" style="width: 300px;"/>
+        <button id="sendDebugBtn">Send Debug Log</button>
+    </div>
+
+    <div class="debug-presets" style="margin-top: 10px;">
+        <button onclick="testDebugObject()">Test Object Logging</button>
+        <button onclick="testDebugError()">Test Error Logging</button>
+        <button onclick="testDebugPerfomance()">Test Performance</button>
+    </div>
+
+    <div id="debugTestOutput" style="
+        white-space: pre;
+        font-family: monospace;
+        margin-top: 10px;
+        padding: 10px;
+        background: #1e1e1e;
+        color: #d4d4d4;
+        border-radius: 4px;
+        max-height: 300px;
+        overflow-y: auto;
+    "></div>
+  </div>
+
+  <script>
+    /***********************************************************************
+     * UTILS: Logging & pretty-printing
+     **********************************************************************/
+    function appendLog(el, label, data, level = "info") {
+      const timestamp = new Date().toISOString();
+      let message = "";
+      
+      // If it's an object/array, try JSON
+      if (typeof data === "object") {
+        try {
+          message = JSON.stringify(data, null, 2);
+        } catch (err) {
+          message = `Error JSON-stringifying object: ${err}\n` + data;
+        }
+      } else {
+        message = String(data);
+      }
+
+      // Log to element
+      el.textContent += `[${timestamp}][${level}] ${label}:\n${message}\n\n`;
+      el.scrollTop = el.scrollHeight;
+
+      // Also use Superpowers.debugLog if available
+      if (window.Superpowers?.debugLog) {
+        window.Superpowers.debugLog(`${label}: ${message}`, level, el);
+      }
+    }
+
+    /***********************************************************************
+     * 0) Automatic Analysis on page load
+     **********************************************************************/
+    async function runAnalysis() {
+      const out = document.getElementById("analysisOutput");
+      out.textContent = ""; // Clear log
+
+      appendLog(out, "Analysis Start", "Checking which APIs are available...", "debug");
+
+      // Check if superfetch, superenv, debugLog
+      const isSuperfetch = !!(window.Superpowers?.fetch);
+      const isSuperEnv   = !!(window.Superpowers?.getEnvVars);
+
+      appendLog(out, "Detected APIs", {
+        superfetch: isSuperfetch,
+        superEnv: isSuperEnv
+      }, "info");
+
+      // 1) Test superfetch with HEAD
+      if (!isSuperfetch) {
+        appendLog(out, "Error", "Superpowers.fetch not found. Extension might not be active or meta missing.", "error");
+      } else {
+        appendLog(out, "Step", "Attempting quick fetch to https://example.com", "debug");
+        try {
+          const resp = await window.Superpowers.fetch("https://example.com");
+          appendLog(out, "Superfetch response object", resp, "debug");
+
+          // Read & log a snippet of the body or the headers
+          const headersObj = {};
+          resp.headers.forEach((val, key) => { headersObj[key] = val; });
+          appendLog(out, "Headers from example.com", headersObj, "info");
+        } catch (err) {
+          appendLog(out, "Superfetch Error", err, "error");
+        }
+      }
+
+      // 2) Test superEnv
+      if (!isSuperEnv) {
+        appendLog(out, "Error", "Superpowers.getEnvVars not found. Extension might not be active or meta missing.", "error");
+      } else {
+        appendLog(out, "Step", "Attempting superEnv.getEnvVars()", "debug");
+        try {
+          const envVars = await window.Superpowers.getEnvVars();
+          appendLog(out, "Current Environment Vars", envVars, "info");
+        } catch (err) {
+          appendLog(out, "superEnv Error", err, "error");
+        }
+      }
+
+      appendLog(out, "Analysis End", "Done verifying superpowers APIs.", "debug");
+    }
+
+    /***********************************************************************
+     * 1) Superfetch Debugging
+     **********************************************************************/
+    async function onFetchClick() {
+      const url = document.getElementById("urlInput").value.trim();
+      const mode = document.querySelector('input[name="fetchType"]:checked')?.value || "headers";
+      const out = document.getElementById("fetchOutput");
+      out.textContent = ""; // Clear previous logs
+
+      if (!window.Superpowers?.fetch) {
+        appendLog(out, "ERROR", "Superpowers.fetch is not available! Are we sure extension is active?", "error");
+        return;
+      }
+
+      appendLog(out, "Request", { url, mode }, "debug");
+
+      try {
+        // Start fetch
+        appendLog(out, "Action", `Calling Superpowers.fetch("${url}")`, "debug");
+        const resp = await window.Superpowers.fetch(url);
+        appendLog(out, "Raw Response Object", resp, "debug");
+
+        // Deconstruct the response:
+        // 1) status, statusText
+        appendLog(out, "Response Status Info", {
+          status: resp.status,
+          statusText: resp.statusText,
+          ok: resp.ok,
+          redirected: resp.redirected,
+          url: resp.url
+        }, "info");
+
+        // Extract headers safely
+        const allHeaders = {};
+        if (resp.headers) {
+          if (resp.headers instanceof Headers) {
+            resp.headers.forEach((val, key) => { 
+              allHeaders[key] = val; 
+            });
+          } else if (typeof resp.headers === 'object') {
+            // Direct object assignment for plain objects
+            Object.assign(allHeaders, resp.headers);
+          }
+        }
+
+        // Log all response parts
+        appendLog(out, "Response Status", {
+          status: resp.status,
+          statusText: resp.statusText,
+          ok: resp.ok
+        }, "info");
+
+        appendLog(out, "Response Headers", allHeaders, "debug");
+
+        // 3) body (only if user wants it)
+        if (mode === "body") {
+          appendLog(out, "Fetching Body Text", "Now calling resp.text()...", "debug");
+          const bodyText = await resp.text();
+          appendLog(out, "Response Body (text)", bodyText, "info");
+        } else {
+          appendLog(out, "Body Skipped", "User selected headers-only mode. No body shown.", "debug");
+        }
+
+      } catch (error) {
+        appendLog(out, "FETCH ERROR", {
+          message: error.message,
+          stack: error.stack,
+          headers: resp?.headers
+        }, "error");
+      }
+    }
+
+    /***********************************************************************
+     * 2) Environment Vars Debugging
+     **********************************************************************/
+    async function onGetEnvVars() {
+      const out = document.getElementById("envOutput");
+      out.textContent = ""; // Clear log
+
+      if (!window.Superpowers?.getEnvVars) {
+        appendLog(out, "ERROR", "Superpowers.getEnvVars not available!", "error");
+        return;
+      }
+
+      appendLog(out, "Action", "Calling getEnvVars()...", "debug");
+      try {
+        const vars = await window.Superpowers.getEnvVars();
+        appendLog(out, "Env Vars Received", vars, "info");
+      } catch (error) {
+        appendLog(out, "GET_ENV_VARS Error", error, "error");
+      }
+    }
+
+    async function onSetEnvVars() {
+      const out = document.getElementById("envOutput");
+      out.textContent = ""; // Clear log
+
+      if (!window.Superpowers?.setEnvVars) {
+        appendLog(out, "ERROR", "Superpowers.setEnvVars not available!", "error");
+        return;
+      }
+
+      // Example new vars
+      const newVars = {
+        API_TOKEN: "my-demo-token-1234",
+        MODE: "mega-debug"
+      };
+
+      appendLog(out, "Action", "Calling setEnvVars() with new variables...", "debug");
+      appendLog(out, "Variables to Set", newVars, "info");
+
+      try {
+        const resp = await window.Superpowers.setEnvVars(newVars);
+        appendLog(out, "SetEnvVars Response", resp, "info");
+
+        if (!resp || !resp.success) {
+          appendLog(out, "SetEnvVars Warning", "No success property or unknown response structure.", "warn");
+        }
+      } catch (error) {
+        appendLog(out, "SET_ENV_VARS Error", error, "error");
+      }
+    }
+
+    /***********************************************************************
+     * Advanced Debugging
+     **********************************************************************/
+    function advancedDebug() {
+      const out = document.getElementById("advancedDebugOutput");
+      out.textContent = "";
+      const debugData = {
+        userAgent: navigator.userAgent,
+        platform: navigator.platform,
+        superpowersAPIs: {
+          superfetch: !!(window.Superpowers?.fetch),
+          superEnv: !!(window.Superpowers?.getEnvVars)
+        }
+      };
+      out.textContent = JSON.stringify(debugData, null, 2);
+    }
+
+    /***********************************************************************
+     * Initialization
+     **********************************************************************/
+    // Automatic analysis on load
+    (async () => {
+      // small delay so extension scripts can load
+      await new Promise(resolve => setTimeout(resolve, 400));
+      runAnalysis();
+    })();
+
+    // Hook up event listeners
+    document.getElementById("goBtn").addEventListener("click", onFetchClick);
+    document.getElementById("checkEnvBtn").addEventListener("click", onGetEnvVars);
+    document.getElementById("setEnvBtn").addEventListener("click", onSetEnvVars);
+    document.getElementById("advancedDebugBtn").addEventListener("click", advancedDebug);
+
+    // Add these functions:
+    function initDebugTesting() {
+      const debugOutput = document.getElementById('debugTestOutput');
+      const sendDebugBtn = document.getElementById('sendDebugBtn');
+      const debugLevel = document.getElementById('debugLevel');
+      const debugMessage = document.getElementById('debugMessage');
+  
+      sendDebugBtn.addEventListener('click', () => {
+          const msg = debugMessage.value;
+          const level = debugLevel.value;
+          
+          if (window.Superpowers?.debugLog) {
+              window.Superpowers.debugLog(msg, level, debugOutput);
+          } else {
+              debugOutput.textContent += `[${new Date().toISOString()}] Error: Superpowers.debugLog not available\n`;
+          }
+      });
+    }
+  
+    function testDebugObject() {
+      const testObj = {
+          name: "Test Object",
+          timestamp: Date.now(),
+          nested: {
+              array: [1, 2, 3],
+              value: "nested value"
+          }
+      };
+      
+      if (window.Superpowers?.debugLog) {
+          window.Superpowers.debugLog("Testing object logging", "debug", debugTestOutput);
+          window.Superpowers.debugLog(testObj, "info", debugTestOutput);
+      }
+    }
+  
+    function testDebugError() {
+      try {
+          throw new Error("Test error for debug logging");
+      } catch (err) {
+          if (window.Superpowers?.debugLog) {
+              window.Superpowers.debugLog(err.stack, "error", debugTestOutput);
+          }
+      }
+    }
+  
+    function testDebugPerfomance() {
+      const start = performance.now();
+      if (window.Superpowers?.debugLog) {
+          for (let i = 0; i < 100; i++) {
+              window.Superpowers.debugLog(`Performance test message ${i}`, "debug", debugTestOutput);
+          }
+          const duration = performance.now() - start;
+          window.Superpowers.debugLog(`Performance test complete in ${duration.toFixed(2)}ms`, "info", debugTestOutput);
+      }
+    }
+  
+    // Add to initialization
+    document.addEventListener('DOMContentLoaded', () => {
+      initDebugTesting();
+      // ... other init code ...
+    });
+  </script>
+</body>
+</html>

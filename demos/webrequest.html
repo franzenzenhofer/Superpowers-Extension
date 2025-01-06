@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="superpowers" content="enabled">
+  <title>Network Traffic Monitor</title>
+  <style>
+    body {
+      font-family: system-ui;
+      margin: 2rem;
+      background: #f5f5f5;
+    }
+    .monitor {
+      background: #fff;
+      padding: 1rem;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .request-item {
+      border-bottom: 1px solid #eee;
+      padding: 0.5rem;
+      display: grid;
+      grid-template-columns: auto 1fr auto auto;
+      gap: 1rem;
+      align-items: center;
+    }
+    .method { font-weight: bold; }
+    .GET { color: #2196F3; }
+    .POST { color: #4CAF50; }
+    .status-2xx { color: #4CAF50; }
+    .status-3xx { color: #FF9800; }
+    .status-4xx, .status-5xx { color: #F44336; }
+    .details { display: none; }
+    .expanded .details { display: block; }
+    #stats { margin: 1rem 0; }
+    .control-panel { margin-bottom: 1rem; }
+  </style>
+</head>
+<body>
+  <div class="monitor">
+    <h1>🕸️ Network Traffic Monitor</h1>
+    
+    <div class="control-panel">
+      <h3>Monitor Controls</h3>
+      <button id="startBtn">Start Monitoring</button>
+      <button id="stopBtn">Stop</button>
+      <button id="clearBtn">Clear</button>
+    </div>
+
+    <div id="stats">
+      <h3>Statistics</h3>
+      <div id="statsContent"></div>
+    </div>
+
+    <div id="requests"></div>
+  </div>
+
+  <script>
+    // Store all requests by ID
+    const requests = new Map();
+    let isMonitoring = false;
+
+    // Update stats display
+    function updateStats() {
+      const total = requests.size;
+      const methods = {};
+      const statuses = {};
+      const types = {};
+
+      requests.forEach(req => {
+        methods[req.method] = (methods[req.method] || 0) + 1;
+        if (req.statusCode) {
+          const statusGroup = Math.floor(req.statusCode/100) + 'xx';
+          statuses[statusGroup] = (statuses[statusGroup] || 0) + 1;
+        }
+        types[req.type] = (types[req.type] || 0) + 1;
+      });
+
+      document.getElementById('statsContent').innerHTML = `
+        <p>Status: ${isMonitoring ? '✅ Monitoring' : '⏸️ Paused'}</p>
+        <p>Total Requests: ${total}</p>
+        <p>Methods: ${Object.entries(methods).map(([k,v]) => `${k}=${v}`).join(', ')}</p>
+        <p>Status Codes: ${Object.entries(statuses).map(([k,v]) => `${k}=${v}`).join(', ')}</p>
+        <p>Content Types: ${Object.entries(types).map(([k,v]) => `${k}=${v}`).join(', ')}</p>
+      `;
+    }
+
+    // Update requests display
+    function updateRequestsList() {
+      const container = document.getElementById('requests');
+      container.innerHTML = Array.from(requests.values())
+        .map(req => `
+          <div class="request-item" onclick="this.classList.toggle('expanded')">
+            <span class="method ${req.method}">${req.method}</span>
+            <span class="url">${req.url}</span>
+            <span class="type">${req.type}</span>
+            <span class="status-${req.statusCode ? Math.floor(req.statusCode/100) + 'xx' : ''}">${req.statusCode || 'pending'}</span>
+            <div class="details">
+              <pre>${JSON.stringify(req, null, 2)}</pre>
+            </div>
+          </div>
+        `).join('');
+    }
+
+    // Start monitoring
+    async function startMonitoring() {
+      if (!window.Superpowers?.webrequest) {
+        alert('Superpowers webrequest not available!');
+        return;
+      }
+
+      try {
+        isMonitoring = true;
+        updateStats();
+
+        // Listen to all webrequest events
+        window.Superpowers.webrequest.on('onBeforeRequest', (details) => {
+          requests.set(details.requestId, {...details, timestamp: Date.now()});
+          updateStats();
+          updateRequestsList();
+        });
+
+        window.Superpowers.webrequest.on('onCompleted', (details) => {
+          const existing = requests.get(details.requestId) || {};
+          requests.set(details.requestId, {...existing, ...details});
+          updateStats();
+          updateRequestsList();
+        });
+
+        window.Superpowers.webrequest.on('onErrorOccurred', (details) => {
+          const existing = requests.get(details.requestId) || {};
+          requests.set(details.requestId, {...existing, ...details, error: true});
+          updateStats();
+          updateRequestsList();
+        });
+
+        // Call handlerBehaviorChanged to ensure events are received
+        await window.Superpowers.webrequest.handlerBehaviorChanged();
+        
+      } catch (err) {
+        console.error('Error starting monitor:', err);
+        alert('Error: ' + err.message);
+      }
+    }
+
+    // Setup controls
+    document.getElementById('startBtn').onclick = startMonitoring;
+    document.getElementById('stopBtn').onclick = () => {
+      isMonitoring = false;
+      updateStats();
+    };
+    document.getElementById('clearBtn').onclick = () => {
+      requests.clear();
+      updateStats();
+      updateRequestsList();
+    };
+
+    // Wait for Superpowers to be ready
+    (async () => {
+      while (!window.Superpowers?.webrequest) {
+        await new Promise(r => setTimeout(r, 100));
+      }
+      console.log('Network Monitor Ready!');
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8"/>
+  <!-- Tells the extension to enable Superpowers on this page -->
+  <meta name="superpowers" content="enabled"/>
+  <title>Super Screenshot Tool</title>
+  <style>
+:root {
+  --primary: #4F46E5;
+  --primary-dark: #4338CA;
+  --primary-light: #E0E7FF;
+  --success: #059669;
+  --danger: #DC2626;
+  --gray-50: #F9FAFB;
+  --gray-100: #F3F4F6;
+  --gray-200: #E5E7EB;
+  --gray-300: #D1D5DB;
+  --gray-600: #4B5563;
+  --gray-700: #374151;
+  --gray-800: #1F2937;
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+}
+
+body {
+  margin: 0;
+  padding: 2rem;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  background: var(--gray-50);
+  color: var(--gray-800);
+  line-height: 1.5;
+}
+
+h1 {
+  font-size: 2.25rem;
+  font-weight: 700;
+  color: var(--gray-800);
+  margin-bottom: 1.5rem;
+  letter-spacing: -0.025em;
+}
+
+h2 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--gray-700);
+  margin-bottom: 1rem;
+  letter-spacing: -0.025em;
+}
+
+.panel {
+  background: white;
+  border-radius: 0.75rem;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  border: 1px solid var(--gray-200);
+  box-shadow: var(--shadow-md);
+}
+
+.panel p {
+  color: var(--gray-600);
+  margin-bottom: 1rem;
+}
+
+.form-row {
+  margin: 1rem 0;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--gray-700);
+  min-width: 90px;
+}
+
+input[type="text"],
+input[type="number"],
+select,
+textarea {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--gray-300);
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  width: 100%;
+  transition: border-color 0.15s ease-in-out;
+}
+
+input[type="text"]:focus,
+input[type="number"]:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-light);
+}
+
+textarea {
+  min-height: 100px;
+  font-family: ui-monospace, monospace;
+}
+
+#urlList {
+  resize: vertical;
+  min-height: 120px;
+}
+
+input[type="range"] {
+  width: 200px;
+  accent-color: var(--primary);
+}
+
+input[type="checkbox"] {
+  width: 1rem;
+  height: 1rem;
+  accent-color: var(--primary);
+}
+
+.btn {
+  padding: 0.625rem 1.25rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  border-radius: 0.375rem;
+  border: none;
+  background: var(--primary);
+  color: white;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: var(--shadow-sm);
+}
+
+.btn:hover {
+  background: var(--primary-dark);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+
+.btn:active {
+  transform: translateY(0);
+}
+
+table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  margin-top: 1rem;
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+
+th, td {
+  padding: 0.75rem 1rem;
+  background: white;
+  border-bottom: 1px solid var(--gray-200);
+  font-size: 0.875rem;
+}
+
+th {
+  background: var(--gray-50);
+  font-weight: 500;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  letter-spacing: 0.05em;
+  color: var(--gray-600);
+}
+
+.screenshot-img {
+  max-width: 200px;
+  max-height: 150px;
+  border-radius: 0.375rem;
+  border: 1px solid var(--gray-200);
+  box-shadow: var(--shadow);
+  transition: transform 0.2s ease;
+}
+
+.screenshot-img:hover {
+  transform: scale(1.05);
+}
+
+.debugLog {
+  background: white;
+  border: 1px solid var(--gray-200);
+  border-radius: 0.5rem;
+  padding: 1rem;
+  max-height: 200px;
+  overflow-y: auto;
+  font-family: ui-monospace, monospace;
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+
+.debugLog .title {
+  font-weight: 600;
+  color: var(--gray-700);
+  margin-bottom: 0.5rem;
+}
+
+.debugLog div {
+  padding: 0.25rem 0;
+  border-bottom: 1px solid var(--gray-100);
+}
+
+#batchInfo {
+  background: var(--primary-light);
+  color: var(--primary-dark);
+  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
+  margin: 1rem 0;
+  font-size: 0.875rem;
+}
+
+/* Small helper classes */
+.text-sm { font-size: 0.875rem; }
+.text-xs { font-size: 0.75rem; }
+.text-gray { color: var(--gray-600); }
+.mt-4 { margin-top: 1rem; }
+.mb-4 { margin-bottom: 1rem; }
+  </style>
+</head>
+<body>
+  <h1>Super Screenshot Tool</h1>
+  <p>
+    This tool uses <strong>Superpowers.screenshot()</strong> for high-powered screenshots. 
+    Enter multiple URLs (one per line), choose device & screenshot settings, 
+    and click <em>“Process All”</em> to capture. 
+    You can generate multiple formats (e.g. PNG & JPEG) per URL in a single batch.
+  </p>
+
+  <!-- Panel: 1) Batch Input -->
+  <div class="panel">
+    <h2>1) Enter URLs</h2>
+    <p>One URL per line. We’ll screenshot each, in your chosen formats below.</p>
+    <textarea id="urlList" placeholder="https://example.com&#10;https://google.com">
+https://www.fullstackoptimization.com/
+https://www.google.com/
+    </textarea>
+  </div>
+
+  <!-- Panel: 2) Device + Dimensions -->
+  <div class="panel">
+    <h2>2) Device & Dimensions</h2>
+    <div class="form-row">
+      <label>Preset:</label>
+      <select id="devicePreset">
+        <option value="">(Custom)</option>
+        <!-- Add more devices as needed -->
+        <option value="375,667">iPhone 8 (375×667)</option>
+        <option value="390,844">iPhone 12/13 (390×844)</option>
+        <option value="414,896">iPhone 12/13 Pro Max (414×896)</option>
+        <option value="360,740">Galaxy S9 (360×740)</option>
+        <option value="800,600">Desktop 800×600</option>
+        <option value="1024,768">Desktop 1024×768</option>
+        <option value="1280,800">Desktop 1280×800</option>
+        <option value="1920,1080">Desktop 1920×1080</option>
+      </select>
+    </div>
+    <div class="form-row device-row">
+      <label style="width:auto;">Width:</label>
+      <input type="number" id="widthInput" placeholder="(optional)" style="width:80px;" />
+      <label style="width:auto;">Height:</label>
+      <input type="number" id="heightInput" placeholder="(optional)" style="width:80px;" />
+      <small>If both >0, a new window is created at that size.</small>
+    </div>
+  </div>
+
+  <!-- Panel: 3) Screenshot Settings -->
+  <div class="panel">
+    <h2>3) Screenshot Settings</h2>
+    <div class="form-row">
+      <label>Formats:</label>
+      <div>
+        <label><input type="checkbox" class="formatCheck" value="png" checked /> PNG</label>
+        <label><input type="checkbox" class="formatCheck" value="jpeg" /> JPEG</label>
+      </div>
+    </div>
+    <div class="form-row">
+      <label>Capture:</label>
+      <select id="captureMode">
+        <option value="visible">Visible</option>
+        <option value="full">Full Page</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <label>Quality:</label>
+      <input type="range" id="qualityRange" min="0" max="100" value="100" />
+      <span id="qualityVal">100</span>
+      <small>(applies only to JPEG)</small>
+    </div>
+    <div class="form-row">
+      <label>Delay (ms):</label>
+      <input type="range" id="delayRange" min="0" max="5000" step="500" value="1000" />
+      <span id="delayVal">1000</span>
+      <small>Wait after focusing tab</small>
+    </div>
+    <div class="form-row">
+      <label>Close tab?</label>
+      <input type="checkbox" id="closeTabCk" checked />
+      <small>If checked, we auto-close each created tab/window after capturing</small>
+    </div>
+  </div>
+
+  <!-- Panel: Advanced: CSS/JS Injection -->
+  <div class="panel">
+    <h2>Advanced: CSS/JS Injection</h2>
+    <div class="form-row">
+      <label>Inject CSS:</label>
+      <select id="injectCssPreset" style="margin-bottom:8px;">
+        <option value="">None</option>
+        <option value="invert">Invert Colors</option>
+        <option value="grayscale">Grayscale</option>
+        <option value="sepia">Sepia</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <textarea id="injectCss" placeholder="Custom CSS to inject..." 
+        style="width:100%;height:60px;font-family:monospace;"></textarea>
+    </div>
+    
+    <div class="form-row" style="margin-top:16px;">
+      <label>Inject JS:</label>
+      <select id="injectJsPreset" style="margin-bottom:8px;">
+        <option value="">None</option>
+        
+        <!-- Visual Debugging -->
+        <option value="highlight">Highlight Text</option>
+        <option value="removeAds">Remove Ad Classes</option>
+        <option value="addBorders">Debug Borders</option>
+        <option value="showSuperpowersOverlay">Show Superpowers Active</option>
+        <option value="visualizeDOMTree">Visualize DOM Tree</option>
+        
+        <!-- Performance & Metrics -->
+        <option value="showPageMetrics">Show Page Metrics</option>
+        <option value="showPerformanceMetrics">Show Performance Stats</option>
+        
+        <!-- Analysis Tools -->
+        <option value="checkBrokenLinks">Check Broken Links</option>
+        <option value="debugEventLogger">Event Logger</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <textarea id="injectJs" placeholder="Custom JavaScript to inject..." 
+        style="width:100%;height:60px;font-family:monospace;"></textarea>
+    </div>
+  </div>
+
+  <!-- Panel: 4) Action Buttons & Table of Results -->
+  <div class="panel">
+    <h2>4) Process Screenshots</h2>
+    <button class="btn" id="processBtn">Process All</button>
+    <button class="btn" id="clearBtn">Clear Results</button>
+    <!-- Add timestamp of this batch -->
+    <div id="batchInfo" style="display:none; margin-top:10px; padding:5px; background:#f5f5f5; border-radius:4px;">
+      <strong>Latest Batch:</strong> <span id="batchTimestamp"></span>
+    </div>
+    <table id="resultsTable" style="display:none;">
+      <thead>
+        <tr>
+          <th>URL</th>
+          <th>Format</th>
+          <th>Resolution</th>
+          <th>Capture Mode</th>
+          <th>Screenshot</th>
+        </tr>
+      </thead>
+      <tbody id="resultsBody"></tbody>
+    </table>
+  </div>
+
+  <!-- Debug Log -->
+  <div class="panel" style="padding: 10px;">
+    <h2>Debug Log</h2>
+    <div class="debugLog" id="debugLog">
+      <div class="title">Status &amp; Errors</div>
+    </div>
+  </div>
+
+<script>
+/*************************************************************
+ * 1) Utility: Debug log
+ *************************************************************/
+function log(message, level="info") {
+  const debugDiv = document.getElementById("debugLog");
+  const time = new Date().toLocaleTimeString();
+  const line = document.createElement("div");
+  line.textContent = `[${time}][${level}] ${message}`;
+  debugDiv.appendChild(line);
+  debugDiv.scrollTop = debugDiv.scrollHeight;
+
+  // If Superpowers.debugLog is available, also log to sidepanel
+  if (window.Superpowers?.debugLog) {
+    window.Superpowers.debugLog(message, level);
+  }
+}
+
+/*************************************************************
+ * 2) Grab references
+ *************************************************************/
+const devicePreset = document.getElementById("devicePreset");
+const widthInput   = document.getElementById("widthInput");
+const heightInput  = document.getElementById("heightInput");
+
+const formatChecks = document.querySelectorAll(".formatCheck");
+const captureMode  = document.getElementById("captureMode");
+const qualityRange = document.getElementById("qualityRange");
+const qualityVal   = document.getElementById("qualityVal");
+const delayRange   = document.getElementById("delayRange");
+const delayVal     = document.getElementById("delayVal");
+const closeTabCk   = document.getElementById("closeTabCk");
+
+const urlList      = document.getElementById("urlList");
+const processBtn   = document.getElementById("processBtn");
+const clearBtn     = document.getElementById("clearBtn");
+const resultsTable = document.getElementById("resultsTable");
+const resultsBody  = document.getElementById("resultsBody");
+
+/*************************************************************
+ * 3) Handle preset selections for CSS/JS
+ *************************************************************/
+const cssPresets = {
+  invert: `html { filter: invert(1); }`,
+  grayscale: `html { filter: grayscale(1); }`,
+  sepia: `html { filter: sepia(1); }`
+};
+document.getElementById('injectCssPreset').addEventListener('change', (e) => {
+  document.getElementById('injectCss').value = cssPresets[e.target.value] || '';
+});
+
+const jsPresets = {
+  highlight: `document.body.innerHTML = document.body.innerHTML.replace(/(\\b\\w+\\b)/g, '<mark>$1</mark>');`,
+  removeAds: `document.querySelectorAll('[class*="ad"],[class*="sponsor"],[id*="ad"]').forEach(el => el.remove());`,
+  addBorders: `document.querySelectorAll('*').forEach(el => el.style.outline = '1px solid ' + '#' + Math.floor(Math.random()*16777215).toString(16));`,
+  showSuperpowersOverlay: `
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(74,158,255,0.9);color:white;padding:20px;border-radius:10px;font-size:24px;z-index:999999;font-family:system-ui;box-shadow:0 4px 12px rgba(0,0,0,0.2);';
+    overlay.innerHTML = '🦸 Superpowers Active!';
+    document.body.appendChild(overlay);
+    setTimeout(() => overlay.remove(), 3000);
+  `,
+  showPageMetrics: `
+    const metrics = {
+      elements: document.getElementsByTagName('*').length,
+      images: document.images.length,
+      scripts: document.scripts.length,
+      links: document.links.length,
+      memory: performance.memory?.usedJSHeapSize 
+        ? Math.round(performance.memory.usedJSHeapSize/1024/1024) + 'MB' 
+        : 'N/A'
+    };
+    console.table(metrics);
+  `,
+  debugEventLogger: `
+    const events = ['click', 'mouseover', 'submit', 'change'];
+    const logger = document.createElement('div');
+    logger.style.cssText = 'position:fixed;bottom:10px;right:10px;background:#333;color:#fff;padding:10px;font-family:monospace;max-height:200px;overflow-y:auto;z-index:999999;';
+    document.body.appendChild(logger);
+    events.forEach(type => {
+      document.addEventListener(type, e => {
+        logger.innerHTML = \`<div>\${new Date().toISOString()} - \${type} on \${e.target.tagName}\</div>\${logger.innerHTML}\`;
+      });
+    });
+  `,
+  checkBrokenLinks: `
+    [...document.links].forEach(async link => {
+      try {
+        const resp = await fetch(link.href, {mode:'no-cors'});
+        link.style.outline = resp.ok ? '2px solid green' : '2px solid red';
+      } catch(e) {
+        link.style.outline = '2px solid red';
+      }
+    });
+  `,
+  showPerformanceMetrics: `
+    const perf = performance.getEntriesByType('navigation')[0];
+    const stats = {
+      'DNS Lookup': perf.domainLookupEnd - perf.domainLookupStart + 'ms',
+      'Connection Time': perf.connectEnd - perf.connectStart + 'ms',
+      'Response Time': perf.responseEnd - perf.responseStart + 'ms',
+      'DOM Load': perf.domContentLoadedEventEnd - perf.navigationStart + 'ms',
+      'Page Load': perf.loadEventEnd - perf.navigationStart + 'ms'
+    };
+    console.table(stats);
+  `,
+  visualizeDOMTree: `
+    const colors = ['#ff6b6b','#4ecdc4','#45b7d1','#96ceb4','#ffeead'];
+    function colorize(el, depth = 0) {
+      el.style.outline = \`2px solid \${colors[depth % colors.length]}\`;
+      el.style.outlineOffset = '-1px';
+      [...el.children].forEach(child => colorize(child, depth + 1));
+    }
+    colorize(document.body);
+  `
+};
+document.getElementById('injectJsPreset').addEventListener('change', (e) => {
+  document.getElementById('injectJs').value = jsPresets[e.target.value] || '';
+});
+
+/*************************************************************
+ * 4) Show real-time slider values
+ *************************************************************/
+qualityRange.addEventListener("input", () => {
+  qualityVal.textContent = qualityRange.value;
+});
+delayRange.addEventListener("input", () => {
+  delayVal.textContent = delayRange.value;
+});
+
+/*************************************************************
+ * 5) On "Process All" => run captures SEQUENTIALLY
+ *************************************************************/
+processBtn.addEventListener("click", async () => {
+  if (!window.Superpowers?.screenshot) {
+    alert("Superpowers.screenshot() not available. Is the extension active?");
+    log("Superpowers.screenshot() not found", "error");
+    return;
+  }
+
+  // 1) Gather user inputs
+  const lines = urlList.value
+    .split("\n")
+    .map(x => x.trim())
+    .filter(x => x);
+  if (lines.length === 0) {
+    alert("No URLs entered!");
+    return;
+  }
+
+  // Which formats?
+  const chosenFormats = Array.from(formatChecks)
+    .filter(ch => ch.checked)
+    .map(ch => ch.value);
+  if (chosenFormats.length === 0) {
+    alert("Please select at least one format (PNG/JPEG).");
+    return;
+  }
+
+  // Get device / window
+  const wVal = parseInt(widthInput.value, 10) || 0;
+  const hVal = parseInt(heightInput.value, 10) || 0;
+  const capMode = captureMode.value;     // "visible"|"full"
+  const qVal    = parseInt(qualityRange.value, 10);
+  const dVal    = parseInt(delayRange.value, 10);
+  const closeTab= closeTabCk.checked;
+
+  // Add injection to config if provided:
+  const injectCss = document.getElementById('injectCss').value.trim();
+  const injectJs = document.getElementById('injectJs').value.trim();
+
+  // Show the table if hidden
+  resultsTable.style.display = 'table';
+  
+  // Update batch timestamp
+  const batchTime = new Date().toLocaleString();
+  document.getElementById('batchTimestamp').textContent = batchTime;
+  document.getElementById('batchInfo').style.display = 'block';
+
+  // We'll store the "jobs" in an array of objects
+  const jobs = [];
+  lines.forEach((url) => {
+    chosenFormats.forEach((fmt) => {
+      jobs.push({ url, fmt });
+    });
+  });
+
+  // Create a document fragment for the new results
+  const newResultsFrag = document.createDocumentFragment();
+
+  // We'll store rows in an array so we can fill them after each screenshot
+  const rowEntries = [];
+
+  // 6) Build a row for each job, add to a fragment (but no screenshot yet)
+  for (const job of jobs) {
+    const row = document.createElement('tr');
+    const resolution = (wVal > 0 && hVal > 0) ? `${wVal}x${hVal}` : "(no window sizing)";
+
+    // Fill row content
+    row.innerHTML = `
+      <td>
+        ${job.url}
+        <div class="timestamp" style="font-size:0.8em; color:#666;">
+          ${batchTime}
+        </div>
+      </td>
+      <td>${job.fmt.toUpperCase()}</td>
+      <td>${resolution}</td>
+      <td>${capMode}</td>
+      <td class="resultCell">
+        <em>Pending...</em>
+      </td>
+    `;
+
+    newResultsFrag.appendChild(row);
+    rowEntries.push({ row, job });
+  }
+
+  // Prepend these new rows at once
+  resultsBody.insertBefore(newResultsFrag, resultsBody.firstChild);
+
+  // 7) Process each job in sequence
+  for (const entry of rowEntries) {
+    const { row, job } = entry;
+    const cell = row.querySelector(".resultCell");
+    cell.innerHTML = `<em>Processing...</em>`;
+
+    // Build the screenshot config
+    const config = {
+      url: job.url,
+      captureMode: capMode,
+      delayMs: dVal,
+      keepTabOpen: !closeTab,
+      injectCss: injectCss || undefined,
+      injectJs: injectJs || undefined
+    };
+    // Format
+    if (job.fmt === "jpeg") {
+      config.format = "jpeg";
+      if (qVal !== 100) config.quality = qVal;
+    } else {
+      config.format = "png";
+    }
+    // Resolution
+    if (wVal > 0) config.width  = wVal;
+    if (hVal > 0) config.height = hVal;
+
+    try {
+      log(`Processing URL=${job.url}, format=${job.fmt}...`);
+      const dataUrl = await window.Superpowers.screenshot(config);
+      log(`Screenshot success for url=${job.url} [${job.fmt}]`, "info");
+
+      // Insert screenshot preview
+      cell.innerHTML = "";
+      const img = document.createElement("img");
+      img.src = dataUrl;
+      img.className = "screenshot-img";
+      cell.appendChild(img);
+
+      // Download link
+      const dlLink = document.createElement("a");
+      dlLink.textContent = "Download";
+      dlLink.href = dataUrl;
+      dlLink.download = `${cleanFilename(job.url)}-${job.fmt}.png`; // or .jpg
+      dlLink.style.display = "inline-block";
+      dlLink.style.marginTop = "4px";
+      dlLink.style.marginRight = "8px";
+      cell.appendChild(dlLink);
+
+      // Copy-Data-URL button
+      const copyBtn = document.createElement("button");
+      copyBtn.textContent = "Copy Data URL";
+      copyBtn.style.fontSize = "0.8em";
+      copyBtn.addEventListener("click", () => {
+        navigator.clipboard.writeText(dataUrl)
+          .then(() => {
+            log("Data URL copied to clipboard.");
+            alert("Data URL copied!");
+          })
+          .catch(e => {
+            log("Clipboard error: " + e.message, "error");
+            alert("Failed copying data URL: " + e.message);
+          });
+      });
+      cell.appendChild(copyBtn);
+
+    } catch (err) {
+      log(`Error capturing url=${job.url} [${job.fmt}]: ${err.message}`, "error");
+      cell.innerHTML = `<span style="color:red;">Failed: ${err.message}</span>`;
+    }
+  }
+
+  log("Batch complete!");
+});
+
+/*************************************************************
+ * 8) Helper: sanitize filename from URL
+ *************************************************************/
+function cleanFilename(url) {
+  return url
+    .replace(/(^\w+:|^)\/\//, "")  // remove protocol
+    .replace(/[^a-z0-9_\.-]/gi, "_");
+}
+
+/*************************************************************
+ * 9) Clear button
+ *************************************************************/
+clearBtn.addEventListener('click', () => {
+  resultsBody.innerHTML = '';
+  resultsTable.style.display = 'none';
+  document.getElementById('batchInfo').style.display = 'none';
+  log('Results cleared');
+});
+
+/*************************************************************
+ * 10) Device Preset => auto-fill width/height
+ *************************************************************/
+devicePreset.addEventListener("change", () => {
+  const val = devicePreset.value;
+  if (!val) {
+    widthInput.value  = "";
+    heightInput.value = "";
+  } else {
+    const [w, h] = val.split(",");
+    widthInput.value  = w;
+    heightInput.value = h;
+  }
+});
+</script>
+</body>
+</html>

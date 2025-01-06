@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <meta name="superpowers" content="enabled"/>
+  <title>SuperOpenAI Brainstorming Demo</title>
+  <style>
+    body {
+      font-family: sans-serif; 
+      margin: 0; 
+      padding: 20px; 
+      background: #f9f9f9;
+    }
+    h1 { margin-top: 0; }
+    #setupWarning {
+      background: #fee;
+      border: 1px solid #fcc;
+      padding: 15px;
+      margin-bottom: 15px;
+      color: #d33;
+    }
+    #chatContainer {
+      max-width: 600px;
+      margin: 0 auto;
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      padding: 15px;
+    }
+    #chatLog {
+      max-height: 400px;
+      overflow-y: auto;
+      margin-bottom: 10px;
+      border: 1px solid #eee;
+      padding: 10px;
+    }
+    .chat-message {
+      margin-bottom: 12px;
+    }
+    .role-user {
+      font-weight: bold;
+      color: #008;
+    }
+    .role-assistant {
+      font-weight: bold;
+      color: #080;
+    }
+    #userInput {
+      width: 100%;
+      box-sizing: border-box;
+      font-size: 1em;
+      padding: 8px;
+    }
+    button {
+      padding: 8px 14px;
+      cursor: pointer;
+      font-size: 1em;
+      margin-top: 6px;
+    }
+    .loadingIndicator {
+      font-style: italic;
+      color: #999;
+    }
+  </style>
+</head>
+<body>
+  <h1>SuperOpenAI Brainstorming Chat</h1>
+
+  <!-- This warning shows if OPENAI_KEY is not set -->
+  <div id="setupWarning" style="display:none;">
+    <strong>OPENAI_KEY not found!</strong>
+    <p>
+      Please open the extension’s sidepanel and set the environment variable named <code>OPENAI_KEY</code> 
+      to your OpenAI API key. Then reload this page.
+    </p>
+  </div>
+
+  <!-- The main chat container, hidden if key is missing -->
+  <div id="chatContainer" style="display:none;">
+    <div id="chatLog"></div>
+    
+    <textarea id="userInput" rows="3" placeholder="Type a question or idea..."></textarea>
+    <br>
+    <button id="sendBtn">Send</button>
+    <div id="loading" class="loadingIndicator" style="display:none;">Thinking...</div>
+  </div>
+
+  <script>
+    let chatLogEl, setupWarningEl, chatContainerEl, userInputEl, sendBtnEl, loadingEl;
+    let conversation = []; // We'll store messages: e.g. {role:'user', content:'...'}, {role:'assistant',content:'...'}
+
+    async function init() {
+      // Grab references
+      setupWarningEl = document.getElementById("setupWarning");
+      chatContainerEl = document.getElementById("chatContainer");
+      chatLogEl = document.getElementById("chatLog");
+      userInputEl = document.getElementById("userInput");
+      sendBtnEl = document.getElementById("sendBtn");
+      loadingEl = document.getElementById("loading");
+
+      // Wait for Superpowers to load (like other demos do)
+      await waitForSuperpowers();
+
+      // 1) Check environment variable "OPENAI_KEY"
+      let envVars;
+      try {
+        envVars = await window.Superpowers.getEnvVars();
+      } catch (err) {
+        console.error("Error fetching superenv vars:", err);
+        setupWarningEl.style.display = "block";
+        setupWarningEl.innerHTML += "<p><em>Additionally, an error occurred retrieving environment variables.</em></p>";
+        return;
+      }
+
+      const openaiKey = envVars["OPENAI_KEY"];
+      if (!openaiKey) {
+        // Key missing => show instructions, hide chat
+        setupWarningEl.style.display = "block";
+        chatContainerEl.style.display = "none";
+      } else {
+        // Key found => show chat
+        setupWarningEl.style.display = "none";
+        chatContainerEl.style.display = "block";
+        // Now user can chat
+      }
+
+      // Hook up "Send" button
+      sendBtnEl.addEventListener("click", onSend);
+    }
+
+    // Called when user clicks "Send"
+    async function onSend() {
+      const userText = userInputEl.value.trim();
+      if (!userText) return;
+      // Add to conversation
+      conversation.push({ role: "user", content: userText });
+      userInputEl.value = "";
+      renderChat();
+
+      // Call Superpowers.openai.chat
+      loadingEl.style.display = "inline";
+      try {
+        const response = await Superpowers.openai.chat({
+          model: "gpt-4o-mini",
+          messages: conversation,
+          temperature: 0.7,
+          max_completion_tokens: 256
+        });
+        // The response should have {choices: [...], usage: {...}, etc.}
+        // Typically response.choices[0].message is the assistant answer
+        const assistantMsg = response.choices?.[0]?.message?.content || "(No response)";
+        conversation.push({ role: "assistant", content: assistantMsg });
+        renderChat();
+      } catch (err) {
+        console.error("Chat error:", err);
+        alert("OpenAI call failed: " + err);
+      } finally {
+        loadingEl.style.display = "none";
+      }
+    }
+
+    // Rerender the chat
+    function renderChat() {
+      chatLogEl.innerHTML = "";
+      conversation.forEach(msg => {
+        const div = document.createElement("div");
+        div.className = "chat-message";
+        let roleClass = msg.role === "user" ? "role-user" : "role-assistant";
+        div.innerHTML = `
+          <div class="${roleClass}">${msg.role.toUpperCase()}:</div>
+          <div>${escapeHtml(msg.content)}</div>
+        `;
+        chatLogEl.appendChild(div);
+      });
+      chatLogEl.scrollTop = chatLogEl.scrollHeight; // auto-scroll
+    }
+
+    // Wait for "Superpowers" object
+    function waitForSuperpowers() {
+      return new Promise((resolve) => {
+        if (window.Superpowers && window.Superpowers.getEnvVars && window.Superpowers.openai) {
+          return resolve();
+        }
+        const checkInterval = setInterval(() => {
+          if (window.Superpowers && window.Superpowers.getEnvVars && window.Superpowers.openai) {
+            clearInterval(checkInterval);
+            resolve();
+          }
+        }, 100);
+      });
+    }
+
+    // Escape HTML to avoid injection
+    function escapeHtml(str) {
+      return str
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    // Start
+    document.addEventListener("DOMContentLoaded", init);
+  </script>
+</body>
+</html>

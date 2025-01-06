@@ -1,0 +1,76 @@
+{
+  "plugins": [
+    {
+      "name": "superfetch",
+      "extensionPath": "plugins/superfetch/extension.js",
+      "contentScript": "plugins/superfetch/content.js",
+      "pageScript": "plugins/superfetch/page.js"
+    },
+    {
+      "name": "superenv",
+      "extensionPath": "plugins/superenv/extension.js",
+      "contentScript": "plugins/superenv/content.js",
+      "pageScript": "plugins/superenv/page.js"
+    },
+    {
+      "name": "superdebug",
+      "extensionPath": "plugins/superdebug/extension.js",
+      "contentScript": "plugins/superdebug/content.js",
+      "pageScript": "plugins/superdebug/page.js"
+    },
+    {
+      "name": "superpages",
+      "extensionPath": "plugins/superpages/extension.js",
+      "contentScript": "plugins/superpages/content.js",
+      "pageScript": "plugins/superpages/page.js"
+    },
+    {
+      "name": "superping",
+      "extensionPath": "plugins/superping/extension.js",
+      "contentScript": "plugins/superping/content.js",
+      "pageScript": "plugins/superping/page.js"
+    },
+    {
+      "name": "superpingasync",
+      "extensionPath": "plugins/superpingasync/extension.js",
+      "contentScript": "plugins/superpingasync/content.js",
+      "pageScript": "plugins/superpingasync/page.js"
+    },
+    {
+      "name": "supertabs",
+      "extensionPath": "plugins/supertabs/extension.js",
+      "contentScript": "plugins/supertabs/content.js", 
+      "pageScript": "plugins/supertabs/page.js"
+    },
+    {
+      "name": "superscreenshot",
+      "extensionPath": "plugins/superscreenshot/extension.js",
+      "contentScript": "plugins/superscreenshot/content.js",
+      "pageScript": "plugins/superscreenshot/page.js"
+    },
+    {
+      "name": "superruntime",
+      "extensionPath": "plugins/superruntime/extension.js",
+      "contentScript": "plugins/superruntime/content.js",
+      "pageScript": "plugins/superruntime/page.js"
+    },
+    {
+      "name": "superwebrequest",
+      "extensionPath": "plugins/superwebrequest/extension.js",
+      "contentScript": "plugins/superwebrequest/content.js",
+      "pageScript": "plugins/superwebrequest/page.js"
+    },
+    {
+      "name": "superopenai",
+      "extensionPath": "plugins/superopenai/extension.js",
+      "contentScript": "plugins/superopenai/content.js",
+      "pageScript": "plugins/superopenai/page.js"
+    },
+    {
+      "name": "superasyncrandominteger",
+      "extensionPath": "plugins/superasyncrandominteger/extension.js",
+      "contentScript": "plugins/superasyncrandominteger/content.js",
+      "pageScript": "plugins/superasyncrandominteger/page.js"
+    }
+  ]
+}

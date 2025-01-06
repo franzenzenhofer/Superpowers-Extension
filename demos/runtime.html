@@ -1,0 +1,177 @@
+<!-- demos/runtime.html -->
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="superpowers" content="enabled">
+  <title>Chrome Runtime API Tester</title>
+  <style>
+    body {
+      font-family: system-ui;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .panel {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .method-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 10px;
+    }
+    button {
+      background: #1a73e8;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: 0.3s opacity;
+    }
+    button:hover { opacity: 0.9; }
+    #eventLog, #methodLog {
+      background: #1e1e1e;
+      color: #5aff5a;
+      padding: 15px;
+      border-radius: 4px;
+      font-family: monospace;
+      height: 200px;
+      overflow-y: auto;
+      margin-top: 10px;
+    }
+    .event-entry { margin: 5px 0; }
+    .event-time { color: #888; }
+    .event-name { color: #4fc3f7; }
+    .event-data { color: #ff9800; }
+    .error { color: #ff5252; }
+  </style>
+</head>
+<body>
+  <h1>🚀 Chrome Runtime API Tester</h1>
+
+  <div class="panel">
+    <h2>Event Monitoring</h2>
+    <p>Listen for chrome.runtime events:</p>
+    <div>
+      <button onclick="toggleEvents(this)">Start Event Monitoring</button>
+      <button onclick="clearEventLog()">Clear Events</button>
+    </div>
+    <div id="eventLog"></div>
+  </div>
+
+  <div class="panel">
+    <h2>Method Testing</h2>
+    <p>Test various chrome.runtime methods:</p>
+    <div class="method-grid">
+      <button onclick="testMethod('getManifest')">getManifest()</button>
+      <button onclick="testMethod('getPlatformInfo')">getPlatformInfo()</button>
+      <button onclick="testMethod('getURL', 'manifest.json')">getURL()</button>
+      <button onclick="testMethod('id')">Get ID</button>
+      <button onclick="testMethod('openOptionsPage')">openOptionsPage()</button>
+      <button onclick="testMethod('sendMessage', {test: true})">sendMessage()</button>
+    </div>
+    <div id="methodLog"></div>
+  </div>
+
+  <script>
+    let monitoring = false;
+    const eventHandlers = {};
+    const RUNTIME_EVENTS = [
+      'onStartup',
+      'onInstalled',
+      'onSuspend',
+      'onSuspendCanceled',
+      'onUpdateAvailable',
+      'onConnect',
+      'onConnectExternal',
+      'onMessage',
+      'onMessageExternal'
+    ];
+
+    function logEvent(name, data) {
+      const eventLog = document.getElementById('eventLog');
+      const time = new Date().toLocaleTimeString();
+      eventLog.innerHTML += `
+        <div class="event-entry">
+          <span class="event-time">[${time}]</span>
+          <span class="event-name">${name}</span>
+          <span class="event-data">${JSON.stringify(data)}</span>
+        </div>
+      `;
+      eventLog.scrollTop = eventLog.scrollHeight;
+    }
+
+    function logMethod(name, result, error) {
+      const methodLog = document.getElementById('methodLog');
+      const time = new Date().toLocaleTimeString();
+      methodLog.innerHTML += `
+        <div class="event-entry">
+          <span class="event-time">[${time}]</span>
+          <span class="event-name">${name}</span>
+          <span class="${error ? 'error' : 'event-data'}">
+            ${error ? '❌ ' + error : '✅ ' + JSON.stringify(result)}
+          </span>
+        </div>
+      `;
+      methodLog.scrollTop = methodLog.scrollHeight;
+    }
+
+    function toggleEvents(btn) {
+      if (!window.Superpowers?.runtime) {
+        alert('Superpowers.runtime not ready!');
+        return;
+      }
+
+      monitoring = !monitoring;
+      btn.textContent = monitoring ? 'Stop Event Monitoring' : 'Start Event Monitoring';
+
+      if (monitoring) {
+        RUNTIME_EVENTS.forEach(evt => {
+          const handler = (...args) => logEvent(evt, args);
+          eventHandlers[evt] = handler;
+          window.Superpowers.runtime.on(evt, handler);
+        });
+      } else {
+        RUNTIME_EVENTS.forEach(evt => {
+          if (eventHandlers[evt]) {
+            window.Superpowers.runtime.off(evt, eventHandlers[evt]);
+            delete eventHandlers[evt];
+          }
+        });
+      }
+    }
+
+    function clearEventLog() {
+      document.getElementById('eventLog').innerHTML = '';
+    }
+
+    async function testMethod(method, ...args) {
+      if (!window.Superpowers?.runtime) {
+        alert('Superpowers.runtime not ready!');
+        return;
+      }
+
+      try {
+        const result = await window.Superpowers.runtime[method](...args);
+        logMethod(method, result);
+      } catch (err) {
+        logMethod(method, null, err.message);
+      }
+    }
+
+    // Initialize
+    (async () => {
+      while (!window.Superpowers?.runtime) {
+        await new Promise(r => setTimeout(r, 100));
+      }
+      document.querySelector('h1').textContent += ' (Ready!)';
+    })();
+  </script>
+</body>
+</html>
