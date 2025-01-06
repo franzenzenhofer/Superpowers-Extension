@@ -3,151 +3,244 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="superpowers" content="enabled"/>
-  <title>SuperOpenAI Brainstorming Demo</title>
+  <title>SuperOpenAI Brainstorming Assistant</title>
   <style>
     body {
-      font-family: sans-serif; 
-      margin: 0; 
-      padding: 20px; 
-      background: #f9f9f9;
+      font-family: system-ui, sans-serif;
+      line-height: 1.5;
+      margin: 0;
+      padding: 20px;
+      background: #f0f4f8;
     }
-    h1 { margin-top: 0; }
-    #setupWarning {
-      background: #fee;
-      border: 1px solid #fcc;
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    #modelInfo {
+      background: #e3f2fd;
+      border-radius: 8px;
       padding: 15px;
-      margin-bottom: 15px;
-      color: #d33;
+      margin-bottom: 20px;
+    }
+    #setupWarning {
+      background: #ffebee;
+      border-radius: 8px;
+      padding: 15px;
+      margin-bottom: 20px;
+      color: #c62828;
     }
     #chatContainer {
-      max-width: 600px;
-      margin: 0 auto;
-      background: #fff;
-      border: 1px solid #ddd;
-      border-radius: 6px;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      padding: 20px;
+    }
+    #topicArea {
+      margin-bottom: 20px;
       padding: 15px;
+      background: #f5f5f5;
+      border-radius: 8px;
+    }
+    #modelSelect {
+      width: 100%;
+      padding: 8px;
+      margin-bottom: 10px;
     }
     #chatLog {
-      max-height: 400px;
+      max-height: 500px;
       overflow-y: auto;
-      margin-bottom: 10px;
-      border: 1px solid #eee;
+      margin-bottom: 20px;
       padding: 10px;
+      border: 1px solid #e0e0e0;
+      border-radius: 8px;
     }
     .chat-message {
-      margin-bottom: 12px;
+      margin-bottom: 15px;
+      padding: 10px;
+      border-radius: 6px;
     }
     .role-user {
-      font-weight: bold;
-      color: #008;
+      background: #f3f4f6;
     }
     .role-assistant {
-      font-weight: bold;
-      color: #080;
+      background: #f0f9ff;
+    }
+    .message-header {
+      font-weight: 600;
+      color: #1a237e;
+      margin-bottom: 5px;
     }
     #userInput {
       width: 100%;
       box-sizing: border-box;
+      padding: 12px;
+      border: 1px solid #e0e0e0;
+      border-radius: 6px;
+      margin-bottom: 10px;
       font-size: 1em;
-      padding: 8px;
+    }
+    .button-group {
+      display: flex;
+      gap: 10px;
     }
     button {
-      padding: 8px 14px;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 6px;
       cursor: pointer;
       font-size: 1em;
-      margin-top: 6px;
+      background: #1976d2;
+      color: white;
+      transition: background 0.2s;
+    }
+    button:hover {
+      background: #1565c0;
+    }
+    button:disabled {
+      background: #90caf9;
+      cursor: not-allowed;
     }
     .loadingIndicator {
+      color: #666;
       font-style: italic;
-      color: #999;
     }
   </style>
 </head>
 <body>
-  <h1>SuperOpenAI Brainstorming Chat</h1>
-
-  <!-- This warning shows if OPENAI_KEY is not set -->
-  <div id="setupWarning" style="display:none;">
-    <strong>OPENAI_KEY not found!</strong>
-    <p>
-      Please open the extension’s sidepanel and set the environment variable named <code>OPENAI_KEY</code> 
-      to your OpenAI API key. Then reload this page.
-    </p>
-  </div>
-
-  <!-- The main chat container, hidden if key is missing -->
-  <div id="chatContainer" style="display:none;">
-    <div id="chatLog"></div>
+  <div class="container">
+    <h1>SuperOpenAI Brainstorming Assistant</h1>
     
-    <textarea id="userInput" rows="3" placeholder="Type a question or idea..."></textarea>
-    <br>
-    <button id="sendBtn">Send</button>
-    <div id="loading" class="loadingIndicator" style="display:none;">Thinking...</div>
+    <div id="modelInfo">
+      <h3>Available Models</h3>
+      <div id="modelList">Loading available models...</div>
+    </div>
+
+    <div id="setupWarning" style="display:none;">
+      <strong>⚠️ OPENAI_KEY not configured!</strong>
+      <p>Please set your OpenAI API key in the extension's environment variables (OPENAI_KEY).</p>
+    </div>
+
+    <div id="chatContainer" style="display:none;">
+      <div id="topicArea">
+        <label for="modelSelect">Select Model:</label>
+        <select id="modelSelect"></select>
+        <div>
+          <label for="topicInput">Brainstorming Topic:</label>
+          <input type="text" id="topicInput" placeholder="Enter your topic here..." style="width: 100%; padding: 8px; margin-top: 5px;">
+          <button id="startBtn" style="margin-top: 10px;">Start Brainstorming</button>
+        </div>
+      </div>
+
+      <div id="chatLog"></div>
+      
+      <textarea id="userInput" rows="3" placeholder="Add to the brainstorm or ask questions..."></textarea>
+      <div class="button-group">
+        <button id="sendBtn">Send</button>
+        <button id="summarizeBtn">Summarize Ideas</button>
+      </div>
+      <div id="loading" class="loadingIndicator" style="display:none;">Thinking...</div>
+    </div>
   </div>
 
   <script>
-    let chatLogEl, setupWarningEl, chatContainerEl, userInputEl, sendBtnEl, loadingEl;
-    let conversation = []; // We'll store messages: e.g. {role:'user', content:'...'}, {role:'assistant',content:'...'}
+    const AVAILABLE_MODELS = {
+      'gpt-4o': 'Most capable model, best for complex tasks',
+      'gpt-4o-mini': 'Good balance of capability and speed'
+    };
+
+    let chatLogEl, setupWarningEl, chatContainerEl, userInputEl, sendBtnEl, loadingEl, 
+        modelSelectEl, topicInputEl, startBtnEl, summarizeBtnEl;
+    let conversation = [];
+    let currentTopic = '';
 
     async function init() {
-      // Grab references
+      // Get DOM elements
       setupWarningEl = document.getElementById("setupWarning");
       chatContainerEl = document.getElementById("chatContainer");
       chatLogEl = document.getElementById("chatLog");
       userInputEl = document.getElementById("userInput");
       sendBtnEl = document.getElementById("sendBtn");
       loadingEl = document.getElementById("loading");
+      modelSelectEl = document.getElementById("modelSelect");
+      topicInputEl = document.getElementById("topicInput");
+      startBtnEl = document.getElementById("startBtn");
+      summarizeBtnEl = document.getElementById("summarizeBtn");
 
-      // Wait for Superpowers to load (like other demos do)
       await waitForSuperpowers();
 
-      // 1) Check environment variable "OPENAI_KEY"
-      let envVars;
-      try {
-        envVars = await window.Superpowers.getEnvVars();
-      } catch (err) {
-        console.error("Error fetching superenv vars:", err);
-        setupWarningEl.style.display = "block";
-        setupWarningEl.innerHTML += "<p><em>Additionally, an error occurred retrieving environment variables.</em></p>";
-        return;
+      // Populate model select
+      for (const [modelId, description] of Object.entries(AVAILABLE_MODELS)) {
+        const option = document.createElement('option');
+        option.value = modelId;
+        option.text = `${modelId} - ${description}`;
+        modelSelectEl.appendChild(option);
       }
 
+      // Check for API key
+      const envVars = await window.Superpowers.getEnvVars();
       const openaiKey = envVars["OPENAI_KEY"];
+      
       if (!openaiKey) {
-        // Key missing => show instructions, hide chat
         setupWarningEl.style.display = "block";
         chatContainerEl.style.display = "none";
       } else {
-        // Key found => show chat
         setupWarningEl.style.display = "none";
         chatContainerEl.style.display = "block";
-        // Now user can chat
+        await window.Superpowers.OpenAI.setApiKey(openaiKey);
       }
 
-      // Hook up "Send" button
+      // Event listeners
+      startBtnEl.addEventListener("click", startBrainstorming);
       sendBtnEl.addEventListener("click", onSend);
+      summarizeBtnEl.addEventListener("click", summarizeIdeas);
+      
+      // Initially disable some buttons
+      sendBtnEl.disabled = true;
+      summarizeBtnEl.disabled = true;
     }
 
-    // Called when user clicks "Send"
-    async function onSend() {
-      const userText = userInputEl.value.trim();
-      if (!userText) return;
-      // Add to conversation
-      conversation.push({ role: "user", content: userText });
-      userInputEl.value = "";
-      renderChat();
+    async function startBrainstorming() {
+      const topic = topicInputEl.value.trim();
+      if (!topic) {
+        alert("Please enter a topic first!");
+        return;
+      }
 
-      // Call Superpowers.openai.chat
+      currentTopic = topic;
+      conversation = [];
+      chatLogEl.innerHTML = '';
+      sendBtnEl.disabled = false;
+      summarizeBtnEl.disabled = false;
+
+      const prompt = `Let's brainstorm ideas about: "${topic}". I'll be your brainstorming facilitator. 
+                     I'll start by suggesting 3 different perspectives or angles to explore this topic. 
+                     Then you can react, add your own ideas, or ask me to explore any direction further.`;
+
+      await sendMessage(prompt);
+    }
+
+    async function summarizeIdeas() {
+      const prompt = `Please summarize the key ideas we've discussed about "${currentTopic}" 
+                     into clear categories and highlight the most promising directions.`;
+      await sendMessage(prompt);
+    }
+
+    async function sendMessage(text) {
+      if (!text) return;
+      
+      conversation.push({ role: "user", content: text });
+      renderChat();
+      userInputEl.value = "";
+
       loadingEl.style.display = "inline";
       try {
-        const response = await Superpowers.openai.chat({
-          model: "gpt-4o-mini",
+        const response = await window.Superpowers.OpenAI.chatCompletion({
+          model: modelSelectEl.value,
           messages: conversation,
           temperature: 0.7,
-          max_completion_tokens: 256
+          max_tokens: 1000
         });
-        // The response should have {choices: [...], usage: {...}, etc.}
-        // Typically response.choices[0].message is the assistant answer
+
         const assistantMsg = response.choices?.[0]?.message?.content || "(No response)";
         conversation.push({ role: "assistant", content: assistantMsg });
         renderChat();
@@ -159,47 +252,46 @@
       }
     }
 
-    // Rerender the chat
+    async function onSend() {
+      const text = userInputEl.value.trim();
+      if (text) await sendMessage(text);
+    }
+
     function renderChat() {
       chatLogEl.innerHTML = "";
       conversation.forEach(msg => {
         const div = document.createElement("div");
-        div.className = "chat-message";
-        let roleClass = msg.role === "user" ? "role-user" : "role-assistant";
+        div.className = `chat-message role-${msg.role}`;
         div.innerHTML = `
-          <div class="${roleClass}">${msg.role.toUpperCase()}:</div>
+          <div class="message-header">${msg.role.toUpperCase()}</div>
           <div>${escapeHtml(msg.content)}</div>
         `;
         chatLogEl.appendChild(div);
       });
-      chatLogEl.scrollTop = chatLogEl.scrollHeight; // auto-scroll
+      chatLogEl.scrollTop = chatLogEl.scrollHeight;
     }
 
-    // Wait for "Superpowers" object
     function waitForSuperpowers() {
       return new Promise((resolve) => {
-        if (window.Superpowers && window.Superpowers.getEnvVars && window.Superpowers.openai) {
-          return resolve();
-        }
-        const checkInterval = setInterval(() => {
-          if (window.Superpowers && window.Superpowers.getEnvVars && window.Superpowers.openai) {
-            clearInterval(checkInterval);
+        if (window.Superpowers?.OpenAI) return resolve();
+        const check = setInterval(() => {
+          if (window.Superpowers?.OpenAI) {
+            clearInterval(check);
             resolve();
           }
         }, 100);
       });
     }
 
-    // Escape HTML to avoid injection
     function escapeHtml(str) {
       return str
         .replace(/&/g, "&amp;")
         .replace(/</g, "&lt;")
         .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;");
+        .replace(/"/g, "&quot;")
+        .replace(/\n/g, "<br>");
     }
 
-    // Start
     document.addEventListener("DOMContentLoaded", init);
   </script>
 </body>

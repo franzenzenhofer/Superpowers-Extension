@@ -2,7 +2,9 @@ import {
   handleChatCompletion,
   handleImageGeneration,
   handleStructuredCompletion,
-  handleFunctionCall
+  handleFunctionCall,
+  setApiKey,
+  setOrganizationId
 } from "./openai.js";
 
 export const superopenai_extension = {
@@ -17,6 +19,27 @@ export const superopenai_extension = {
       if (request.type !== "SUPEROPENAI_CALL") return false;
       const { requestId, payload } = request;
       console.log(`[superopenai_extension] #${requestId} => payload:`, payload);
+
+      // Handle configuration methods
+      if (payload.method === "setApiKey") {
+        try {
+          setApiKey(payload.key);
+          sendResponse({ success: true, result: "API key set" });
+        } catch (error) {
+          sendResponse({ success: false, error: error.message });
+        }
+        return false;
+      }
+
+      if (payload.method === "setOrganizationId") {
+        try {
+          setOrganizationId(payload.orgId);
+          sendResponse({ success: true, result: "Organization ID set" });
+        } catch (error) {
+          sendResponse({ success: false, error: error.message });
+        }
+        return false;
+      }
 
       if (payload.method === "test") {
         // Simulate async operation
