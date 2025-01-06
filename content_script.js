@@ -95,7 +95,10 @@ async function loadPlugins() {
         await import(modUrl);
         extensionDebugLog(`Plugin '${plugin.name}' contentScript imported`, "info");
       } catch (err) {
-        extensionDebugLog(`Error importing plugin '${plugin.name}' contentScript: ${err}`, "error");
+        console.error("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+        console.error(`[content_script.js] Plugin '${plugin.name}' FAILED to import contentScript!`);
+        console.error("Error details:", err);
+        console.error("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
       }
     }
 
@@ -110,7 +113,10 @@ async function loadPlugins() {
 
         extensionDebugLog(`Injected pageScript for plugin '${plugin.name}' => ${plugin.pageScript}`, "info");
       } catch (err) {
-        extensionDebugLog(`Error injecting pageScript for plugin '${plugin.name}': ${err}`, "error");
+        console.error("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+        console.error(`[content_script.js] Plugin '${plugin.name}' FAILED to inject pageScript!`);
+        console.error("Error details:", err);
+        console.error("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
       }
     }
   }

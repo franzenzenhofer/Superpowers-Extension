@@ -73,8 +73,7 @@ function finishRequest(request, status = 'completed', error = null) {
 }
 
 // ----------------------------------------------------------------------------
-// 2) Listen for messages (top-level). We do this once, so it re-registers
-//    every time the service worker is loaded.
+// 2) Listen for messages (top-level).
 // ----------------------------------------------------------------------------
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   // Bump count for debugging
@@ -160,19 +159,32 @@ async function initialize() {
   try {
     // Load & install plugin extensions
     const plugins = await initializePluginManager();
-    // Store plugins in DEBUG state
+
+    // Store them in DEBUG state
     DEBUG.state.plugins = plugins;
     DEBUG.state.isInitialized = true;
+
+    // Check if any plugin is inactive => big warning
+    const failures = Array.from(plugins.values()).filter(p => !p.active);
+    if (failures.length > 0) {
+      console.error("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+      console.error("[SW] WARNING: Some plugins failed to load:");
+      for (const fail of failures) {
+        console.error(` - ${fail.name} => ${fail.error || "Unknown error"}`);
+      }
+      console.error("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+    }
 
     const duration = Math.round(performance.now() - initStart);
     logSW(`Initialization complete in ${duration}ms`, DEBUG.LEVELS.INFO);
     logSW(`Active plugins: ${Array.from(plugins.keys()).join(', ')}`, DEBUG.LEVELS.INFO);
   } catch (error) {
+    // If we get here, plugin_manager had some unexpected meltdown outside the per-plugin handling
     logSW('Initialization failed', DEBUG.LEVELS.ERROR, {
       error,
       stack: error.stack
     });
-    throw error;
+    throw error; // In normal usage, we don't expect to reach here anymore
   }
 }
 
@@ -193,39 +205,34 @@ function setupSidePanelBehavior() {
 }
 
 // ----------------------------------------------------------------------------
-// 5) Immediately call `initialize()` at top-level so that
-//    the plugin listeners get registered on *every* load.
+// 5) Immediately call `initialize()` so that the plugin listeners get registered
 // ----------------------------------------------------------------------------
 (async () => {
   try {
     logSW("Immediate top-level initialization starting...", DEBUG.LEVELS.INFO);
-    await initialize();            // <-- crucial
-    setupSidePanelBehavior();      // optionally also top-level
+    await initialize();            
+    setupSidePanelBehavior();      
   } catch (error) {
     logSW("Immediate initialization error", DEBUG.LEVELS.ERROR, { error });
   }
 })();
 
 // ----------------------------------------------------------------------------
-// 6) We can still keep onInstalled/onStartup for logging or additional tasks
-//    (but do NOT rely on them to call initialize anymore).
+// 6) onInstalled/onStartup for logging or additional tasks
 // ----------------------------------------------------------------------------
 chrome.runtime.onInstalled.addListener((details) => {
   logSW('Extension installed or updated', DEBUG.LEVELS.INFO, {
     reason: details.reason,
     previousVersion: details.previousVersion
   });
-  // You can do version-check or upgrade logic here if needed
 });
 
 chrome.runtime.onStartup.addListener(() => {
   logSW("Extension startup (browser launched)", DEBUG.LEVELS.INFO);
-  // We don't *need* to call initialize again, because it's top-level now
 });
 
 // ----------------------------------------------------------------------------
-// 7) Periodic debug (optional). This runs every 30s and can keep the SW alive.
-//    If that leads to other issues, you can remove or reduce frequency.
+// 7) Periodic debug (optional).
 // ----------------------------------------------------------------------------
 setInterval(() => {
   logSW('Service Worker Status', DEBUG.LEVELS.DEBUG, {

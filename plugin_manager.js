@@ -16,7 +16,11 @@ import { superwebrequest_extension } from './plugins/superwebrequest/extension.j
 import { superasyncrandominteger_extension } from './plugins/superasyncrandominteger/extension.js';
 import { superopenai_extension } from './plugins/superopenai/extension.js';
 
-
+/**
+ * This plugin manager now loads each plugin in a robust manner:
+ * - If one fails, we catch that error, log a BIG WARNING, and continue with the rest.
+ * - We store each plugin’s status in a Map, including any error message.
+ */
 export async function initializePluginManager() {
   console.log("[plugin_manager] Starting initialization via ES module...");
 
@@ -26,73 +30,52 @@ export async function initializePluginManager() {
   };
 
   // Helper to register plugin status
-  function registerPlugin(plugin, status = true) {
+  function registerPlugin(plugin, status = true, error = null) {
     pluginContext.registeredPlugins.set(plugin.name, {
       name: plugin.name,
       active: status,
       installedAt: new Date().toISOString(),
-      lastChecked: new Date().toISOString()
+      lastChecked: new Date().toISOString(),
+      error: error ? (error.message || String(error)) : null
     });
-    console.log(`[plugin_manager] Plugin ${plugin.name} registered: ${status}`);
-  }
 
-  // Install plugins with status tracking
-  try {
-    // Superfetch
-    await superfetch_extension.install(pluginContext);
-    registerPlugin(superfetch_extension, true);
-
-    // Superenv
-    await superenv_extension.install(pluginContext);
-    registerPlugin(superenv_extension, true);
-
-    // Superdebug
-    await superdebug_extension.install(pluginContext);
-    registerPlugin(superdebug_extension, true);
-
-    // Superpages
-    await superpages_extension.install(pluginContext);
-    registerPlugin(superpages_extension, true);
-
-    // SUPERPING
-    await superping_extension.install(pluginContext);
-    registerPlugin(superping_extension, true);
-
-    // SUPERPINGASYNC
-    await superpingasync_extension.install(pluginContext);
-    registerPlugin(superpingasync_extension, true);
-
-    // SUPERSCREENSHOT
-    await superscreenshot_extension.install(pluginContext);
-    registerPlugin(superscreenshot_extension, true);
-
-    // SUPERTABS
-    await supertabs_extension.install(pluginContext);
-    registerPlugin(supertabs_extension, true);
-
-    // SUPER RUNTIME
-    await superruntime_extension.install(pluginContext);
-    registerPlugin(superruntime_extension, true);
-
-    // SUPER WEBREQUEST
-    await superwebrequest_extension.install(pluginContext);
-    registerPlugin(superwebrequest_extension, true);
-
-    // SUPERASYNC RANDOM INTEGER
-    await superasyncrandominteger_extension.install(pluginContext);
-    registerPlugin(superasyncrandominteger_extension, true);
-
-    // SUPEROPENAI
-    await superopenai_extension.install(pluginContext);
-    registerPlugin(superopenai_extension, true);
-
-    console.log("[plugin_manager] All plugins installed successfully");
-    return pluginContext.registeredPlugins;
-  } catch (err) {
-    console.error("[plugin_manager] Plugin initialization error:", err);
-    if (err.pluginName) {
-      registerPlugin({ name: err.pluginName }, false);
+    if (status) {
+      console.log(`[plugin_manager] Plugin ${plugin.name} registered: ${status}`);
+    } else {
+      console.error("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+      console.error(`[plugin_manager] Plugin ${plugin.name} FAILED to load!`);
+      console.error("Error details:", error);
+      console.error("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
     }
-    throw err;
   }
+
+  // Our list of known plugins to install. We do them all, even if some fail.
+  const pluginList = [
+    superfetch_extension,
+    superenv_extension,
+    superdebug_extension,
+    superpages_extension,
+    superping_extension,
+    superpingasync_extension,
+    superscreenshot_extension,
+    supertabs_extension,
+    superruntime_extension,
+    superwebrequest_extension,
+    superasyncrandominteger_extension,
+    superopenai_extension
+  ];
+
+  // Install each plugin with status tracking
+  for (const extension of pluginList) {
+    try {
+      await extension.install(pluginContext);
+      registerPlugin(extension, true);
+    } catch (err) {
+      registerPlugin(extension, false, err);
+      // Do NOT throw, so we continue loading others
+    }
+  }
+
+  console.log("[plugin_manager] All plugin installs attempted. Some may have failed; see warnings above if any.");
+  return pluginContext.registeredPlugins;
 }
