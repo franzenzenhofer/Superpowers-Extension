@@ -1,0 +1,779 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="superpowers" content="enabled" />
+  <title>Mini ChatGPT + Model Defaults + System Prompt + Debug Logs</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f5f5f5;
+      margin: 0; 
+      padding: 20px;
+    }
+    h1 {
+      margin-top: 0;
+    }
+    .chat-container {
+      max-width: 700px;
+      margin: 0 auto;
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .header {
+      background: #4A9EFF;
+      color: #fff;
+      padding: 12px;
+      font-size: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .model-select {
+      background: #fff;
+      color: #333;
+      border: none;
+      font-size: 14px;
+      padding: 4px 8px;
+      border-radius: 4px;
+      outline: none;
+      cursor: pointer;
+    }
+    .chat-log {
+      flex: 1;
+      padding: 12px;
+      overflow-y: auto;
+    }
+    .message {
+      margin-bottom: 12px;
+    }
+    .user-msg {
+      background: #e2f0ff;
+      padding: 8px 12px;
+      border-radius: 6px;
+      max-width: 80%;
+      margin: 6px 0;
+    }
+    .assistant-msg {
+      background: #f1f1f1;
+      padding: 8px 12px;
+      border-radius: 6px;
+      max-width: 80%;
+      margin: 6px 0 6px auto;
+    }
+    .params-bar {
+      background: #fafafa;
+      border-top: 1px solid #ddd;
+      padding: 8px 12px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+    .param-block {
+      display: flex;
+      flex-direction: column;
+      font-size: 0.9em;
+      margin-bottom: 4px;
+    }
+    .param-block label {
+      margin-bottom: 2px;
+      color: #666;
+    }
+    .param-block input[type="range"] {
+      width: 100px;
+    }
+    .model-info-box {
+      background: #f8f8f8;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      padding: 8px;
+      font-size: 0.85em;
+      line-height: 1.4em;
+      min-width: 180px;
+    }
+    .model-info-box strong {
+      color: #444;
+    }
+    .system-prompt-block {
+      background: #fafafa;
+      border-top: 1px solid #ddd;
+      padding: 8px 12px;
+      display: flex;
+      flex-direction: column;
+    }
+    .system-prompt-block label {
+      color: #666;
+      margin-bottom: 4px;
+    }
+    .system-prompt-block textarea {
+      width: 100%;
+      resize: vertical;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      padding: 6px;
+      font-family: sans-serif;
+      font-size: 14px;
+      outline: none;
+    }
+    .input-area {
+      border-top: 1px solid #ddd;
+      padding: 10px;
+      display: flex;
+      gap: 8px;
+      background: #fafafa;
+    }
+    .input-area textarea {
+      flex: 1;
+      resize: none;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      padding: 8px;
+      font-family: sans-serif;
+      font-size: 14px;
+      outline: none;
+    }
+    .input-area button {
+      background: #4A9EFF;
+      border: none;
+      color: #fff;
+      padding: 8px 14px;
+      font-size: 14px;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .input-area button:hover {
+      opacity: 0.9;
+    }
+    .info-bar {
+      text-align: center;
+      font-size: 0.9em;
+      color: #666;
+      margin-top: 1em;
+    }
+    /* Debug log area */
+    .log-container {
+      max-width: 700px;
+      margin: 20px auto 0 auto;
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+      padding: 12px;
+    }
+    .log-container h3 {
+      margin: 0 0 8px 0;
+      font-size: 1.1em;
+    }
+    .log-entries {
+      max-height: 250px;
+      overflow-y: auto;
+      background: #fafafa;
+      border: 1px solid #ddd;
+      padding: 8px;
+      border-radius: 4px;
+      font-family: "Courier New", Courier, monospace;
+      font-size: 0.9em;
+      white-space: pre-wrap;
+    }
+    .log-entry {
+      margin-bottom: 1em;
+    }
+    /* Add new styles for conversation management */
+    .conversation-controls {
+      padding: 8px;
+      background: #fafafa;
+      border-bottom: 1px solid #ddd;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .message-timestamp {
+      font-size: 0.8em;
+      color: #666;
+      margin-bottom: 4px;
+    }
+    .retry-button {
+      margin-left: 8px;
+      padding: 4px 8px;
+      background: #ff4444;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .thinking {
+      font-style: italic;
+      color: #666;
+    }
+    /* Add new styles for color coding */
+    .system-msg {
+      background: #fff3dc;
+      border-left: 4px solid #ffa600;
+      margin: 6px 0;
+    }
+    
+    .log-entry {
+      margin-bottom: 1em;
+      padding: 8px;
+      border-radius: 4px;
+    }
+    
+    .log-request {
+      background: #e6f3ff;
+      border-left: 4px solid #0066cc;
+    }
+    
+    .log-response {
+      background: #e6ffe6;
+      border-left: 4px solid #00cc00;
+    }
+    
+    .log-pair {
+      margin-bottom: 16px;
+      padding: 8px;
+      background: #f8f8f8;
+      border-radius: 6px;
+    }
+  
+    .log-pair-header {
+      font-size: 0.8em;
+      color: #666;
+      margin-bottom: 4px;
+    }
+  
+    .system-prompt-active {
+      background: #fff3dc;
+      border: 1px solid #ffa600;
+    }
+  </style>
+</head>
+<body>
+
+<h1>Mini ChatGPT (Model Defaults + System Prompt + Debug Log)</h1>
+
+<!-- Chat Container -->
+<div class="chat-container">
+
+  <!-- Add conversation controls -->
+  <div class="conversation-controls">
+    <button id="clearChat">New Conversation</button>
+    <span id="tokenCount">Tokens: 0</span>
+  </div>
+
+  <!-- Header with model selection -->
+  <div class="header">
+    <span>Mini GPT Chat</span>
+    <select id="modelSelect" class="model-select">
+      <option value="" disabled>Loading models...</option>
+    </select>
+  </div>
+
+  <!-- Chat messages -->
+  <div id="chatLog" class="chat-log"></div>
+
+  <!-- Parameter bar -->
+  <div class="params-bar">
+    <div class="param-block">
+      <label for="tempRange">Temperature (<span id="tempVal">0.7</span>)</label>
+      <input type="range" id="tempRange" min="0" max="2" step="0.1" value="0.7" />
+    </div>
+    <div class="param-block">
+      <label for="topPRange">Top-p (<span id="topPVal">1</span>)</label>
+      <input type="range" id="topPRange" min="0" max="1" step="0.1" value="1" />
+    </div>
+    <div class="param-block">
+      <label for="maxTokensInput">Max tokens</label>
+      <input type="number" id="maxTokensInput" value="256" min="1" max="999999" style="width:70px;" />
+    </div>
+
+    <div id="modelInfoBox" class="model-info-box">
+      <strong>Model Info:</strong>
+      <div>Context window: <span id="contextWindowInfo">?</span></div>
+      <div>Max output tokens: <span id="maxOutputInfo">?</span></div>
+      <div>Defaults/forced: <span id="forcedParamsInfo">(none)</span></div>
+    </div>
+  </div>
+
+  <!-- System prompt area -->
+  <div class="system-prompt-block">
+    <label for="systemPrompt">System prompt (optional):</label>
+    <textarea id="systemPrompt" rows="2" placeholder="e.g. You are a helpful assistant."></textarea>
+  </div>
+
+  <!-- Input area -->
+  <div class="input-area">
+    <textarea id="userInput" rows="3" placeholder="Type your message..."></textarea>
+    <button id="sendBtn">Send</button>
+  </div>
+</div>
+
+<div class="info-bar">
+  <em>Using OPENAI_KEY from Superpowers Env. Some models force param overrides. Logs below show raw requests/responses.</em>
+</div>
+
+<!-- Debug Log Container -->
+<div class="log-container">
+  <h3>Request & Response Log</h3>
+  <div id="reqRespLog" class="log-entries"></div>
+</div>
+
+<script>
+/****************************************************************
+ * 1) Model details: from your doc snippet
+ ****************************************************************/
+const modelDetails = {
+  "gpt-4o": {
+    contextWindow: 128000,
+    maxOutput: 16384,
+    constraints: {}
+  },
+  "gpt-4o-mini": {
+    contextWindow: 128000,
+    maxOutput: 16384,
+    constraints: {}
+  },
+  "o1": {
+    contextWindow: 200000,
+    maxOutput: 100000,
+    constraints: {}
+  },
+  "o1-mini": {
+    contextWindow: 128000,
+    maxOutput: 65536,
+    constraints: {
+      temperature: 1,
+      top_p: 1
+    }
+  },
+  "gpt-3.5-turbo": {
+    contextWindow: 16385,
+    maxOutput: 4096,
+    constraints: {}
+  },
+  // More can be added here from your snippet
+};
+
+/****************************************************************
+ * 2) Global state and initialization
+ ****************************************************************/
+let userAvailableModels = []; 
+let currentModel = null; // e.g. "o1-mini"
+
+// Conversation state management
+const state = {
+  messages: [],
+  thinking: false,
+  retryCount: 0,
+  maxRetries: 3,
+  tokenCount: 0,
+  apiKey: null  // Add this line
+};
+
+// Wait for extension superpowers
+function waitForSuperpowers() {
+  return new Promise(resolve => {
+    if (window.Superpowers && window.Superpowers.OpenAI) {
+      return resolve();
+    }
+    const check = setInterval(() => {
+      if (window.Superpowers && window.Superpowers.OpenAI) {
+        clearInterval(check);
+        resolve();
+      }
+    }, 200);
+  });
+}
+
+async function init() {
+  try {
+    await waitForSuperpowers();
+
+    // 1) Load env => set API key
+    const envVars = await window.Superpowers.getEnvVars();
+    if (!envVars.OPENAI_KEY) {
+      alert("No OPENAI_KEY found in env variables. Set it in the side panel!");
+      return;
+    }
+    state.apiKey = envVars.OPENAI_KEY;  // Store the API key
+    await window.Superpowers.OpenAI.setApiKey(state.apiKey);
+
+    // 2) Load model list from extension
+    const modelResp = await window.Superpowers.OpenAI.modelList();
+    if (modelResp?.data) {
+      userAvailableModels = modelResp.data.map(m => m.id).sort();
+    } else {
+      userAvailableModels = []; 
+    }
+
+    // 3) Populate model <select>
+    populateModelSelect(userAvailableModels);
+
+    // 4) Set up event listeners
+    setupEventListeners();
+
+    const tempRange = document.getElementById("tempRange");
+    const topPRange = document.getElementById("topPRange");
+    tempRange.addEventListener("input", () => {
+      document.getElementById("tempVal").textContent = tempRange.value;
+    });
+    topPRange.addEventListener("input", () => {
+      document.getElementById("topPVal").textContent = topPRange.value;
+    });
+
+  } catch (err) {
+    console.error("Initialization error:", err);
+    alert("Initialization error: " + err.message);
+  }
+}
+
+/****************************************************************
+ * 3) Populate model select
+ ****************************************************************/
+function populateModelSelect(models) {
+  const sel = document.getElementById("modelSelect");
+  sel.innerHTML = "";
+
+  if (!models.length) {
+    const opt = document.createElement("option");
+    opt.value = "";
+    opt.textContent = "No models found";
+    sel.appendChild(opt);
+    sel.value = "";
+    sel.disabled = true;
+    return;
+  }
+
+  // First check for preferred model
+  const preferredModel = "gpt-4o-mini";
+  let foundPreferred = false;
+
+  models.forEach(m => {
+    const opt = document.createElement("option");
+    opt.value = m;
+    opt.textContent = m;
+    sel.appendChild(opt);
+
+    // Set as current if it's our preferred model
+    if (m === preferredModel) {
+      currentModel = m;
+      sel.value = m;
+      foundPreferred = true;
+    }
+  });
+
+  // If preferred model not found, fall back to first available model
+  if (!foundPreferred && models[0]) {
+    currentModel = models[0];
+    sel.value = models[0];
+  }
+
+  updateModelInfoBox();
+  applyModelConstraints();
+}
+
+/****************************************************************
+ * 4) On model change
+ ****************************************************************/
+async function onModelChange(e) {
+  try {
+    currentModel = e.target.value;
+    // Reapply API key when model changes
+    if (state.apiKey) {
+      await window.Superpowers.OpenAI.setApiKey(state.apiKey);
+    }
+    updateModelInfoBox();
+    applyModelConstraints();
+  } catch (err) {
+    console.error("Model change error:", err);
+    alert("Error changing model: " + err.message);
+  }
+}
+
+/****************************************************************
+ * 5) Update model info box
+ ****************************************************************/
+function updateModelInfoBox() {
+  const ctxEl = document.getElementById("contextWindowInfo");
+  const maxOutEl = document.getElementById("maxOutputInfo");
+  const forcedEl = document.getElementById("forcedParamsInfo");
+
+  const det = modelDetails[currentModel] || {};
+  ctxEl.textContent = det.contextWindow || "(unknown)";
+  maxOutEl.textContent = det.maxOutput || "(unknown)";
+
+  if (det.constraints && (det.constraints.temperature !== undefined || det.constraints.top_p !== undefined)) {
+    forcedEl.textContent = JSON.stringify(det.constraints);
+  } else {
+    forcedEl.textContent = "(none)";
+  }
+}
+
+/****************************************************************
+ * 6) Apply model constraints (e.g. force temperature=1 for o1-mini)
+ ****************************************************************/
+function applyModelConstraints() {
+  const det = modelDetails[currentModel] || {};
+  const tRange = document.getElementById("tempRange");
+  const pRange = document.getElementById("topPRange");
+  const tVal = document.getElementById("tempVal");
+  const pVal = document.getElementById("topPVal");
+  const maxT = document.getElementById("maxTokensInput");
+
+  // If model forces certain temperature or top_p, override
+  if (det.constraints) {
+    if (typeof det.constraints.temperature !== "undefined") {
+      tRange.value = det.constraints.temperature;
+      tVal.textContent = det.constraints.temperature;
+    }
+    if (typeof det.constraints.top_p !== "undefined") {
+      pRange.value = det.constraints.top_p;
+      pVal.textContent = det.constraints.top_p;
+    }
+  }
+  // Also set default max tokens from doc snippet
+  if (det.maxOutput) {
+    maxT.value = det.maxOutput;
+  }
+}
+
+/****************************************************************
+ * 7) Send a message
+ ****************************************************************/
+async function sendMessage(event = null) {
+  // Prevent default form submission if this is an event
+  if (event && event.preventDefault) {
+    event.preventDefault();
+  }
+
+  // Don't do anything if we're already processing
+  if (state.thinking) return;
+
+  // Get the input text
+  const userInputEl = document.getElementById("userInput");
+  const text = userInputEl.value.trim();
+  if (!text) return;
+  
+  // Clear input immediately
+  userInputEl.value = "";
+
+  try {
+    // Add user message to state and display
+    const userMessage = { role: "user", content: text };
+    state.messages.push(userMessage);
+    addMessageToLog("user", text);
+
+    // Add system prompt if this is first message
+    const systemPrompt = document.getElementById("systemPrompt").value.trim();
+    if (systemPrompt && state.messages.length === 1) {
+      state.messages.unshift({ role: "system", content: systemPrompt });
+    }
+
+    // Show thinking state
+    state.thinking = true;
+    showThinking();
+
+    // Prepare clean request payload
+    const requestPayload = {
+      model: currentModel,
+      messages: state.messages.map(msg => ({
+        role: msg.role,
+        content: msg.content
+      })),
+      temperature: parseFloat(document.getElementById("tempRange").value),
+      top_p: parseFloat(document.getElementById("topPRange").value),
+      max_tokens: parseInt(document.getElementById("maxTokensInput").value, 10)
+    };
+
+    // Log request
+    logReqResp("request", requestPayload);
+
+    // Make API call
+    const resp = await window.Superpowers.OpenAI.chatCompletion(requestPayload);
+    logReqResp("response", resp);
+
+    // Process response
+    if (!resp?.choices?.[0]?.message?.content) {
+      throw new Error("Invalid response from API");
+    }
+
+    // Add assistant response
+    const answer = resp.choices[0].message.content;
+    state.messages.push({ 
+      role: "assistant", 
+      content: answer 
+    });
+
+    // Update token count
+    if (resp.usage?.total_tokens) {
+      state.tokenCount += resp.usage.total_tokens;
+      document.getElementById("tokenCount").textContent = `Tokens: ${state.tokenCount}`;
+    }
+
+    // Display message
+    addMessageToLog("assistant", answer);
+
+  } catch (err) {
+    console.error("Chat error:", err);
+    addMessageToLog("assistant", `Error: ${err.message}`);
+  } finally {
+    // Always clean up
+    hideThinking();
+    state.thinking = false;
+  }
+}
+
+/****************************************************************
+ * 8) Add message to chat log
+ ****************************************************************/
+function addMessageToLog(role, text) {
+  const chatLog = document.getElementById("chatLog");
+  
+  const msgDiv = document.createElement("div");
+  msgDiv.className = `message ${role}-msg`;
+  
+  const timestamp = document.createElement("div");
+  timestamp.className = "message-timestamp";
+  timestamp.textContent = formatTimestamp();
+  
+  const content = document.createElement("div");
+  content.className = "message-content";
+  content.textContent = text;
+  
+  msgDiv.appendChild(timestamp);
+  msgDiv.appendChild(content);
+  chatLog.appendChild(msgDiv);
+  
+  chatLog.scrollTop = chatLog.scrollHeight;
+}
+
+/****************************************************************
+ * 9) Log request/response in debug area
+ ****************************************************************/
+function logReqResp(type, data, requestId = null) {
+  const logArea = document.getElementById("reqRespLog");
+  
+  if (type === "request") {
+    // Create new pair container
+    const pairDiv = document.createElement("div");
+    pairDiv.className = "log-pair";
+    pairDiv.dataset.requestId = Date.now().toString();
+    
+    const header = document.createElement("div");
+    header.className = "log-pair-header";
+    header.textContent = new Date().toISOString();
+    pairDiv.appendChild(header);
+
+    const entry = document.createElement("div");
+    entry.className = "log-entry log-request";
+    
+    // Add system message if present
+    const systemPrompt = document.getElementById("systemPrompt").value.trim();
+    if (systemPrompt) {
+      const systemDiv = document.createElement("div");
+      systemDiv.className = "log-entry system-msg";
+      systemDiv.textContent = `[SYSTEM]\n${systemPrompt}`;
+      pairDiv.appendChild(systemDiv);
+    }
+    
+    entry.textContent = `[REQUEST]\n${JSON.stringify(data, null, 2)}`;
+    pairDiv.appendChild(entry);
+    logArea.appendChild(pairDiv);
+  } else {
+    // Find the latest pair and add response
+    const pairs = logArea.getElementsByClassName("log-pair");
+    if (pairs.length > 0) {
+      const latestPair = pairs[pairs.length - 1];
+      const entry = document.createElement("div");
+      entry.className = "log-entry log-response";
+      entry.textContent = `[RESPONSE]\n${JSON.stringify(data, null, 2)}`;
+      latestPair.appendChild(entry);
+    }
+  }
+  
+  logArea.scrollTop = logArea.scrollHeight;
+}
+
+/****************************************************************
+ * 10) Clear chat and start new conversation
+ ****************************************************************/
+function clearChat() {
+  state.messages = [];
+  state.tokenCount = 0;
+  document.getElementById("chatLog").innerHTML = "";
+  document.getElementById("tokenCount").textContent = "Tokens: 0";
+}
+
+/****************************************************************
+ * 11) Format timestamp
+ ****************************************************************/
+function formatTimestamp() {
+  return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+/****************************************************************
+ * 12) Show thinking state
+ ****************************************************************/
+function showThinking() {
+  const chatLog = document.getElementById("chatLog");
+  const thinkingDiv = document.createElement("div");
+  thinkingDiv.className = "message assistant-msg thinking";
+  thinkingDiv.textContent = "Thinking...";
+  chatLog.appendChild(thinkingDiv);
+  chatLog.scrollTop = chatLog.scrollHeight;
+}
+
+/****************************************************************
+ * 13) Hide thinking state
+ ****************************************************************/
+function hideThinking() {
+  const chatLog = document.getElementById("chatLog");
+  const thinking = chatLog.querySelector(".thinking");
+  if (thinking) thinking.remove();
+}
+
+/****************************************************************
+ * 14) Setup event listeners
+ ****************************************************************/
+function setupEventListeners() {
+  document.getElementById("sendBtn").addEventListener("click", sendMessage);
+  
+  document.getElementById("userInput").addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  });
+  
+  document.getElementById("clearChat").addEventListener("click", clearChat);
+
+  document.getElementById("modelSelect").addEventListener("change", onModelChange);
+
+  document.getElementById("systemPrompt").addEventListener("input", updateSystemPromptStyle);
+  document.getElementById("systemPrompt").addEventListener("change", updateSystemPromptStyle);
+  
+  // Initial system prompt style
+  updateSystemPromptStyle();
+}
+
+/****************************************************************
+ * Update system prompt to show when it's active
+ ****************************************************************/
+function updateSystemPromptStyle() {
+  const textarea = document.getElementById("systemPrompt");
+  if (textarea.value.trim()) {
+    textarea.classList.add("system-prompt-active");
+  } else {
+    textarea.classList.remove("system-prompt-active");
+  }
+}
+
+/****************************************************************
+ * Start
+ ****************************************************************/
+init();
+</script>
+</body>
+</html>

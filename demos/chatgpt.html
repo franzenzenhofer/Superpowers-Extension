@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="superpowers" content="enabled"/>
-  <title>ChatGPT Debugger</title>
+  <title>SuperOpenAI Chat Debugger</title>
   <style>
     body {
       font-family: monospace;
@@ -120,144 +120,558 @@
       color: #f44336;
       margin: 10px 0;
     }
+
+    .model-select-container {
+      margin-bottom: 20px;
+    }
+
+    .model-select {
+      width: 100%;
+      padding: 8px;
+      background: #2d2d2d;
+      color: #e0e0e0;
+      border: 1px solid #404040;
+      border-radius: 4px;
+    }
+
+    .model-select optgroup {
+      background: #252526;
+    }
+
+    .model-select option {
+      padding: 8px;
+      background: #2d2d2d;
+    }
+
+    .model-info {
+      margin-top: 8px;
+      font-size: 0.9em;
+      color: #888;
+      padding: 8px;
+      background: #252526;
+      border-radius: 4px;
+    }
+
+    .controls-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-bottom: 15px;
+    }
+
+    .parameter-control {
+      background: #2d2d2d;
+      padding: 10px;
+      border-radius: 4px;
+    }
+
+    .system-prompt {
+      margin-bottom: 15px;
+    }
+
+    .message-toolbar {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .message-type {
+      padding: 4px 8px;
+      border-radius: 4px;
+      background: #2d2d2d;
+      cursor: pointer;
+    }
+
+    .message-type.active {
+      background: #2196f3;
+    }
+
+    .token-counter {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: #2d2d2d;
+      padding: 10px;
+      border-radius: 4px;
+      font-size: 0.8em;
+    }
   </style>
 </head>
 <body>
   <div class="container">
     <div class="chat-area">
       <div class="config">
-        <div>Model: <select id="model">
-          <option value="gpt-4">GPT-4</option>
-          <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
-        </select></div>
-        <div>Temperature: <input type="number" id="temp" value="0.7" min="0" max="2" step="0.1"></div>
-        <button onclick="checkSetup()">Check Setup</button>
+        <h3>Model Selection</h3>
+        <div class="model-select-container">
+          <select id="modelSelect" class="model-select">
+            <option value="">Loading models...</option>
+          </select>
+          <div id="modelInfo" class="model-info"></div>
+        </div>
+
+        <div class="controls-grid">
+          <div class="parameter-control">
+            <label>Temperature:</label>
+            <input type="range" id="temperature" min="0" max="2" step="0.1" value="0.7">
+            <span id="temperatureValue">0.7</span>
+          </div>
+
+          <div class="parameter-control">
+            <label>Top P:</label>
+            <input type="range" id="topP" min="0" max="1" step="0.1" value="1">
+            <span id="topPValue">1.0</span>
+          </div>
+
+          <div class="parameter-control">
+            <label>Max Tokens:</label>
+            <input type="number" id="maxTokens" value="1000" min="1" max="4000">
+          </div>
+        </div>
+
+        <div class="system-prompt">
+          <label>System Prompt:</label>
+          <textarea id="systemPrompt" rows="2" placeholder="Set the AI's behavior..."></textarea>
+        </div>
+
+        <div class="message-toolbar">
+          <div class="message-type active" data-type="chat">Chat</div>
+          <div class="message-type" data-type="json">JSON Mode</div>
+          <div class="message-type" data-type="function">Function Calling</div>
+        </div>
       </div>
 
       <div id="chatLog"></div>
 
-      <div>
+      <div class="input-area">
         <textarea id="userInput" placeholder="Enter your message..."></textarea>
-        <button onclick="sendMessage()">Send</button>
-        <button onclick="clearChat()">Clear Chat</button>
+        <div class="button-group">
+          <button onclick="sendMessage()">Send</button>
+          <button onclick="regenerateResponse()">Regenerate</button>
+          <button onclick="analyzeConversation()">Analyze</button>
+          <button onclick="exportChat()">Export</button>
+          <button onclick="clearChat()">Clear</button>
+        </div>
       </div>
     </div>
 
     <div class="debug-area">
-      <h3>Debug Log</h3>
-      <button onclick="clearDebug()">Clear Log</button>
+      <h3>Debug Panel</h3>
+      <div class="debug-toolbar">
+        <button onclick="clearDebug()">Clear Log</button>
+        <button onclick="analyzeDebugLog()">Analyze Log</button>
+        <button onclick="exportDebugLog()">Export Log</button>
+      </div>
       <div id="debugLog"></div>
     </div>
   </div>
 
-  <script>
-    let conversation = [];
+  <div class="token-counter">
+    <div>Prompt Tokens: <span id="promptTokens">0</span></div>
+    <div>Completion Tokens: <span id="completionTokens">0</span></div>
+    <div>Total Tokens: <span id="totalTokens">0</span></div>
+  </div>
 
+  <script>
+    // State management
+    const AppState = {
+      models: [],
+      selectedModel: null,
+      conversation: [],
+      mode: 'chat', // 'chat', 'json', 'function'
+      debug: []
+    };
+
+    // Initialize the app
+    async function init() {
+      await waitForSuperpowers();
+      await setupOpenAI();
+      await ModelManager.loadModels();
+      setupEventListeners();
+    }
+
+    // Wait for Superpowers to be available
+    function waitForSuperpowers() {
+      return new Promise((resolve) => {
+        if (window.Superpowers?.OpenAI) return resolve();
+        const check = setInterval(() => {
+          if (window.Superpowers?.OpenAI) {
+            clearInterval(check);
+            resolve();
+          }
+        }, 100);
+      });
+    }
+
+    // Setup OpenAI with API key
+    async function setupOpenAI() {
+      try {
+        const env = await window.Superpowers.getEnvVars();
+        if (env.OPENAI_KEY) {
+          await window.Superpowers.OpenAI.setApiKey(env.OPENAI_KEY);
+          debugLog('setup', { status: 'API key configured' });
+        } else {
+          throw new Error('No OPENAI_KEY found in environment variables');
+        }
+      } catch (err) {
+        debugLog('error', { type: 'setup', message: err.message });
+        alert('Failed to setup OpenAI: ' + err.message);
+      }
+    }
+
+    // Add debug utility
     function debugLog(type, data) {
-      const debugArea = document.getElementById('debugLog');
+      const debugEl = document.getElementById('debugLog');
       const entry = document.createElement('div');
       entry.className = 'debug-entry';
       entry.innerHTML = `
         <div>[${new Date().toISOString()}] ${type}</div>
         <pre>${JSON.stringify(data, null, 2)}</pre>
       `;
-      debugArea.appendChild(entry);
-      debugArea.scrollTop = debugArea.scrollHeight;
-
-      // Also log to extension's debug
-      if (window.Superpowers?.debugLog) {
-        window.Superpowers.debugLog(`${type}: ${JSON.stringify(data)}`, 'debug');
-      }
+      debugEl.appendChild(entry);
+      debugEl.scrollTop = debugEl.scrollHeight;
+      console.log(`[DEBUG] ${type}:`, data);
     }
 
-    async function checkSetup() {
-      try {
-        const env = await window.Superpowers.getEnvVars();
-        const hasKey = !!env.OPENAI_KEY;
-        if (hasKey) {
-          await window.Superpowers.OpenAI.setApiKey(env.OPENAI_KEY);
-          debugLog('setup', { status: 'API key found and set' });
-        } else {
-          debugLog('setup', { error: 'No OPENAI_KEY in environment variables' });
+    // Improved model loading
+    const ModelManager = {
+      groups: {
+        gpt4: { label: 'GPT-4 Models', models: [] },
+        gpt3: { label: 'GPT-3.5 Models', models: [] },
+        dalle: { label: 'DALL·E Models', models: [] },
+        other: { label: 'Other Models', models: [] }
+      },
+
+      categorizeModel(model) {
+        if (model.id.includes('gpt-4')) return 'gpt4';
+        if (model.id.includes('gpt-3.5') || model.id.includes('text-davinci')) return 'gpt3';
+        if (model.id.includes('dall-e')) return 'dalle';
+        return 'other';
+      },
+
+      async loadModels() {
+        try {
+          debugLog('modelList', 'Fetching available models...');
+          const response = await window.Superpowers.OpenAI.modelList();
+          debugLog('modelList-response', response);
+
+          if (!response?.data) {
+            throw new Error('Invalid response format from modelList');
+          }
+
+          // Reset groups
+          Object.keys(this.groups).forEach(key => {
+            this.groups[key].models = [];
+          });
+
+          // Categorize models
+          response.data.forEach(model => {
+            const group = this.categorizeModel(model);
+            this.groups[group].models.push(model);
+          });
+
+          // Sort models within groups
+          Object.values(this.groups).forEach(group => {
+            group.models.sort((a, b) => b.created - a.created);
+          });
+
+          this.renderModelSelect();
+          
+          // Select first GPT-4 model by default, fallback to GPT-3
+          const defaultModel = this.groups.gpt4.models[0] || this.groups.gpt3.models[0];
+          if (defaultModel) {
+            this.selectModel(defaultModel.id);
+          }
+        } catch (err) {
+          debugLog('error', { type: 'modelList', message: err.message });
+          document.getElementById('modelSelect').innerHTML = `
+            <option value="" disabled selected>Error loading models: ${err.message}</option>
+          `;
         }
-      } catch (err) {
-        debugLog('setup', { error: err.message });
+      },
+
+      renderModelSelect() {
+        const select = document.getElementById('modelSelect');
+        select.innerHTML = Object.entries(this.groups)
+          .filter(([_, group]) => group.models.length > 0)
+          .map(([key, group]) => `
+            <optgroup label="${group.label}">
+              ${group.models.map(model => `
+                <option value="${model.id}" 
+                  ${model.id === AppState.selectedModel?.id ? 'selected' : ''}>
+                  ${model.id}
+                </option>
+              `).join('')}
+            </optgroup>
+          `).join('');
+      },
+
+      async selectModel(modelId) {
+        try {
+          const model = Object.values(this.groups)
+            .flatMap(g => g.models)
+            .find(m => m.id === modelId);
+
+          if (!model) {
+            throw new Error(`Model ${modelId} not found`);
+          }
+
+          // Validate model format
+          if (!model.id) {
+            throw new Error('Invalid model format');
+          }
+
+          AppState.selectedModel = model;
+          this.updateModelInfo(model);
+          debugLog('modelSelect', { 
+            model,
+            id: model.id,
+            valid: true 
+          });
+        } catch (err) {
+          debugLog('error', {
+            type: 'modelSelect',
+            message: err.message,
+            modelId
+          });
+          alert(`Error selecting model: ${err.message}`);
+        }
+      },
+
+      updateModelInfo(model) {
+        const info = document.getElementById('modelInfo');
+        info.innerHTML = `
+          <strong>${model.id}</strong><br>
+          Owner: ${model.owned_by}<br>
+          Created: ${new Date(model.created * 1000).toLocaleDateString()}<br>
+          ${model.description ? `Description: ${model.description}` : ''}
+        `;
       }
-    }
+    };
 
+    // Message handling with improved error handling
     async function sendMessage() {
-      const input = document.getElementById('userInput');
-      const text = input.value.trim();
-      if (!text) return;
-
-      const userMsg = { role: 'user', content: text };
-      conversation.push(userMsg);
-      updateChat();
-      input.value = '';
-
-      const model = document.getElementById('model').value;
-      const temp = parseFloat(document.getElementById('temp').value);
-
       try {
-        debugLog('request', {
-          model,
-          temperature: temp,
-          messages: conversation
+        if (!AppState.selectedModel) {
+          throw new Error('Please select a model first');
+        }
+
+        const input = document.getElementById('userInput');
+        const text = input.value.trim();
+        if (!text) return;
+
+        const systemPrompt = document.getElementById('systemPrompt').value.trim();
+        const messages = [];
+        
+        if (systemPrompt) {
+          messages.push({ role: 'system', content: systemPrompt });
+        }
+        
+        messages.push(...AppState.conversation, { role: 'user', content: text });
+
+        const params = {
+          model: AppState.selectedModel.id,
+          messages,
+          temperature: parseFloat(document.getElementById('temperature').value),
+          top_p: parseFloat(document.getElementById('topP').value),
+          max_tokens: parseInt(document.getElementById('maxTokens').value),
+          stream: false
+        };
+
+        if (AppState.mode === 'json') {
+          params.response_format = { type: 'json_object' };
+        }
+
+        debugLog('request', params);
+        
+        // Clear input before making request
+        input.value = '';
+        AppState.conversation.push({ role: 'user', content: text });
+        renderChat();
+
+        // Make the API call with error handling
+        const response = await window.Superpowers.OpenAI.chatCompletion(params).catch(err => {
+          throw new Error(err.message || 'OpenAI API call failed');
         });
 
-        const response = await window.Superpowers.OpenAI.chatCompletion({
-          model,
-          messages: conversation,
-          temperature: temp
-        });
+        if (!response) {
+          throw new Error('No response from OpenAI API');
+        }
 
         debugLog('response', response);
 
-        if (response.choices?.[0]?.message) {
-          conversation.push(response.choices[0].message);
-          updateChat();
+        if (!response.choices?.[0]?.message) {
+          throw new Error('Invalid response format from OpenAI API');
+        }
+
+        AppState.conversation.push(response.choices[0].message);
+        renderChat();
+        
+        if (response.usage) {
+          updateTokenCount(response.usage);
         }
       } catch (err) {
-        debugLog('error', err);
-        const errorDiv = document.createElement('div');
-        errorDiv.className = 'error';
-        errorDiv.textContent = `Error: ${err.message}`;
-        document.getElementById('chatLog').appendChild(errorDiv);
+        debugLog('error', { 
+          type: 'chat', 
+          message: err.message,
+          details: err.toString()
+        });
+        
+        // Show error in chat
+        const errorMsg = {
+          role: 'system',
+          content: `🚫 Error: ${err.message}`
+        };
+        AppState.conversation.push(errorMsg);
+        renderChat();
       }
     }
 
-    function updateChat() {
+    // Complete missing functions
+    function renderChat() {
       const chatLog = document.getElementById('chatLog');
-      chatLog.innerHTML = conversation.map(msg => `
+      chatLog.innerHTML = AppState.conversation.map(msg => `
         <div class="message ${msg.role}">
           <strong>${msg.role}:</strong>
-          ${msg.content}
+          <pre>${msg.content}</pre>
         </div>
       `).join('');
       chatLog.scrollTop = chatLog.scrollHeight;
     }
 
-    function clearChat() {
-      conversation = [];
-      updateChat();
-      debugLog('action', 'Chat cleared');
+    function updateTokenCount(usage) {
+      if (usage) {
+        document.getElementById('promptTokens').textContent = usage.prompt_tokens || 0;
+        document.getElementById('completionTokens').textContent = usage.completion_tokens || 0;
+        document.getElementById('totalTokens').textContent = usage.total_tokens || 0;
+      }
+    }
+
+    async function regenerateResponse() {
+      if (AppState.conversation.length < 2) return;
+      // Remove last response
+      AppState.conversation.pop();
+      await sendMessage(AppState.conversation[AppState.conversation.length - 1].content);
+    }
+
+    function setupEventListeners() {
+      // Temperature slider
+      document.getElementById('temperature').addEventListener('input', (e) => {
+        document.getElementById('temperatureValue').textContent = e.target.value;
+      });
+
+      // Top P slider
+      document.getElementById('topP').addEventListener('input', (e) => {
+        document.getElementById('topPValue').textContent = e.target.value;
+      });
+
+      // Chat mode selector
+      document.querySelectorAll('.message-type').forEach(el => {
+        el.addEventListener('click', () => {
+          document.querySelectorAll('.message-type').forEach(m => m.classList.remove('active'));
+          el.classList.add('active');
+          AppState.mode = el.dataset.type;
+          debugLog('modeChange', { mode: AppState.mode });
+        });
+      });
+
+      // Enter to send (with shift for new line)
+      document.getElementById('userInput').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          sendMessage();
+        }
+      });
+
+      // Add model select handler
+      document.getElementById('modelSelect').addEventListener('change', (e) => {
+        ModelManager.selectModel(e.target.value);
+      });
+    }
+
+    async function analyzeConversation() {
+      const analysisPrompt = {
+        role: 'system',
+        content: 'Analyze the conversation so far and provide insights about the discussion flow, key points, and potential areas to explore further.'
+      };
+      
+      try {
+        const response = await window.Superpowers.OpenAI.chatCompletion({
+          model: AppState.selectedModel?.id || 'gpt-3.5-turbo',
+          messages: [analysisPrompt, ...AppState.conversation],
+          temperature: 0.7
+        });
+
+        if (response.choices?.[0]?.message) {
+          AppState.conversation.push({
+            role: 'system',
+            content: '🔍 Analysis:\n' + response.choices[0].message.content
+          });
+          renderChat();
+        }
+      } catch (err) {
+        debugLog('error', { type: 'analysis', message: err.message });
+      }
+    }
+
+    function exportChat() {
+      const export_data = {
+        conversation: AppState.conversation,
+        model: AppState.selectedModel,
+        timestamp: new Date().toISOString()
+      };
+      
+      const blob = new Blob([JSON.stringify(export_data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `chat-export-${new Date().toISOString()}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
     }
 
     function clearDebug() {
       document.getElementById('debugLog').innerHTML = '';
-      debugLog('action', 'Debug log cleared');
+      debugLog('debug', 'Log cleared');
     }
 
-    // Handle Enter key
-    document.getElementById('userInput').addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        sendMessage();
-      }
-    });
+    async function analyzeDebugLog() {
+      const debugContent = Array.from(document.getElementById('debugLog').children)
+        .map(entry => entry.textContent)
+        .join('\n');
 
-    // Initial setup check
-    checkSetup();
+      try {
+        const response = await window.Superpowers.OpenAI.chatCompletion({
+          model: AppState.selectedModel?.id || 'gpt-3.5-turbo',
+          messages: [{
+            role: 'system',
+            content: 'Analyze this debug log and identify any patterns, issues, or interesting observations:'
+          }, {
+            role: 'user',
+            content: debugContent
+          }]
+        });
+
+        if (response.choices?.[0]?.message) {
+          debugLog('analysis', { content: response.choices[0].message.content });
+        }
+      } catch (err) {
+        debugLog('error', { type: 'debugAnalysis', message: err.message });
+      }
+    }
+
+    function exportDebugLog() {
+      const debugContent = document.getElementById('debugLog').innerHTML;
+      const blob = new Blob([debugContent], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `debug-log-${new Date().toISOString()}.html`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    // Start the app
+    init();
   </script>
 </body>
 </html>

@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <meta name="superpowers" content="enabled"/>
+  <title>OpenAI API Tester</title>
+  <style>
+    body {
+      font-family: monospace;
+      margin: 20px;
+      background: #1e1e1e;
+      color: #e0e0e0;
+    }
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 1fr 300px;
+      gap: 20px;
+    }
+    #output, #debug {
+      background: #252526;
+      padding: 15px;
+      border-radius: 4px;
+      min-height: 200px;
+      max-height: 600px;
+      overflow-y: auto;
+    }
+    .section {
+      background: #252526;
+      padding: 15px;
+      border-radius: 4px;
+      margin-bottom: 20px;
+    }
+    input, select, textarea {
+      width: 100%;
+      background: #333;
+      color: #fff;
+      border: 1px solid #555;
+      padding: 8px;
+      margin: 5px 0;
+      border-radius: 4px;
+    }
+    button {
+      background: #2196f3;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 4px;
+      cursor: pointer;
+      margin: 5px 5px 5px 0;
+    }
+    button:hover { opacity: 0.9; }
+    .message {
+      margin: 10px 0;
+      padding: 10px;
+      background: #333;
+      border-radius: 4px;
+      overflow-x: auto;
+    }
+    .error { border-left: 3px solid #f44336; }
+    .success { border-left: 3px solid #4caf50; }
+    img { max-width: 100%; border-radius: 4px; }
+    .models-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 10px;
+      margin: 10px 0;
+    }
+    .model-card {
+      background: #333;
+      padding: 10px;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .model-card.selected {
+      border: 2px solid #2196f3;
+    }
+    #loader {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.8);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+      flex-direction: column;
+      text-align: center;
+    }
+    .spinner {
+      border: 4px solid #f3f3f3;
+      border-top: 4px solid #3498db;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+      margin-bottom: 10px;
+    }
+    .error-banner {
+      color: #f44336;
+      font-weight: bold;
+      margin-top: 10px;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <div id="loader">
+    <div class="spinner"></div>
+    <div style="margin-top: 10px;">Initializing Superpowers...</div>
+    <div id="loaderError" class="error-banner" style="display: none;"></div>
+  </div>
+
+  <div class="container" style="display: none;" id="mainContainer">
+    <main>
+      <div class="section">
+        <h2>1. Available Models</h2>
+        <div id="modelStatus" class="message">Loading models...</div>
+        <div id="modelsGrid" class="models-grid"></div>
+      </div>
+
+      <div class="section">
+        <h2>2. Quick Tests</h2>
+        <button onclick="testChat()">Test Chat</button>
+        <button onclick="testImage()">Test Image</button>
+        <button onclick="testEmbeddings()">Test Embeddings</button>
+        <button onclick="testAudio()">Test Audio</button>
+        <button onclick="testModels()">List Models</button>
+      </div>
+
+      <div class="section">
+        <h2>3. Custom Request</h2>
+        <select id="method" onchange="updateCustomConfig()">
+          <option value="chat">Chat Completion</option>
+          <option value="image">Image Generation</option>
+          <option value="embeddings">Get Embeddings</option>
+          <option value="audio">Text to Speech</option>
+        </select>
+        <div id="customConfig"></div>
+        <textarea id="customInput" rows="5" placeholder="Enter request payload (JSON)"></textarea>
+        <button onclick="executeCustom()">Execute</button>
+      </div>
+
+      <div class="section">
+        <h2>4. Results</h2>
+        <button onclick="clearOutput()">Clear</button>
+        <div id="output"></div>
+      </div>
+    </main>
+
+    <aside>
+      <div class="section">
+        <h2>Debug Log</h2>
+        <button onclick="clearDebug()">Clear</button>
+        <div id="debug"></div>
+      </div>
+    </aside>
+  </div>
+
+<script>
+/** 
+ * Configuration 
+ */
+const TIMEOUT = 30000; // 30 seconds
+const CHECK_INTERVAL = 200; // 200ms
+let selectedModel = null;
+let availableModels = [];
+
+/**
+ * Logs a normal message to the debug panel
+ */
+function log(message) {
+  const debug = document.getElementById('debug');
+  const div = document.createElement('div');
+  div.className = 'message';
+  div.textContent = `[${new Date().toISOString()}] ${message}`;
+  debug.insertBefore(div, debug.firstChild);
+
+  // Also forward to sidepanel if available
+  if (window.Superpowers?.debugLog) {
+    window.Superpowers.debugLog(message);
+  }
+}
+
+/**
+ * Logs an error message to the debug panel
+ */
+function logError(message) {
+  const debug = document.getElementById('debug');
+  const div = document.createElement('div');
+  div.className = 'message error';
+  div.textContent = `[${new Date().toISOString()}] ERROR: ${message}`;
+  debug.insertBefore(div, debug.firstChild);
+
+  // Also forward to sidepanel if available
+  if (window.Superpowers?.debugLog) {
+    window.Superpowers.debugLog(message, 'error');
+  }
+}
+
+/**
+ * Show output in the main result box
+ */
+function showOutput(title, data, isError = false) {
+  const output = document.getElementById('output');
+  const div = document.createElement('div');
+  div.className = 'message ' + (isError ? 'error' : 'success');
+  div.innerHTML = `
+      <strong>${title}</strong>
+      <pre>${JSON.stringify(data, null, 2)}</pre>
+  `;
+  output.insertBefore(div, output.firstChild);
+
+  if (isError) {
+    logError(`${title}: ${JSON.stringify(data)}`);
+  } else {
+    log(`${title} => success`);
+  }
+}
+
+/**
+ * Clears the main output area
+ */
+function clearOutput() {
+  document.getElementById('output').innerHTML = '';
+}
+
+/**
+ * Clears the debug log area
+ */
+function clearDebug() {
+  document.getElementById('debug').innerHTML = '';
+  log('Debug log cleared');
+}
+
+/**
+ * Wait for Superpowers to load
+ */
+async function waitForSuperpowers() {
+  return new Promise((resolve, reject) => {
+    const startTime = Date.now();
+
+    function check() {
+      if (
+        window.Superpowers &&
+        window.Superpowers.OpenAI &&
+        typeof window.Superpowers.OpenAI.setApiKey === 'function'
+      ) {
+        return resolve();
+      }
+      if (Date.now() - startTime > TIMEOUT) {
+        reject(new Error('Timeout: Superpowers extension did not load in time.'));
+        return;
+      }
+      setTimeout(check, CHECK_INTERVAL);
+    }
+    check();
+  });
+}
+
+/**
+ * Main initialization
+ */
+async function initialize() {
+  try {
+    log('Initializing chatgpt2.html...');
+    await waitForSuperpowers();
+    log('Superpowers & OpenAI plugin found.');
+
+    // Check environment for OPENAI_KEY
+    const env = await window.Superpowers.getEnvVars();
+    if (!env.OPENAI_KEY) {
+      throw new Error('No OPENAI_KEY found in environment variables (superEnv).');
+    }
+    log('Found OPENAI_KEY in environment. Setting up OpenAI...');
+    await window.Superpowers.OpenAI.setApiKey(env.OPENAI_KEY);
+    log('API key set successfully.');
+
+    // Actually show the main container now that we're loaded
+    document.getElementById('mainContainer').style.display = 'grid';
+    document.getElementById('loader').style.display = 'none';
+
+    // Load models
+    loadModels();
+  } catch (err) {
+    document.getElementById('loader').style.display = 'flex';
+    document.getElementById('mainContainer').style.display = 'none';
+
+    const loaderErr = document.getElementById('loaderError');
+    loaderErr.textContent = err.message;
+    loaderErr.style.display = 'block';
+    logError(err.message);
+  }
+}
+
+/**
+ * Load the list of models from OpenAI
+ */
+async function loadModels() {
+  try {
+    const response = await window.Superpowers.OpenAI.modelList();
+    if (!response?.data) {
+      throw new Error('modelList() returned no data.');
+    }
+    availableModels = response.data;
+    log(`Loaded ${availableModels.length} models from API.`);
+    document.getElementById('modelStatus').textContent = `${availableModels.length} models available.`;
+
+    renderModels();
+  } catch (err) {
+    logError(`Failed to load models: ${err.message}`);
+    document.getElementById('modelStatus').textContent = `Error: ${err.message}`;
+  }
+}
+
+/**
+ * Render model cards
+ */
+function renderModels() {
+  const grid = document.getElementById('modelsGrid');
+  grid.innerHTML = '';
+
+  availableModels.forEach(model => {
+    const card = document.createElement('div');
+    card.className = `model-card ${model.id === selectedModel ? 'selected' : ''}`;
+    card.textContent = model.id;
+    card.onclick = () => selectModel(model.id);
+    grid.appendChild(card);
+  });
+
+  if (availableModels.length > 0 && !selectedModel) {
+    // Auto-select the first model
+    selectedModel = availableModels[0].id;
+    renderModels();
+    log(`Auto-selected model: ${selectedModel}`);
+  }
+}
+
+/**
+ * Select a specific model by ID
+ */
+function selectModel(modelId) {
+  selectedModel = modelId;
+  renderModels();
+  log(`Selected model: ${modelId}`);
+}
+
+/**
+ * Quick test: Chat
+ */
+async function testChat() {
+  if (!selectedModel) {
+    showOutput('Chat Test', { error: 'No model selected.' }, true);
+    return;
+  }
+
+  try {
+    const response = await window.Superpowers.OpenAI.chatCompletion({
+      model: selectedModel,
+      messages: [
+        { role: 'user', content: 'Say hi and explain what model you are.' }
+      ]
+    });
+    showOutput('Chat Test', response);
+  } catch (err) {
+    showOutput('Chat Test Error', { message: err.message }, true);
+  }
+}
+
+/**
+ * Quick test: Image
+ */
+async function testImage() {
+  try {
+    const response = await window.Superpowers.OpenAI.imageGeneration({
+      model: 'dall-e-3',
+      prompt: 'A cute robot programmer, cartoon style',
+      size: '1024x1024'
+    });
+    showOutput('Image Test', response);
+    
+    if (response.data?.[0]?.url) {
+      const img = document.createElement('img');
+      img.src = response.data[0].url;
+      document.getElementById('output').appendChild(img);
+    }
+  } catch (err) {
+    showOutput('Image Test Error', { message: err.message }, true);
+  }
+}
+
+/**
+ * Quick test: Embeddings
+ */
+async function testEmbeddings() {
+  try {
+    const response = await window.Superpowers.OpenAI.embeddings({
+      model: 'text-embedding-ada-002',
+      input: 'Hello world'
+    });
+    showOutput('Embeddings Test', response);
+  } catch (err) {
+    showOutput('Embeddings Error', { message: err.message }, true);
+  }
+}
+
+/**
+ * Quick test: Audio
+ */
+async function testAudio() {
+  try {
+    const response = await window.Superpowers.OpenAI.audioSpeech({
+      model: 'tts-1',
+      input: 'Hello! This is a test of the OpenAI text to speech API.',
+      voice: 'alloy'
+    });
+    showOutput('Audio Test', response);
+
+    // If the TTS response is raw text with base64, handle accordingly
+    if (response && typeof response === 'string') {
+      // Some TTS endpoints might return base64 audio:
+      // Example usage => 'data:audio/mp3;base64,<base64string>'
+      // but you might need to prefix. Adjust as needed.
+      const audio = new Audio(`data:audio/mp3;base64,${response}`);
+      const playButton = document.createElement('button');
+      playButton.textContent = 'Play Audio';
+      playButton.onclick = () => audio.play();
+      document.getElementById('output').appendChild(playButton);
+    }
+  } catch (err) {
+    showOutput('Audio Error', { message: err.message }, true);
+  }
+}
+
+/**
+ * Quick test: Models
+ */
+async function testModels() {
+  try {
+    const response = await window.Superpowers.OpenAI.modelList();
+    showOutput('Models List', response);
+  } catch (err) {
+    showOutput('Models List Error', { message: err.message }, true);
+  }
+}
+
+/**
+ * Update custom config area
+ */
+function updateCustomConfig() {
+  const method = document.getElementById('method').value;
+  const config = document.getElementById('customConfig');
+  
+  const examples = {
+    chat: {
+      model: selectedModel || 'gpt-3.5-turbo',
+      messages: [
+        { role: 'user', content: 'Hello!' }
+      ]
+    },
+    image: {
+      model: 'dall-e-3',
+      prompt: 'A cute robot',
+      size: '1024x1024'
+    },
+    embeddings: {
+      model: 'text-embedding-ada-002',
+      input: 'Text to embed'
+    },
+    audio: {
+      model: 'tts-1',
+      input: 'Text to convert to speech',
+      voice: 'alloy'
+    }
+  };
+  
+  document.getElementById('customInput').value = JSON.stringify(examples[method], null, 2);
+}
+
+/**
+ * Execute the custom request
+ */
+async function executeCustom() {
+  const method = document.getElementById('method').value;
+  const input = document.getElementById('customInput').value;
+  
+  try {
+    const payload = JSON.parse(input);
+    let response;
+
+    switch (method) {
+      case 'chat':
+        response = await window.Superpowers.OpenAI.chatCompletion(payload);
+        break;
+      case 'image':
+        response = await window.Superpowers.OpenAI.imageGeneration(payload);
+        break;
+      case 'embeddings':
+        response = await window.Superpowers.OpenAI.embeddings(payload);
+        break;
+      case 'audio':
+        response = await window.Superpowers.OpenAI.audioSpeech(payload);
+        break;
+      default:
+        throw new Error(`Unknown method: ${method}`);
+    }
+
+    showOutput('Custom Request', response);
+  } catch (err) {
+    showOutput('Custom Request Error', { message: err.message }, true);
+  }
+}
+
+/** 
+ * Start the initialization after DOM is ready 
+ */
+document.addEventListener('DOMContentLoaded', () => {
+  updateCustomConfig(); // Fill the customInput with a default example
+  initialize().catch(err => {
+    const loaderErr = document.getElementById('loaderError');
+    loaderErr.textContent = err.message;
+    loaderErr.style.display = 'block';
+    logError(err.message);
+  });
+});
+</script>
+</body>
+</html>
