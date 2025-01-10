@@ -180,6 +180,8 @@
     }
     .log-entry {
       margin-bottom: 1em;
+      padding: 8px;
+      border-radius: 4px;
     }
     /* Add new styles for conversation management */
     .conversation-controls {
@@ -208,42 +210,31 @@
       font-style: italic;
       color: #666;
     }
-    /* Add new styles for color coding */
+    /* Color coding */
     .system-msg {
       background: #fff3dc;
       border-left: 4px solid #ffa600;
       margin: 6px 0;
     }
-    
-    .log-entry {
-      margin-bottom: 1em;
-      padding: 8px;
-      border-radius: 4px;
-    }
-    
     .log-request {
       background: #e6f3ff;
       border-left: 4px solid #0066cc;
     }
-    
     .log-response {
       background: #e6ffe6;
       border-left: 4px solid #00cc00;
     }
-    
     .log-pair {
       margin-bottom: 16px;
       padding: 8px;
       background: #f8f8f8;
       border-radius: 6px;
     }
-  
     .log-pair-header {
       font-size: 0.8em;
       color: #666;
       margin-bottom: 4px;
     }
-  
     .system-prompt-active {
       background: #fff3dc;
       border: 1px solid #ffa600;
@@ -289,6 +280,12 @@
       <input type="number" id="maxTokensInput" value="256" min="1" max="999999" style="width:70px;" />
     </div>
 
+    <!-- NEW: Stream checkbox -->
+    <div class="param-block">
+      <label for="streamCheckbox">Stream response?</label>
+      <input type="checkbox" id="streamCheckbox" />
+    </div>
+
     <div id="modelInfoBox" class="model-info-box">
       <strong>Model Info:</strong>
       <div>Context window: <span id="contextWindowInfo">?</span></div>
@@ -322,7 +319,7 @@
 
 <script>
 /****************************************************************
- * 1) Model details: from your doc snippet
+ * 1) Model details
  ****************************************************************/
 const modelDetails = {
   "gpt-4o": {
@@ -353,26 +350,23 @@ const modelDetails = {
     maxOutput: 4096,
     constraints: {}
   },
-  // More can be added here from your snippet
 };
 
 /****************************************************************
  * 2) Global state and initialization
  ****************************************************************/
 let userAvailableModels = []; 
-let currentModel = null; // e.g. "o1-mini"
+let currentModel = null; 
 
-// Conversation state management
 const state = {
   messages: [],
   thinking: false,
   retryCount: 0,
   maxRetries: 3,
   tokenCount: 0,
-  apiKey: null  // Add this line
+  apiKey: null
 };
 
-// Wait for extension superpowers
 function waitForSuperpowers() {
   return new Promise(resolve => {
     if (window.Superpowers && window.Superpowers.OpenAI) {
@@ -397,10 +391,10 @@ async function init() {
       alert("No OPENAI_KEY found in env variables. Set it in the side panel!");
       return;
     }
-    state.apiKey = envVars.OPENAI_KEY;  // Store the API key
+    state.apiKey = envVars.OPENAI_KEY;
     await window.Superpowers.OpenAI.setApiKey(state.apiKey);
 
-    // 2) Load model list from extension
+    // 2) Load model list
     const modelResp = await window.Superpowers.OpenAI.modelList();
     if (modelResp?.data) {
       userAvailableModels = modelResp.data.map(m => m.id).sort();
@@ -408,12 +402,13 @@ async function init() {
       userAvailableModels = []; 
     }
 
-    // 3) Populate model <select>
+    // 3) Populate model select
     populateModelSelect(userAvailableModels);
 
-    // 4) Set up event listeners
+    // 4) Listeners
     setupEventListeners();
 
+    // Range input display
     const tempRange = document.getElementById("tempRange");
     const topPRange = document.getElementById("topPRange");
     tempRange.addEventListener("input", () => {
@@ -446,7 +441,7 @@ function populateModelSelect(models) {
     return;
   }
 
-  // First check for preferred model
+  // try a preferred
   const preferredModel = "gpt-4o-mini";
   let foundPreferred = false;
 
@@ -456,7 +451,6 @@ function populateModelSelect(models) {
     opt.textContent = m;
     sel.appendChild(opt);
 
-    // Set as current if it's our preferred model
     if (m === preferredModel) {
       currentModel = m;
       sel.value = m;
@@ -464,7 +458,6 @@ function populateModelSelect(models) {
     }
   });
 
-  // If preferred model not found, fall back to first available model
   if (!foundPreferred && models[0]) {
     currentModel = models[0];
     sel.value = models[0];
@@ -480,7 +473,6 @@ function populateModelSelect(models) {
 async function onModelChange(e) {
   try {
     currentModel = e.target.value;
-    // Reapply API key when model changes
     if (state.apiKey) {
       await window.Superpowers.OpenAI.setApiKey(state.apiKey);
     }
@@ -512,7 +504,7 @@ function updateModelInfoBox() {
 }
 
 /****************************************************************
- * 6) Apply model constraints (e.g. force temperature=1 for o1-mini)
+ * 6) Apply model constraints
  ****************************************************************/
 function applyModelConstraints() {
   const det = modelDetails[currentModel] || {};
@@ -522,7 +514,6 @@ function applyModelConstraints() {
   const pVal = document.getElementById("topPVal");
   const maxT = document.getElementById("maxTokensInput");
 
-  // If model forces certain temperature or top_p, override
   if (det.constraints) {
     if (typeof det.constraints.temperature !== "undefined") {
       tRange.value = det.constraints.temperature;
@@ -533,55 +524,46 @@ function applyModelConstraints() {
       pVal.textContent = det.constraints.top_p;
     }
   }
-  // Also set default max tokens from doc snippet
   if (det.maxOutput) {
     maxT.value = det.maxOutput;
   }
 }
 
 /****************************************************************
- * 7) Send a message
+ * 7) Send a message (handles streaming or normal)
  ****************************************************************/
 async function sendMessage(event = null) {
-  // Prevent default form submission if this is an event
   if (event && event.preventDefault) {
     event.preventDefault();
   }
-
-  // Don't do anything if we're already processing
   if (state.thinking) return;
 
-  // Get the input text
   const userInputEl = document.getElementById("userInput");
   const text = userInputEl.value.trim();
   if (!text) return;
-  
-  // Clear input immediately
   userInputEl.value = "";
 
+  const isStreamEnabled = document.getElementById("streamCheckbox").checked;
+  const methodName = isStreamEnabled ? "chatCompletionStream" : "chatCompletion";
+
   try {
-    // Add user message to state and display
+    // Add user message
     const userMessage = { role: "user", content: text };
     state.messages.push(userMessage);
     addMessageToLog("user", text);
 
-    // Add system prompt if this is first message
+    // Possibly add system prompt if first
     const systemPrompt = document.getElementById("systemPrompt").value.trim();
     if (systemPrompt && state.messages.length === 1) {
       state.messages.unshift({ role: "system", content: systemPrompt });
     }
 
-    // Show thinking state
     state.thinking = true;
     showThinking();
 
-    // Prepare clean request payload
     const requestPayload = {
       model: currentModel,
-      messages: state.messages.map(msg => ({
-        role: msg.role,
-        content: msg.content
-      })),
+      messages: state.messages.map(msg => ({ role: msg.role, content: msg.content })),
       temperature: parseFloat(document.getElementById("tempRange").value),
       top_p: parseFloat(document.getElementById("topPRange").value),
       max_tokens: parseInt(document.getElementById("maxTokensInput").value, 10)
@@ -590,43 +572,82 @@ async function sendMessage(event = null) {
     // Log request
     logReqResp("request", requestPayload);
 
-    // Make API call
-    const resp = await window.Superpowers.OpenAI.chatCompletion(requestPayload);
-    logReqResp("response", resp);
+    if (!isStreamEnabled) {
+      // Non-streaming call
+      const resp = await window.Superpowers.OpenAI.chatCompletion(requestPayload);
+      logReqResp("response", resp);
 
-    // Process response
-    if (!resp?.choices?.[0]?.message?.content) {
-      throw new Error("Invalid response from API");
+      if (!resp?.choices?.[0]?.message?.content) {
+        throw new Error("Invalid response from API");
+      }
+      const answer = resp.choices[0].message.content;
+      state.messages.push({ role: "assistant", content: answer });
+
+      if (resp.usage?.total_tokens) {
+        state.tokenCount += resp.usage.total_tokens;
+        document.getElementById("tokenCount").textContent = `Tokens: ${state.tokenCount}`;
+      }
+      addMessageToLog("assistant", answer);
+
+    } else {
+      // Streaming call
+      const partialDiv = addAssistantPartialMessage();
+
+      // We define how to handle each partial chunk
+      window.onOpenAIStreamChunk = (chunk) => {
+        logReqResp("stream-chunk", chunk);
+
+        const delta = chunk?.choices?.[0]?.delta;
+        if (delta?.content) {
+          partialDiv.textContent += delta.content;
+        }
+      };
+
+      const finalResp = await window.Superpowers.OpenAI.chatCompletionStream(requestPayload);
+      // finalResp might be { message: "Stream completed" } or similar
+      logReqResp("response", finalResp);
+
+      // The final text is whatever we've accumulated
+      const finalAnswer = partialDiv.textContent || "[No content]";
+      state.messages.push({ role: "assistant", content: finalAnswer });
     }
-
-    // Add assistant response
-    const answer = resp.choices[0].message.content;
-    state.messages.push({ 
-      role: "assistant", 
-      content: answer 
-    });
-
-    // Update token count
-    if (resp.usage?.total_tokens) {
-      state.tokenCount += resp.usage.total_tokens;
-      document.getElementById("tokenCount").textContent = `Tokens: ${state.tokenCount}`;
-    }
-
-    // Display message
-    addMessageToLog("assistant", answer);
 
   } catch (err) {
     console.error("Chat error:", err);
     addMessageToLog("assistant", `Error: ${err.message}`);
   } finally {
-    // Always clean up
     hideThinking();
     state.thinking = false;
   }
 }
 
 /****************************************************************
- * 8) Add message to chat log
+ * 7a) Helper to create an "assistant" message for partial text
+ ****************************************************************/
+function addAssistantPartialMessage() {
+  const chatLog = document.getElementById("chatLog");
+  
+  const msgDiv = document.createElement("div");
+  msgDiv.className = "message assistant-msg";
+
+  const timestamp = document.createElement("div");
+  timestamp.className = "message-timestamp";
+  timestamp.textContent = formatTimestamp();
+
+  const content = document.createElement("div");
+  content.className = "message-content";
+  content.textContent = "";
+
+  msgDiv.appendChild(timestamp);
+  msgDiv.appendChild(content);
+  chatLog.appendChild(msgDiv);
+
+  chatLog.scrollTop = chatLog.scrollHeight;
+  return content;
+}
+
+/****************************************************************
+ * 8) Add a single message to chat log
  ****************************************************************/
 function addMessageToLog(role, text) {
   const chatLog = document.getElementById("chatLog");
@@ -650,13 +671,12 @@ function addMessageToLog(role, text) {
 }
 
 /****************************************************************
- * 9) Log request/response in debug area
+ * 9) Log request/response in debug area (incl. partial chunks)
  ****************************************************************/
-function logReqResp(type, data, requestId = null) {
+function logReqResp(type, data) {
   const logArea = document.getElementById("reqRespLog");
   
   if (type === "request") {
-    // Create new pair container
     const pairDiv = document.createElement("div");
     pairDiv.className = "log-pair";
     pairDiv.dataset.requestId = Date.now().toString();
@@ -669,7 +689,6 @@ function logReqResp(type, data, requestId = null) {
     const entry = document.createElement("div");
     entry.className = "log-entry log-request";
     
-    // Add system message if present
     const systemPrompt = document.getElementById("systemPrompt").value.trim();
     if (systemPrompt) {
       const systemDiv = document.createElement("div");
@@ -681,8 +700,33 @@ function logReqResp(type, data, requestId = null) {
     entry.textContent = `[REQUEST]\n${JSON.stringify(data, null, 2)}`;
     pairDiv.appendChild(entry);
     logArea.appendChild(pairDiv);
+
+  } else if (type === "stream-chunk") {
+    // Find the latest pair
+    const pairs = logArea.getElementsByClassName("log-pair");
+    if (!pairs.length) {
+      // If for some reason there's no request in the log, let's create a separate block
+      const chunkDiv = document.createElement("div");
+      chunkDiv.className = "log-pair";
+      chunkDiv.innerHTML = `<div class="log-pair-header">${new Date().toISOString()}</div>
+        <div class="log-entry" style="background:#fffce6;border-left:4px solid #ffcc00;">
+          [STREAM-CHUNK]\n${JSON.stringify(data, null, 2)}
+        </div>`;
+      logArea.appendChild(chunkDiv);
+      logArea.scrollTop = logArea.scrollHeight;
+      return;
+    }
+    // Otherwise, append to the last pair
+    const latestPair = pairs[pairs.length - 1];
+    const chunkEntry = document.createElement("div");
+    chunkEntry.className = "log-entry";
+    chunkEntry.style.background = "#fffce6";
+    chunkEntry.style.borderLeft = "4px solid #ffcc00";
+    chunkEntry.textContent = `[STREAM-CHUNK]\n${JSON.stringify(data, null, 2)}`;
+    latestPair.appendChild(chunkEntry);
+
   } else {
-    // Find the latest pair and add response
+    // final response
     const pairs = logArea.getElementsByClassName("log-pair");
     if (pairs.length > 0) {
       const latestPair = pairs[pairs.length - 1];
@@ -690,6 +734,12 @@ function logReqResp(type, data, requestId = null) {
       entry.className = "log-entry log-response";
       entry.textContent = `[RESPONSE]\n${JSON.stringify(data, null, 2)}`;
       latestPair.appendChild(entry);
+    } else {
+      // fallback
+      const respDiv = document.createElement("div");
+      respDiv.className = "log-entry log-response";
+      respDiv.textContent = `[RESPONSE]\n${JSON.stringify(data, null, 2)}`;
+      logArea.appendChild(respDiv);
     }
   }
   
@@ -697,7 +747,7 @@ function logReqResp(type, data, requestId = null) {
 }
 
 /****************************************************************
- * 10) Clear chat and start new conversation
+ * 10) Clear chat
  ****************************************************************/
 function clearChat() {
   state.messages = [];
@@ -714,7 +764,7 @@ function formatTimestamp() {
 }
 
 /****************************************************************
- * 12) Show thinking state
+ * 12) Show thinking
  ****************************************************************/
 function showThinking() {
   const chatLog = document.getElementById("chatLog");
@@ -726,7 +776,7 @@ function showThinking() {
 }
 
 /****************************************************************
- * 13) Hide thinking state
+ * 13) Hide thinking
  ****************************************************************/
 function hideThinking() {
   const chatLog = document.getElementById("chatLog");
@@ -735,7 +785,7 @@ function hideThinking() {
 }
 
 /****************************************************************
- * 14) Setup event listeners
+ * 14) Setup
  ****************************************************************/
 function setupEventListeners() {
   document.getElementById("sendBtn").addEventListener("click", sendMessage);
@@ -748,19 +798,14 @@ function setupEventListeners() {
   });
   
   document.getElementById("clearChat").addEventListener("click", clearChat);
-
   document.getElementById("modelSelect").addEventListener("change", onModelChange);
 
   document.getElementById("systemPrompt").addEventListener("input", updateSystemPromptStyle);
   document.getElementById("systemPrompt").addEventListener("change", updateSystemPromptStyle);
-  
-  // Initial system prompt style
+
   updateSystemPromptStyle();
 }
 
-/****************************************************************
- * Update system prompt to show when it's active
- ****************************************************************/
 function updateSystemPromptStyle() {
   const textarea = document.getElementById("systemPrompt");
   if (textarea.value.trim()) {
@@ -769,6 +814,17 @@ function updateSystemPromptStyle() {
     textarea.classList.remove("system-prompt-active");
   }
 }
+
+// ADD THIS EVENT LISTENER FOR STREAMING SSE CHUNKS:
+window.addEventListener("message", (event) => {
+  if (!event.data || event.data.direction !== "from-content-script") return;
+  if (event.data.type === "SUPEROPENAI_STREAM_CHUNK") {
+    const chunk = event.data.chunk;
+    if (window.onOpenAIStreamChunk) {
+      window.onOpenAIStreamChunk(chunk);
+    }
+  }
+});
 
 /****************************************************************
  * Start
