@@ -123,33 +123,40 @@ function preprocessForO1(requestBody) {
 
 /**
  * Processes messages for o1 models by converting all messages into user messages
- * with special formatting for system/developer roles
+ * with special formatting for system/developer roles - only for outgoing requests
  */
 function processO1Messages(messages) {
-  const combinedMessages = [];
+  if (!messages || messages.length === 0) return [];
+  
+  // First collect system/developer messages
+  let systemContent = '';
+  const regularMessages = [];
   
   for (const msg of messages) {
     if (msg.role === 'system' || msg.role === 'developer') {
-      combinedMessages.push({
-        content: `BEGINNING ${msg.role.toUpperCase()} PROMPT\n\n${msg.content}\n\nEND ${msg.role.toUpperCase()} PROMPT`,
-        role: 'user'  // Always use 'user' role for o1 models
-      });
-    } else if (msg.role === 'assistant') {
-      // For assistant messages, just include the content but mark as user
-      combinedMessages.push({
-        content: msg.content,
-        role: 'user'
-      });
+      systemContent += `BEGINNING ${msg.role.toUpperCase()} PROMPT\n\n${msg.content}\n\nEND ${msg.role.toUpperCase()} PROMPT\n\n`;
     } else {
-      // For user messages or anything else, ensure role is 'user'
-      combinedMessages.push({
+      regularMessages.push({
         content: msg.content,
         role: 'user'
       });
     }
   }
+
+  // If we have system content, append it to the last message or create one
+  if (systemContent) {
+    if (regularMessages.length > 0) {
+      const lastMsg = regularMessages[regularMessages.length - 1];
+      lastMsg.content = `${lastMsg.content}\n\n${systemContent}`;
+    } else {
+      regularMessages.push({
+        content: systemContent.trim(),
+        role: 'user'
+      });
+    }
+  }
   
-  return combinedMessages;
+  return regularMessages;
 }
 
 /**
@@ -201,6 +208,11 @@ function buildChatRequestBody(payload, defaultModel = "gpt-4") {
     if (payload.top_logprobs !== undefined) body.top_logprobs = payload.top_logprobs;
     if (payload.n !== undefined) body.n = payload.n;
     if (payload.stream !== undefined) body.stream = payload.stream;
+  }
+
+  // Add logging for o1 models
+  if (isO1Family) {
+    console.log('[o1] Final request payload:', JSON.stringify(body, null, 2));
   }
 
   return body;
