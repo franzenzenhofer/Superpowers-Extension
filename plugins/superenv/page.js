@@ -62,6 +62,33 @@
       });
     };
 
+    // New multi-env methods
+    window.Superpowers.listEnvSets = async function() {
+      return sendSuperEnvMsg("GET_ALL_ENV_SETS");
+    };
+
+    window.Superpowers.getEnvSet = async function(envName) {
+      return sendSuperEnvMsg("GET_ENV_SET", { envName });
+    };
+
+    window.Superpowers.setEnvSet = async function(envName, varsObj) {
+      return sendSuperEnvMsg("SET_ENV_SET", { envName, vars: varsObj });
+    };
+
+    window.Superpowers.deleteEnvSet = async function(envName) {
+      return sendSuperEnvMsg("DELETE_ENV_SET", { envName });
+    };
+
+    function sendSuperEnvMsg(type, data = {}) {
+      return new Promise((resolve, reject) => {
+        chrome.runtime.sendMessage({ type, ...data }, (resp) => {
+          if (chrome.runtime.lastError) return reject(chrome.runtime.lastError);
+          if (!resp || resp.success === false) return reject(resp?.error || "Unknown superenv error");
+          resolve(resp);
+        });
+      });
+    }
+
     window.Superpowers.debugLog = function(message, level = "info", source = "page") {
         // Always log to console
         console.log(`[Superpowers.debugLog][${new Date().toISOString()}] ${message}`);

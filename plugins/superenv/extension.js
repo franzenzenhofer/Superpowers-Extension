@@ -26,6 +26,22 @@ export const superenv_extension = {
             if (debug) console.log("[superenv_extension] SET_ENV_VARS request");
             handleSetEnvVars(request, sendResponse, debug);
             return true; // async
+
+          case "GET_ALL_ENV_SETS":
+            handleGetAllEnvSets(sendResponse);
+            return true;
+
+          case "GET_ENV_SET":
+            handleGetEnvSet(request, sendResponse);
+            return true;
+
+          case "SET_ENV_SET":
+            handleSetEnvSet(request, sendResponse);
+            return true;
+
+          case "DELETE_ENV_SET":
+            handleDeleteEnvSet(request, sendResponse);
+            return true;
         }
       });
     }
@@ -36,6 +52,9 @@ async function loadEnvVarsFromStorage() {
     try {
         const result = await chrome.storage.local.get(['superEnvVars']);
         envVarsCache = result.superEnvVars || {};
+        if (typeof envVarsCache !== "object") {
+            envVarsCache = { default: envVarsCache || {} };
+        }
         console.log("[superenv_extension] Loaded env vars from storage:", envVarsCache);
     } catch (err) {
         console.error("[superenv_extension] Error loading from storage:", err);
@@ -47,7 +66,7 @@ function handleGetEnvVars(sendResponse, debug) {
     // First check cache
     if (envVarsCache !== null) {
         if (debug) console.log("[superenv_extension] Serving from cache:", envVarsCache);
-        sendResponse(envVarsCache);
+        sendResponse(envVarsCache.default || {});
         return;
     }
 
@@ -55,7 +74,7 @@ function handleGetEnvVars(sendResponse, debug) {
     chrome.storage.local.get(['superEnvVars'], (result) => {
         envVarsCache = result.superEnvVars || {};
         if (debug) console.log("[superenv_extension] Loaded from storage:", envVarsCache);
-        sendResponse(envVarsCache);
+        sendResponse(envVarsCache.default || {});
     });
 }
 
@@ -63,11 +82,11 @@ function handleSetEnvVars(request, sendResponse, debug) {
     const newVars = request.envVars || {};
     
     // Update cache
-    envVarsCache = { ...newVars };
+    envVarsCache.default = { ...newVars };
 
     // Save to persistent storage
     chrome.storage.local.set({ 
-        superEnvVars: newVars 
+        superEnvVars: envVarsCache 
     }, () => {
         if (chrome.runtime.lastError) {
             console.error("[superenv_extension] Storage error:", chrome.runtime.lastError);
@@ -83,6 +102,36 @@ function handleSetEnvVars(request, sendResponse, debug) {
             vars: newVars 
         });
     });
+}
+
+function handleGetAllEnvSets(sendResponse) {
+    sendResponse(envVarsCache || {});
+}
+
+function handleGetEnvSet(request, sendResponse) {
+    const envName = request.envName || "default";
+    sendResponse(envVarsCache?.[envName] || {});
+}
+
+function handleSetEnvSet(request, sendResponse) {
+    const { envName, vars } = request;
+    const name = envName || "default";
+    envVarsCache[name] = vars || {};
+    chrome.storage.local.set({ superEnvVars: envVarsCache }, () => {
+        sendResponse({ success: true, envSet: envVarsCache[name] });
+    });
+}
+
+function handleDeleteEnvSet(request, sendResponse) {
+    const { envName } = request;
+    if (envName && envName !== "default") {
+        delete envVarsCache[envName];
+        chrome.storage.local.set({ superEnvVars: envVarsCache }, () => {
+            sendResponse({ success: true });
+        });
+    } else {
+        sendResponse({ success: false, error: "Cannot delete default set or invalid name" });
+    }
 }
 
 // plugins/superdebug/extension.js

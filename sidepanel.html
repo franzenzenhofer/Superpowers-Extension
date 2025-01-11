@@ -31,17 +31,75 @@
       overflow-y: auto;
       font-size: 0.9em;
     }
+    .env-name {
+      margin: 10px 0;
+      padding: 10px;
+      background: #f0f0f0;
+      border-radius: 4px;
+    }
+    .debug-section {
+      margin-top: 20px;
+      border-top: 1px solid #ccc;
+      padding-top: 10px;
+    }
+    #debugOutput {
+      font-family: monospace;
+      white-space: pre-wrap;
+      font-size: 12px;
+    }
+    .env-section {
+      border-bottom: 1px solid #ccc;
+      padding-bottom: 15px;
+      margin-bottom: 15px;
+    }
+    .test-section {
+      margin-top: 20px;
+      border-top: 1px solid #ccc;
+      padding-top: 10px;
+    }
+    #envTestOutput {
+      font-family: monospace;
+      white-space: pre-wrap;
+      font-size: 12px;
+      background: #f5f5f5;
+      padding: 10px;
+      border-radius: 4px;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+    .refresh-button {
+      margin-bottom: 10px;
+      padding: 5px 10px;
+      background: #4a9eff;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .refresh-button:hover {
+      background: #3a8eef;
+    }
   </style>
 </head>
 <body>
-  <h1>Superpowers Env Variables</h1>
-  <p>Edit and persist environment variables for <code>superEnv</code>.</p>
-  <div id="envContainer"></div>
-  <button id="addRowBtn">+ Add Env Variable</button>
-  <button id="saveBtn">Save All</button>
+  <div class="env-section">
+    <h1>Superpowers Environment</h1>
+    <p>Edit environment variables for all Superpowers extensions.</p>
+    
+    <div id="envContainer"></div>
+    <button id="addRowBtn">+ Add Variable</button>
+    <button id="saveBtn">Save Variables</button>
+  </div>
 
-  <hr />
-  <button id="showDebugBtn">Show Debug Logs</button>
-  <pre id="debugOutput"></pre>
+  <div class="test-section">
+    <h3>Test Panel</h3>
+    <button id="refreshEnvBtn" class="refresh-button">🔄 Refresh Environment Variables</button>
+    <pre id="envTestOutput">Click refresh to load environment variables...</pre>
+  </div>
+
+  <div class="debug-section">
+    <h3>Debug Log</h3>
+    <pre id="debugOutput"></pre>
+  </div>
 </body>
 </html>

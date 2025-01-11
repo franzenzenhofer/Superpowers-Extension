@@ -8,6 +8,10 @@
    */
   function createOpenAICall(method) {
     return function(payload) {
+
+      if (typeof payload === "string") {
+        payload = { model: payload };
+      }
       return new Promise((resolve, reject) => {
         const requestId = Math.random().toString(36).slice(2);
 

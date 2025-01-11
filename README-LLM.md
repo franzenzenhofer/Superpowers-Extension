@@ -1,4 +1,3 @@
-
 # README-GPT.md
 
 ----
@@ -220,8 +219,9 @@ This section enumerates **all** primary methods that *may* be exposed under `win
      - `fineTuneDeleteModel(modelName)` – Delete a fine-tuned model.
 
   9. **Models**  
-     - `listModels()` – List available or permitted models.  
-     - `retrieveModel(modelId)` – Retrieve metadata about a specific model.
+     - `modelList()` – List available OpenAI models.
+     - `modelRetrieve(modelId)` – Retrieve model details by ID.
+     - `modelDelete(modelId)` – Delete a fine-tuned model.
 
 - **Returns**: Typically a Promise that resolves with the JSON response from the OpenAI API (or streamed tokens if using a streaming method).
 

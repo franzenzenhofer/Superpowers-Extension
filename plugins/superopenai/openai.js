@@ -108,7 +108,8 @@ function preprocessForO1(requestBody) {
     requestBody.temperature = 1;
   }
 
-  // Check messages array for system->developer rename if no existing developer
+  // Commented out: system->developer role renaming
+  /*
   if (Array.isArray(requestBody.messages)) {
     const hasDeveloper = requestBody.messages.some(m => m.role === "developer");
     const systemIndex = requestBody.messages.findIndex(m => m.role === "system");
@@ -117,6 +118,38 @@ function preprocessForO1(requestBody) {
       requestBody.messages[systemIndex].role = "developer";
     }
   }
+  */
+}
+
+/**
+ * Processes messages for o1 models by converting all messages into user messages
+ * with special formatting for system/developer roles
+ */
+function processO1Messages(messages) {
+  const combinedMessages = [];
+  
+  for (const msg of messages) {
+    if (msg.role === 'system' || msg.role === 'developer') {
+      combinedMessages.push({
+        content: `BEGINNING ${msg.role.toUpperCase()} PROMPT\n\n${msg.content}\n\nEND ${msg.role.toUpperCase()} PROMPT`,
+        role: 'user'  // Always use 'user' role for o1 models
+      });
+    } else if (msg.role === 'assistant') {
+      // For assistant messages, just include the content but mark as user
+      combinedMessages.push({
+        content: msg.content,
+        role: 'user'
+      });
+    } else {
+      // For user messages or anything else, ensure role is 'user'
+      combinedMessages.push({
+        content: msg.content,
+        role: 'user'
+      });
+    }
+  }
+  
+  return combinedMessages;
 }
 
 /**
@@ -129,7 +162,7 @@ function buildChatRequestBody(payload, defaultModel = "gpt-4") {
 
   const body = {
     model: modelToUse,
-    messages: payload.messages || []
+    messages: isO1Family ? processO1Messages(payload.messages || []) : (payload.messages || [])
   };
 
   // Handle max_tokens
