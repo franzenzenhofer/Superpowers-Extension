@@ -71,6 +71,12 @@
       "extensionPath": "plugins/superasyncrandominteger/extension.js",
       "contentScript": "plugins/superasyncrandominteger/content.js",
       "pageScript": "plugins/superasyncrandominteger/page.js"
+    },
+    {
+      "name": "superurlget",
+      "extensionPath": "plugins/superurlget/extension.js",
+      "contentScript": "plugins/superurlget/content.js",
+      "pageScript": "plugins/superurlget/page.js"
     }
   ]
 }

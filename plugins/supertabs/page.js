@@ -114,5 +114,5 @@
   // Finally attach to window.Superpowers
   window.Superpowers.tabs = tabsProxy;
 
-  console.log("[supertabs/page.js] window.Superpowers.tabs is ready.");
+  // console.log("[supertabs/page.js] window.Superpowers.tabs is ready.");
 })();

@@ -232,6 +232,40 @@ This section enumerates **all** primary methods that *may* be exposed under `win
   - `minVal`, `maxVal` (number) – Range for the random integer.
 - **Returns**: A promise resolving to a random integer within `[minVal, maxVal]`.
 
+### 14) `Superpowers.Urlget`
+- **Purpose**: Provides methods to fetch and process web pages, including waiting for specific events and injecting custom CSS/JS.
+- **Methods**:
+  - `Superpowers.Urlget.getRenderedPage(url, config)` - Returns full page info including title, URL, HTML, and text content
+  - `Superpowers.Urlget.getHtml(url, config)` - Returns just the HTML content
+  - `Superpowers.Urlget.getDom(url, config)` - Returns the DOM as HTML string
+  - `Superpowers.Urlget.getText(url, config)` - Returns the plain text content
+- **Configuration Options**:
+  ```javascript
+  const config = {
+    waitForEvent: 'load',      // DOM event to wait for (default: 'load')
+    timeoutMs: 30000,          // Timeout in milliseconds (default: 30000)
+    injectCss: '.ads { display: none }',  // Optional CSS to inject
+    injectJs: 'window.scrollTo(0, document.body.scrollHeight);'  // Optional JS to inject
+  }
+  ```
+- **Examples**:
+  ```javascript
+  // Basic usage
+  const html = await Superpowers.Urlget.getHtml('https://example.com');
+
+  // Wait for DOMContentLoaded with 5s timeout
+  const page = await Superpowers.Urlget.getRenderedPage('https://example.com', {
+    waitForEvent: 'DOMContentLoaded',
+    timeoutMs: 5000
+  });
+
+  // Hide ads and scroll to bottom before capturing
+  const content = await Superpowers.Urlget.getRenderedPage('https://example.com', {
+    injectCss: '.ads { display: none }',
+    injectJs: 'window.scrollTo(0, document.body.scrollHeight);'
+  });
+  ```
+
 *(Note: Some method signatures or arguments might vary based on updated code, but these represent the key usage patterns.)*
 
 ----

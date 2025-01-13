@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="superpowers" content="enabled">
+  <title>Urlget Simple Demo</title>
+  <style>
+    body { 
+      max-width: 800px; 
+      margin: 20px auto; 
+      padding: 20px;
+      font-family: system-ui, sans-serif;
+    }
+    pre { 
+      background: #f5f5f5; 
+      padding: 10px; 
+      border-radius: 4px;
+      white-space: pre-wrap;
+    }
+    .debug {
+      font-family: monospace;
+      font-size: 12px;
+      margin: 5px 0;
+      padding: 3px 6px;
+      background: #eee;
+    }
+    .success { color: green; }
+    .error { color: red; }
+  </style>
+</head>
+<body>
+  <h1>🌐 Simple Urlget Test</h1>
+  <p>This demo fetches example.com using Superpowers.Urlget</p>
+
+  <button id="fetchBtn">Fetch example.com</button>
+  <div id="debugOutput"></div>
+  <pre id="content"></pre>
+
+  <script>
+    const debug = (msg, type = 'info') => {
+      const div = document.createElement('div');
+      div.className = `debug ${type}`;
+      div.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+      debugOutput.prepend(div);
+    };
+
+    async function waitForSuperpowers() {
+      debug('Waiting for Superpowers...');
+      if (window.Superpowers) {
+        debug('Superpowers already available!', 'success');
+        return;
+      }
+      return new Promise(resolve => {
+        const check = setInterval(() => {
+          if (window.Superpowers) {
+            clearInterval(check);
+            debug('Superpowers loaded!', 'success');
+            resolve();
+          }
+        }, 100);
+      });
+    }
+
+    async function fetchExample() {
+      const content = document.getElementById('content');
+      debug('Starting fetch...');
+
+      try {
+        debug('Checking if Urlget exists...');
+        if (!window.Superpowers?.Urlget) {
+          throw new Error('Superpowers.Urlget not found!');
+        }
+
+        debug('Calling getRenderedPage...');
+        const result = await window.Superpowers.Urlget.getRenderedPage('https://example.com', {
+          waitForEvent: 'load',
+          timeoutMs: 5000
+        });
+
+        debug('Got response!', 'success');
+        debug(`Page title: ${result.title}`, 'success');
+        content.textContent = result.html;
+
+      } catch (err) {
+        debug(`Error: ${err.message}`, 'error');
+        content.textContent = `Failed: ${err.message}`;
+      }
+    }
+
+    (async () => {
+      debug('Script starting...');
+      await waitForSuperpowers();
+      debug('Ready to fetch!', 'success');
+      document.getElementById('fetchBtn').onclick = fetchExample;
+    })();
+  </script>
+</body>
+</html>

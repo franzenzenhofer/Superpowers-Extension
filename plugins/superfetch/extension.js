@@ -5,12 +5,13 @@ export const superfetch_extension = {
   
     install(context) {
       const { debug } = context;
-      if (debug) console.log("[superfetch_extension] Installing superfetch in SW...");
+      // Remove normal logs:
+      // if (debug) console.log("[superfetch_extension] Installing superfetch in SW...");
   
       // Register message listener for SUPERFETCH
       chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         if (!request || request.type !== "SUPERFETCH") return;
-        console.log(`[superfetch_extension] Received SUPERFETCH => ${request.url}`);
+        // console.log(`[superfetch_extension] Received SUPERFETCH => ${request.url}`);
         
         handleSuperfetch(request, sendResponse).catch(err => {
           console.error("[superfetch_extension] superfetch error:", err);
@@ -23,7 +24,7 @@ export const superfetch_extension = {
   
   async function handleSuperfetch(request, sendResponse) {
     const { url, options } = request;
-    console.log(`[superfetch_extension] handleSuperfetch => fetching ${url}`);
+    // console.log(`[superfetch_extension] handleSuperfetch => fetching ${url}`);
     try {
       const resp = await fetch(url, options || {});
       const text = await resp.text();
@@ -34,7 +35,7 @@ export const superfetch_extension = {
         headerObj[key] = value;
       });
   
-      console.log(`[superfetch_extension] fetch success => ${resp.status}`);
+      // console.log(`[superfetch_extension] fetch success => ${resp.status}`);
       sendResponse({
         success: true,
         status: resp.status,
@@ -51,4 +52,3 @@ export const superfetch_extension = {
       sendResponse({ success: false, error: err.toString() });
     }
   }
-  

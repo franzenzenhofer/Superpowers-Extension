@@ -34,32 +34,10 @@
       });
     };
   
-    window.Superpowers.setEnvVars = async function(varsObj) {
-      return new Promise((resolve, reject) => {
-        const requestId = Math.random().toString(36).slice(2);
-  
-        function handleResp(ev) {
-          if (!ev.data || ev.data.direction !== "from-content-script") return;
-          if (ev.data.type !== "SUPERENV_SET_VARS_RESPONSE") return;
-          if (ev.data.requestId !== requestId) return;
-  
-          window.removeEventListener("message", handleResp);
-          if (ev.data.success) {
-            resolve(ev.data.result);
-          } else {
-            reject("[superEnv] unknown setVars error");
-          }
-        }
-  
-        window.addEventListener("message", handleResp);
-  
-        window.postMessage({
-          direction: "from-page",
-          type: "SUPERENV_SET_VARS",
-          requestId,
-          vars: varsObj
-        }, "*");
-      });
+    // Add a deprecated setEnvVars that logs a warning
+    window.Superpowers.setEnvVars = async function() {
+      console.warn("[Superpowers] setEnvVars() is deprecated. Environment variables can only be set via the extension sidepanel.");
+      return { success: false, error: "Environment variables can only be set via the extension sidepanel" };
     };
 
     // New multi-env methods

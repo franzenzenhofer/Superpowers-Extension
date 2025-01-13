@@ -1,50 +1,53 @@
 // plugins/superfetch/page.js
 (function() {
     const DEBUG = {
-        log: (msg) => console.log(`[superfetch/page.js] ${msg}`),
+        log: (msg) => {}, // Comment out or empty to suppress logs
         error: (msg) => console.error(`[superfetch/page.js] ${msg}`)
     };
 
+    let SUPERFETCH_TIMEOUT_MS = 120000;
+    const activeRequests = new Map();
+
     if (!window.Superpowers) {
         window.Superpowers = {};
-        DEBUG.log("Created window.Superpowers object");
     }
 
+    window.Superpowers.setSuperfetchTimeout = function(ms) {
+        SUPERFETCH_TIMEOUT_MS = ms;
+    };
+
+    window.Superpowers.whatsGoingOn = function() {
+        return Array.from(activeRequests.values());
+    };
+
     window.Superpowers.fetch = async function(url, options = {}) {
-        DEBUG.log(`fetch(${url}) called`);
         
         return new Promise((resolve, reject) => {
             const requestId = Math.random().toString(36).slice(2);
-            DEBUG.log(`Created requestId: ${requestId}`);
+            activeRequests.set(requestId, { requestId, url, startTime: Date.now() });
 
             const timeout = setTimeout(() => {
                 cleanup();
-                reject(new Error("Superfetch timeout after 30s"));
-            }, 30000);
+                reject(new Error(`Superfetch timeout after ${SUPERFETCH_TIMEOUT_MS / 1000}s`));
+            }, SUPERFETCH_TIMEOUT_MS);
 
             function handleResponse(ev) {
-                DEBUG.log(`Received message: ${JSON.stringify(ev.data, null, 2)}`);
                 
                 if (!ev.data || ev.data.direction !== "from-content-script") {
-                    DEBUG.log("Ignoring non-content-script message");
                     return;
                 }
                 
                 if (ev.data.type !== "SUPERFETCH_RESPONSE") {
-                    DEBUG.log(`Ignoring non-SUPERFETCH_RESPONSE message: ${ev.data.type}`);
                     return;
                 }
                 
                 if (ev.data.requestId !== requestId) {
-                    DEBUG.log(`Ignoring response for different requestId: ${ev.data.requestId}`);
                     return;
                 }
 
-                DEBUG.log(`Got matching SUPERFETCH_RESPONSE for ${requestId}`);
                 cleanup();
 
                 if (ev.data.success) {
-                    DEBUG.log(`Success response: status=${ev.data.status}`);
                     
                     // Create enhanced response object but keep original headers handling
                     const superResponse = {
@@ -89,14 +92,13 @@
             }
 
             function cleanup() {
-                DEBUG.log("Cleaning up event listener");
+                activeRequests.delete(requestId);
                 window.removeEventListener("message", handleResponse);
                 clearTimeout(timeout);
             }
 
             window.addEventListener("message", handleResponse);
             
-            DEBUG.log(`Posting SUPERFETCH message to content script`);
             window.postMessage({
                 direction: "from-page",
                 type: "SUPERFETCH",
@@ -107,5 +109,4 @@
         });
     };
 
-    DEBUG.log("Initialized");
 })();

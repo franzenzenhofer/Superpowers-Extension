@@ -15,7 +15,7 @@ export const supertabs_extension = {
       if (request.type !== "SUPER_TABS_CALL") return false;
 
       const { requestId, methodName, args } = request;
-      console.log(`[supertabs_extension] method=${methodName}, requestId=${requestId}`);
+      // console.log(`[supertabs_extension] method=${methodName}, requestId=${requestId}`);
 
       // Attempt to call chrome.tabs[methodName]
       callChromeTabs(methodName, args)
@@ -23,6 +23,7 @@ export const supertabs_extension = {
           sendResponse({ success: true, result });
         })
         .catch((err) => {
+          console.error("[supertabs_extension] callChromeTabs error:", err);
           sendResponse({ success: false, error: err.message || String(err) });
         });
 

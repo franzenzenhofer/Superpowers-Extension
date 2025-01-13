@@ -4,7 +4,7 @@
 // 2) For tab events from the SW => forward them to the page.
 
 (function () {
-  console.log("[supertabs/content.js] loaded in content-script context");
+  // console.log("[supertabs/content.js] loaded in content-script context");
 
   // Listen for messages from the **page** => pass them to the SW
   window.addEventListener("message", (event) => {
