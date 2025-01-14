@@ -54,7 +54,7 @@
                         // Standard properties (keeping original header handling)
                         status: ev.data.status,
                         statusText: ev.data.statusText,
-                        ok: ev.data.ok,
+                        ok: ev.data.status >= 200 && ev.data.status < 300, // Add explicit ok calculation
                         redirected: ev.data.redirected,
                         url: ev.data.url,
                         type: ev.data.type,

@@ -111,12 +111,15 @@ export const superopenai_extension = {
           promise = handleChatCompletionStream(payload, (partialChunk) => {
             // forward partial chunk to the correct port
             const port = streamingPorts.get(requestId);
-            if (port) {
-              port.postMessage({
-                type: "STREAM_CHUNK",
-                requestId,
-                chunk: partialChunk
-              });
+            if (!port) {
+              console.debug("[superopenai_extension] Port no longer connected, skipping chunk.");
+              return;
+            }
+            try {
+              port.postMessage({ type: "STREAM_CHUNK", requestId, chunk: partialChunk });
+            } catch (err) {
+              console.debug("[superopenai_extension] Disconnected port error:", err.message);
+              streamingPorts.delete(requestId);
             }
           });
           break;

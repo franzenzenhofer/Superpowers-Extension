@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <!-- Tells the Superpowers extension that we want superpowers on this page -->
+  <meta name="superpowers" content="enabled">
+  <title>Superpowers Advanced Debugger + Console Snippet</title>
+  <style>
+    /* ====== STYLES FOR THE ADVANCED DEBUGGER CODE ====== */
+    body {
+      font-family: system-ui, sans-serif;
+      margin: 0 auto;
+      padding: 1rem;
+      max-width: 1200px;
+      background: #f5f5f5;
+    }
+
+    .panel {
+      border: 1px solid #ccc;
+      padding: 15px;
+      margin: 10px 0;
+      border-radius: 4px;
+      background: #fff;
+    }
+    .controls button {
+      margin: 5px;
+      padding: 8px;
+      cursor: pointer;
+    }
+    #output {
+      background: #f8f8f8;
+      padding: 10px;
+      height: 300px;
+      overflow-y: auto;
+      font-family: monospace;
+    }
+    .success {
+      color: green;
+    }
+    .error {
+      color: red;
+    }
+    .test-case {
+      margin: 10px 0;
+      padding: 10px;
+      background: #eef;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+    .test-status {
+      padding: 10px;
+      margin: 5px 0;
+      border-radius: 4px;
+    }
+    .test-status.running { background: #fff3cd; }
+    .test-status.success { background: #d4edda; }
+    .test-status.error   { background: #f8d7da; }
+    .test-details {
+      margin-left: 20px;
+      font-family: monospace;
+    }
+
+    /* ====== STYLES FOR THE CONSOLE SNIPPET ====== */
+    #consoleOutput {
+      background-color: #f1f1f1;
+      padding: 1rem;
+      border: 1px solid #ccc;
+      height: 300px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+    }
+    button {
+      margin-right: 1rem;
+      cursor: pointer;
+    }
+
+    /* Minimally ensuring both sets of styles can coexist */
+    .consoleMessageWindow {
+      background: #ffffff;
+      border: 1px solid #aaa;
+      margin: 8px 0;
+      padding: 8px;
+      border-radius: 4px;
+      font-family: monospace;
+      white-space: pre-wrap;
+      color: #333;
+    }
+  </style>
+</head>
+
+<body>
+  <h1>Superpowers Advanced Debugger + Console Snippet</h1>
+
+  <!-- ============== ADVANCED DEBUGGER SECTION ============== -->
+  <div class="grid">
+    <!-- Left panels: debugger controls, console, network, tests -->
+    <div class="left-panel">
+
+      <div class="panel" id="debuggerControls">
+        <h2>Debugger Controls</h2>
+        <div class="controls">
+          <button id="attachBtn">Attach Debugger</button>
+          <button id="detachBtn">Detach Debugger</button>
+          <button id="enableConsole">Enable Console</button>
+          <button id="enableNetwork">Enable Network</button>
+          <button id="enableDOM">Enable DOM</button>
+        </div>
+      </div>
+
+      <div class="panel" id="consolePanel">
+        <h2>Console Operations</h2>
+        <div class="controls">
+          <button id="clearConsole">Clear Console</button>
+          <button id="getMessages">Get Messages</button>
+          <button id="enableVerbose">Enable Verbose</button>
+        </div>
+      </div>
+
+      <div class="panel" id="networkPanel">
+        <h2>Network Operations</h2>
+        <div class="controls">
+          <button id="captureNetwork">Start Capture</button>
+          <button id="stopCapture">Stop Capture</button>
+          <button id="getRequests">Get Requests</button>
+        </div>
+      </div>
+
+      <div class="panel" id="testPanel">
+        <h2>Test Cases</h2>
+        <div class="controls">
+          <button id="runAllTests">Run All Tests</button>
+          <div id="testStatus"></div>
+          <div id="testResults"></div>
+        </div>
+      </div>
+
+    </div> <!-- end left-panel -->
+
+    <!-- Right panel: debug output -->
+    <div class="right-panel">
+      <div class="panel">
+        <h2>Debug Output</h2>
+        <pre id="output"></pre>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ============== CONSOLE SNIPPET SECTION ============== -->
+  <h2>Superpowers Console Debugger Test (Snippet)</h2>
+  <p>
+    This snippet demonstrates capturing the active tab, sending pings,
+    and logging messages to a dedicated console area. Also generates random messages.
+  </p>
+  <button id="startDebugger">Start Debugger (Snippet)</button>
+  <button id="startRandomMessages">Start Random Messages</button>
+  <pre id="consoleOutput"></pre>
+
+  <!-- extra container for multiple message windows -->
+  <div id="multiConsoleContainer"></div>
+
+
+  <script>
+    /***************************************************************
+     * ADVANCED DEBUGGER CLASS
+     ***************************************************************/
+    class DebuggerDemo {
+      constructor() {
+        this.debuggee = null;  // We'll store { tabId } once attached
+        this.output = document.getElementById('output');
+        this.testResults = document.getElementById('testResults');
+        this.testStatus = document.getElementById('testStatus');
+        this.setupUIListeners();
+        setTimeout(() => this.init(), 1000);
+      }
+
+      log(msg, level = 'info') {
+        const line = document.createElement('div');
+        line.className = level;
+        // Add timestamp and make debug messages more visible
+        const timestamp = new Date().toISOString();
+        const emoji = level === 'info' ? 'ℹ️' : 
+                     level === 'error' ? '❌' : 
+                     level === 'success' ? '✅' : 
+                     level === 'debug' ? '🔍' : '⚠️';
+        
+        line.textContent = `${emoji} [${timestamp}] ${msg}`;
+        this.output.appendChild(line);
+        this.output.scrollTop = this.output.scrollHeight;
+
+        // Also log to console with proper console methods
+        const consoleMethod = level === 'error' ? console.error :
+                            level === 'warn' ? console.warn :
+                            level === 'debug' ? console.debug :
+                            console.log;
+        
+        consoleMethod(`[${level}] ${msg}`);
+
+        // If available, also log to sidepanel
+        if (window.Superpowers?.debugLog) {
+          window.Superpowers.debugLog(msg, level);
+        }
+      }
+
+      async init() {
+        await this.waitForDebugger();
+        this.log('Superpowers debugger plugin is ready!', 'success');
+
+        window.Superpowers.debugger.on('onDetach', (source, reason) => {
+          this.handleDetach(source, reason);
+        });
+        window.Superpowers.debugger.on('onEvent', (source, method, params) => {
+          this.handleEvent(source, method, params);
+        });
+      }
+
+      waitForDebugger() {
+        return new Promise((resolve, reject) => {
+          const start = Date.now();
+          const check = () => {
+            if (window.Superpowers?.debugger) {
+              resolve();
+            } else if (Date.now() - start > 15000) {
+              reject(new Error('Timed out waiting for window.Superpowers.debugger'));
+            } else {
+              setTimeout(check, 200);
+            }
+          };
+          check();
+        });
+      }
+
+      setupUIListeners() {
+        document.getElementById('attachBtn').onclick = () => this.attach();
+        document.getElementById('detachBtn').onclick = () => this.detach();
+        document.getElementById('enableConsole').onclick = () => this.enableDomain('Console');
+        document.getElementById('enableNetwork').onclick = () => this.enableDomain('Network');
+        document.getElementById('enableDOM').onclick = () => this.enableDomain('DOM');
+
+        document.getElementById('clearConsole').onclick = () => this.clearConsole();
+        document.getElementById('getMessages').onclick = () => this.getConsoleMessages();
+        document.getElementById('enableVerbose').onclick = () => this.setVerboseLogging();
+
+        document.getElementById('captureNetwork').onclick = () => this.startNetworkCapture();
+        document.getElementById('stopCapture').onclick = () => this.stopNetworkCapture();
+        document.getElementById('getRequests').onclick = () => this.getNetworkRequests();
+
+        document.getElementById('runAllTests').onclick = () => this.runTests();
+      }
+
+      // Multi-heuristic approach to find the best tab
+      async findBestTab() {
+        this.log("Trying to find best tab to debug (Snippet version)...", "info");
+
+        // 1) Active tab in current window
+        let tabs = await window.Superpowers.tabs.query({ active: true, currentWindow: true });
+        if (tabs.length) {
+          this.log(`Found active tab => tabId=${tabs[0].id}`, "info");
+          return tabs[0].id;
+        }
+
+        // 2) pinned in current window
+        this.log("No active tab found. Checking pinned tabs in current window...", "info");
+        tabs = await window.Superpowers.tabs.query({ pinned: true, currentWindow: true });
+        if (tabs.length) {
+          this.log(`Found pinned tab => tabId=${tabs[0].id}`, "info");
+          return tabs[0].id;
+        }
+
+        // 3) lastFocusedWindow + active
+        this.log("No pinned tab found. Checking lastFocusedWindow => active tab...", "info");
+        tabs = await window.Superpowers.tabs.query({ active: true, lastFocusedWindow: true });
+        if (tabs.length) {
+          this.log(`Found last-focused active tab => tabId=${tabs[0].id}`, "info");
+          return tabs[0].id;
+        }
+
+        // 4) fallback: any tab
+        this.log("No last-focused. Attempting any tab =>", "info");
+        tabs = await window.Superpowers.tabs.query({});
+        if (!tabs.length) {
+          throw new Error("No tabs found at all! Cannot attach debugger.");
+        }
+        this.log(`Falling back to first tab => tabId=${tabs[0].id}`, "info");
+        return tabs[0].id;
+      }
+
+      async attach() {
+        try {
+          const tabId = await this.findBestTab();
+          await window.Superpowers.debugger.attach({ tabId }, "1.3");
+          this.debuggee = { tabId };
+          this.log(`Debugger attached to tabId=${tabId}`, 'success');
+
+          await window.Superpowers.debugger.sendCommand({ tabId }, "Runtime.enable");
+        } catch (err) {
+          this.log(`Attach failed: ${err.message}`, 'error');
+        }
+      }
+
+      async detach() {
+        if (!this.debuggee) {
+          this.log('No debuggee currently. Attach first.', 'warn');
+          return;
+        }
+        try {
+          await window.Superpowers.debugger.detach(this.debuggee);
+          this.log('Debugger detached successfully', 'success');
+          this.debuggee = null;
+        } catch (err) {
+          this.log(`Detach failed: ${err.message}`, 'error');
+        }
+      }
+
+      handleDetach(source, reason) {
+        this.log(`onDetach => reason: ${reason}`, 'info');
+        if (this.debuggee && source.tabId === this.debuggee.tabId) {
+          this.debuggee = null;
+          this.log('Current debuggee reset to null', 'info');
+        }
+      }
+
+      handleEvent(source, method, params) {
+        this.log(`Debugger event => ${method}`, 'info');
+        this.log(JSON.stringify(params, null, 2), 'info');
+      }
+
+      async enableDomain(domain) {
+        if (!this.debuggee) {
+          this.log(`Cannot enable ${domain}. No debuggee attached.`, 'error');
+          return;
+        }
+        try {
+          await window.Superpowers.debugger.sendCommand(this.debuggee, `${domain}.enable`);
+          this.log(`${domain} domain enabled`, 'success');
+        } catch (err) {
+          this.log(`Failed to enable ${domain}: ${err.message}`, 'error');
+        }
+      }
+
+      async clearConsole() {
+        if (!this.debuggee) {
+          this.log('No debuggee. Attach first.', 'error');
+          return;
+        }
+        try {
+          await window.Superpowers.debugger.sendCommand(this.debuggee, 'Console.clear');
+          this.log('Console cleared', 'success');
+        } catch (err) {
+          this.log(`clearConsole failed: ${err.message}`, 'error');
+        }
+      }
+
+      async getConsoleMessages() {
+        if (!this.debuggee) {
+          this.log('No debuggee. Attach first.', 'error');
+          return;
+        }
+        try {
+          const result = await window.Superpowers.debugger.sendCommand(this.debuggee, 'Console.getMessages');
+          this.log('Console messages:\n' + JSON.stringify(result, null, 2), 'info');
+
+          // For each console message, create a mini-window in #multiConsoleContainer
+          const container = document.getElementById("multiConsoleContainer");
+          if (result?.messages) {
+            result.messages.forEach((msgObj) => {
+              const div = document.createElement('div');
+              div.className = 'consoleMessageWindow';
+              div.textContent = JSON.stringify(msgObj, null, 2);
+              container.appendChild(div);
+            });
+          }
+        } catch (err) {
+          this.log(`getConsoleMessages error: ${err.message}`, 'error');
+        }
+      }
+
+      async setVerboseLogging() {
+        if (!this.debuggee) {
+          this.log('No debuggee. Attach first.', 'error');
+          return;
+        }
+        try {
+          await window.Superpowers.debugger.sendCommand(this.debuggee, 'Console.setVerbosity', { level: 'verbose' });
+          this.log('Verbose console logging set', 'success');
+        } catch (err) {
+          this.log(`setVerboseLogging failed: ${err.message}`, 'error');
+        }
+      }
+
+      async startNetworkCapture() {
+        if (!this.debuggee) {
+          this.log('No debuggee. Attach first.', 'error');
+          return;
+        }
+        try {
+          await window.Superpowers.debugger.sendCommand(this.debuggee, 'Network.enable');
+          this.log('Network capture started', 'success');
+        } catch (err) {
+          this.log(`startNetworkCapture error: ${err.message}`, 'error');
+        }
+      }
+
+      async stopNetworkCapture() {
+        if (!this.debuggee) {
+          this.log('No debuggee. Attach first.', 'error');
+          return;
+        }
+        try {
+          await window.Superpowers.debugger.sendCommand(this.debuggee, 'Network.disable');
+          this.log('Network capture stopped', 'success');
+        } catch (err) {
+          this.log(`stopNetworkCapture error: ${err.message}`, 'error');
+        }
+      }
+
+      async getNetworkRequests() {
+        this.log('TODO: getNetworkRequests() not fully implemented.', 'warn');
+      }
+
+      async runTests() {
+        this.testResults.innerHTML = '';
+        this.testStatus.innerHTML = `<div class="test-status running">Running tests...</div>`;
+
+        const tests = [
+          { name: 'Debugger Attach/Detach', fn: this.testAttachDetach.bind(this) },
+          { name: 'Console Operations', fn: this.testConsoleOps.bind(this) },
+          { name: 'Network Operations', fn: this.testNetworkOps.bind(this) }
+        ];
+
+        let passed = 0, failed = 0;
+        for (const test of tests) {
+          try {
+            this.log(`Running test: ${test.name}...`, 'info');
+            await test.fn();
+            passed++;
+            this.addTestResult(test.name, true);
+          } catch (err) {
+            failed++;
+            this.addTestResult(test.name, false, err.message);
+            this.log(`Test failed: ${test.name} => ${err.message}`, 'error');
+          }
+        }
+
+        const summary = `Tests complete: ${passed} passed, ${failed} failed.`;
+        this.testStatus.innerHTML = `
+          <div class="test-status ${failed === 0 ? 'success' : 'error'}">
+            ${summary}
+          </div>
+        `;
+      }
+
+      addTestResult(name, passed, errorMsg = '') {
+        const div = document.createElement('div');
+        div.className = `test-case ${passed ? 'success' : 'error'}`;
+        div.innerHTML = `
+          <strong>${name}</strong>: ${passed ? 'PASSED' : 'FAILED'}
+          ${errorMsg ? `<div class="test-details">${errorMsg}</div>` : ''}
+        `;
+        this.testResults.appendChild(div);
+      }
+
+      async testAttachDetach() {
+        await this.attach();
+        if (!this.debuggee) throw new Error('Debugger not attached');
+
+        await window.Superpowers.debugger.sendCommand(this.debuggee, "Runtime.evaluate", {
+          expression: "'testAttachDetach() completed!'",
+          returnByValue: true
+        });
+
+        await this.detach();
+        if (this.debuggee) {
+          throw new Error('Detach did not clear debuggee');
+        }
+      }
+
+      async testConsoleOps() {
+        await this.attach();
+        if (!this.debuggee) throw new Error('Debugger not attached');
+        
+        await window.Superpowers.debugger.sendCommand(this.debuggee, 'Console.enable');
+        await window.Superpowers.debugger.sendCommand(this.debuggee, 'Console.clear');
+        await window.Superpowers.debugger.sendCommand(this.debuggee, 'Runtime.evaluate', {
+          expression: 'console.log("Hello from testConsoleOps!")'
+        });
+        
+        const messages = await window.Superpowers.debugger.sendCommand(this.debuggee, 'Console.getMessages');
+        if (!messages) throw new Error('No console messages returned?');
+
+        this.log('Console test done', 'success');
+        await this.detach();
+      }
+
+      async testNetworkOps() {
+        await this.attach();
+        if (!this.debuggee) throw new Error('Debugger not attached');
+        await this.startNetworkCapture();
+        await this.stopNetworkCapture();
+        await this.detach();
+      }
+    }
+
+    /***************************************************************
+     * CREATE THE ADVANCED DEBUGGER INSTANCE
+     ***************************************************************/
+    const advancedDebugger = new DebuggerDemo();
+
+
+    /***************************************************************
+     * BELOW => EXACT “SNIPPET” CODE FOR CONSOLE DEBUGGER
+     ***************************************************************/
+    async function waitForSuperpowersSnippet() {
+      if (window.Superpowers) return;
+      await new Promise(resolve => {
+        const interval = setInterval(() => {
+          if (window.Superpowers) {
+            clearInterval(interval);
+            resolve();
+          }
+        }, 100);
+      });
+    }
+
+    function snippetLogMessage(message) {
+      const outputEl = document.getElementById("consoleOutput");
+      console.log(message);
+      outputEl.innerText += message + '\n';
+
+      // Also create a new mini-window
+      const multiContainer = document.getElementById("multiConsoleContainer");
+      const div = document.createElement('div');
+      div.className = 'consoleMessageWindow';
+      div.textContent = message;
+      multiContainer.appendChild(div);
+    }
+
+    (async () => {
+      await waitForSuperpowersSnippet();
+
+      document.getElementById("startDebugger").onclick = async () => {
+        try {
+          // Query active tab in the current window
+          const [activeTab] = await Superpowers.tabs.query({ active: true, currentWindow: true });
+          if (!activeTab) {
+            snippetLogMessage('No active tab found.');
+            return;
+          }
+
+          const tabId = activeTab.id;
+          snippetLogMessage('Active tab found: ' + tabId);
+
+          // Display tab information
+          snippetLogMessage('Tab Info: ' + JSON.stringify(activeTab, null, 2));
+
+          // Simulate console message capturing by listening to console events
+          snippetLogMessage('Listening for console messages...');
+          // In real usage, capturing console messages from a different tab requires the debugger approach
+          // but we'll do a minimal local approach here:
+          Superpowers.runtime.on('console-output', (message) => {
+            snippetLogMessage('Console message event: ' + JSON.stringify(message, null, 2));
+          });
+
+          // Example ping
+          const pingResponse = await Superpowers.asyncPing("Ping from snippet!");
+          snippetLogMessage('Ping response: ' + pingResponse);
+
+          snippetLogMessage('Snippet: Debugger logic started (not an actual attach though).');
+
+        } catch (err) {
+          snippetLogMessage('Error: ' + err.message);
+        }
+      };
+
+      document.getElementById("startRandomMessages").onclick = () => {
+        const startTime = Date.now();
+        const interval = setInterval(() => {
+          if (Date.now() - startTime > 60000) {
+            clearInterval(interval);
+            snippetLogMessage('Stopped generating random messages after 60s.');
+            return;
+          }
+          const randomMessage = 'Random Message: ' + Math.random().toString(36).substring(7);
+          console.log(randomMessage); // Log to console
+          snippetLogMessage(randomMessage);  // Log to the snippet output area
+        }, 2000);
+      };
+    })();
+  </script>
+</body>
+</html>

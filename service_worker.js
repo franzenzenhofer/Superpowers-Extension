@@ -3,6 +3,94 @@
 // 1) Import your plugin manager at the top
 import { initializePluginManager } from './plugin_manager.js';
 
+// Keep original references
+const _origRuntimeSendMessage = chrome.runtime.sendMessage.bind(chrome.runtime);
+const _origTabsSendMessage = chrome.tabs.sendMessage.bind(chrome.tabs);
+
+/**
+ * Safe wrapper for chrome.runtime.sendMessage
+ */
+chrome.runtime.sendMessage = function (message, responseCallback) {
+  try {
+    _origRuntimeSendMessage(message, (res) => {
+      // Check for errors
+      const err = chrome.runtime.lastError;
+      if (err) {
+        console.warn("[SafeSend] runtime.sendMessage error:", err.message);
+      }
+      // invoke original callback if provided
+      if (typeof responseCallback === 'function') {
+        responseCallback(res);
+      }
+    });
+  } catch (e) {
+    console.warn("[SafeSend] runtime.sendMessage threw:", e);
+    if (typeof responseCallback === 'function') {
+      responseCallback(undefined);
+    }
+  }
+};
+
+/**
+ * Safe wrapper for chrome.tabs.sendMessage with connection checking
+ * @param {number} tabId - ID of the tab to send message to
+ * @param {object} message - Message to send
+ * @param {object} [options] - Optional chrome.tabs.sendMessage options
+ * @param {function} [responseCallback] - Optional callback for response
+ */
+chrome.tabs.sendMessage = function (tabId, message, options, responseCallback) {
+  // Handle both signatures
+  let cb = responseCallback;
+  let opts = options;
+  if (typeof options === 'function' && !responseCallback) {
+    cb = options;
+    opts = undefined;
+  }
+
+  // First check if tab exists and is ready
+  chrome.tabs.get(tabId, (tab) => {
+    if (chrome.runtime.lastError) {
+      console.debug(`[SafeSend] Tab ${tabId} not found, skipping message`);
+      if (typeof cb === 'function') cb(undefined);
+      return;
+    }
+
+    // Skip certain tab states where content scripts can't run
+    if (tab.status !== 'complete' || tab.url?.startsWith('chrome://')) {
+      console.debug(`[SafeSend] Tab ${tabId} not ready (${tab.status}) or chrome URL, skipping`);
+      if (typeof cb === 'function') cb(undefined);
+      return;
+    }
+
+    // Try sending the message
+    try {
+      _origTabsSendMessage(tabId, message, opts, (response) => {
+        const err = chrome.runtime.lastError;
+        if (err) {
+          // Only log real errors, not connection issues
+          if (!err.message.includes('Could not establish connection')) {
+            console.warn("[SafeSend] tabs.sendMessage error:", err.message, {
+              tabId,
+              message
+            });
+          }
+        }
+        if (typeof cb === 'function') {
+          cb(response);
+        }
+      });
+    } catch (e) {
+      console.warn("[SafeSend] tabs.sendMessage threw:", e, {
+        tabId,
+        message
+      });
+      if (typeof cb === 'function') {
+        cb(undefined);
+      }
+    }
+  });
+};
+
 // We'll keep DEBUG from your original code
 const DEBUG = {
   LEVELS: {

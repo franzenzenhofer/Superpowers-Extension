@@ -16,6 +16,8 @@ import { superwebrequest_extension } from './plugins/superwebrequest/extension.j
 import { superasyncrandominteger_extension } from './plugins/superasyncrandominteger/extension.js';
 import { superopenai_extension } from './plugins/superopenai/extension.js';
 import { superurlget_extension } from './plugins/superurlget/extension.js';
+import { superdebugger_extension } from './plugins/superdebugger/extension.js'; // <-- NEW
+
 
 /**
  * This plugin manager now loads each plugin in a robust manner:
@@ -64,7 +66,8 @@ export async function initializePluginManager() {
     superwebrequest_extension,
     superasyncrandominteger_extension,
     superopenai_extension,
-    superurlget_extension  // Add this line
+    superurlget_extension,
+    superdebugger_extension
   ];
 
   // Install each plugin with status tracking

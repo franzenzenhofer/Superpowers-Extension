@@ -12,7 +12,8 @@
     "webNavigation",
     "sub_frames",
     "webRequest",
-    "webRequestBlocking"
+    "webRequestBlocking",
+    "debugger"  
   ],
   "host_permissions": [
       "<all_urls>",

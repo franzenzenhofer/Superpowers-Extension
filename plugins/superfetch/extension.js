@@ -42,7 +42,7 @@ export const superfetch_extension = {
         statusText: resp.statusText,
         body: text,
         headers: headerObj,
-        ok: resp.ok,
+        ok: resp.ok, // Ensure ok is passed through
         redirected: resp.redirected,
         url: resp.url,
         type: resp.type

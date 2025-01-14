@@ -77,6 +77,12 @@
       "extensionPath": "plugins/superurlget/extension.js",
       "contentScript": "plugins/superurlget/content.js",
       "pageScript": "plugins/superurlget/page.js"
+    },
+    {
+      "name": "superdebugger",
+      "extensionPath": "plugins/superdebugger/extension.js",
+      "contentScript": "plugins/superdebugger/content.js",
+      "pageScript": "plugins/superdebugger/page.js"
     }
   ]
 }
