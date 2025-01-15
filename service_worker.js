@@ -3,6 +3,11 @@
 // 1) Import your plugin manager at the top
 import { initializePluginManager } from './plugin_manager.js';
 
+// Add at top of service_worker.js with other state
+const SIDEPANEL_STATE = {
+  isOpen: false
+};
+
 // Keep original references
 const _origRuntimeSendMessage = chrome.runtime.sendMessage.bind(chrome.runtime);
 const _origTabsSendMessage = chrome.tabs.sendMessage.bind(chrome.tabs);
@@ -127,7 +132,8 @@ function logSW(msg, level = DEBUG.LEVELS.INFO, extra = {}) {
       console.warn(logMsg, extra);
       break;
     default:
-      console.log(logMsg, extra);
+      // console.log(logMsg, extra);
+      break;
   }
 
   // Keep error history trimmed
@@ -232,6 +238,71 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
 });
 
+// Add to your message listeners
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.type === "OPEN_SIDEPANEL") {
+    if (chrome.sidePanel?.open) {
+      chrome.sidePanel.open({ windowId: sender.tab.windowId });
+    }
+    sendResponse({ success: true });
+    return true;
+  }
+  
+  if (request.type === "CLOSE_SIDEPANEL") {
+    if (chrome.sidePanel?.close) {
+      chrome.sidePanel.close({ windowId: sender.tab.windowId });
+    }
+    sendResponse({ success: true });
+    return true;
+  }
+
+  if (request.type === "OPEN_SIDEPANEL_TAB") {
+    chrome.tabs.create({ 
+      url: chrome.runtime.getURL("sidepanel.html"),
+      active: true
+    });
+    sendResponse({ success: true });
+    return true;
+  }
+});
+
+chrome.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
+  if (request.type === "OPEN_SIDEPANEL") {
+    // Open sidepanel on the current tab
+    await chrome.sidePanel.setOptions({
+      tabId: sender.tab.id,
+      path: "sidepanel.html",
+      enabled: true
+    });
+    sendResponse({ success: true });
+    return true;
+  }
+
+  if (request.type === "CLOSE_SIDEPANEL") {
+    // Close sidepanel for ALL tabs
+    await chrome.sidePanel.setOptions({
+      enabled: false
+    });
+    sendResponse({ success: true });
+    return true;
+  }
+});
+
+// Update the message listener
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.type === "OPEN_SIDEPANEL") {
+    if (!SIDEPANEL_STATE.isOpen) {
+      chrome.sidePanel.open({ windowId: sender.tab.windowId });
+      SIDEPANEL_STATE.isOpen = true;
+    } else {
+      chrome.sidePanel.close({ windowId: sender.tab.windowId });
+      SIDEPANEL_STATE.isOpen = false;
+    }
+    sendResponse({ success: true });
+    return true;
+  }
+});
+
 // ----------------------------------------------------------------------------
 // 3) Our main initialization function
 // ----------------------------------------------------------------------------
@@ -280,14 +351,20 @@ async function initialize() {
 // 4) This sets up your sidepanel logic
 // ----------------------------------------------------------------------------
 function setupSidePanelBehavior() {
-  if (chrome.sidePanel?.setPanelBehavior) {
-    chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true })
-      .then(() => logSW("SidePanel behavior set", DEBUG.LEVELS.INFO))
-      .catch(err => logSW(`SidePanel error: ${err.message}`, DEBUG.LEVELS.ERROR));
-  } else {
-    logSW("Fallback: Using tab for sidepanel", DEBUG.LEVELS.WARN);
-    chrome.action.onClicked.addListener(() => {
+  // Listen for action button clicks
+  chrome.action.onClicked.addListener((tab) => {
+    if (chrome.sidePanel?.open) {
+      chrome.sidePanel.open({ windowId: tab.windowId });
+    } else {
+      // Fallback for older Chrome versions
       chrome.tabs.create({ url: chrome.runtime.getURL("sidepanel.html") });
+    }
+  });
+
+  // Optionally disable auto-open behavior if supported
+  if (chrome.sidePanel?.setPanelBehavior) {
+    chrome.sidePanel.setPanelBehavior({ 
+      openPanelOnActionClick: true // Enable auto-open on action click
     });
   }
 }

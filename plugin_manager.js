@@ -17,6 +17,8 @@ import { superasyncrandominteger_extension } from './plugins/superasyncrandomint
 import { superopenai_extension } from './plugins/superopenai/extension.js';
 import { superurlget_extension } from './plugins/superurlget/extension.js';
 import { superdebugger_extension } from './plugins/superdebugger/extension.js'; // <-- NEW
+import { superwebnavigation_extension } from './plugins/superwebnavigation/extension.js';
+import { superaction_extension } from './plugins/superaction/extension.js';
 
 
 /**
@@ -25,7 +27,9 @@ import { superdebugger_extension } from './plugins/superdebugger/extension.js'; 
  * - We store each plugin’s status in a Map, including any error message.
  */
 export async function initializePluginManager() {
+  /*
   console.log("[plugin_manager] Starting initialization via ES module...");
+  */
 
   const pluginContext = {
     debug: true,
@@ -43,7 +47,9 @@ export async function initializePluginManager() {
     });
 
     if (status) {
+      /*
       console.log(`[plugin_manager] Plugin ${plugin.name} registered: ${status}`);
+      */
     } else {
       console.error("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
       console.error(`[plugin_manager] Plugin ${plugin.name} FAILED to load!`);
@@ -67,7 +73,9 @@ export async function initializePluginManager() {
     superasyncrandominteger_extension,
     superopenai_extension,
     superurlget_extension,
-    superdebugger_extension
+    superdebugger_extension,
+    superwebnavigation_extension,
+    superaction_extension
   ];
 
   // Install each plugin with status tracking
@@ -81,6 +89,8 @@ export async function initializePluginManager() {
     }
   }
 
+  /*
   console.log("[plugin_manager] All plugin installs attempted. Some may have failed; see warnings above if any.");
+  */
   return pluginContext.registeredPlugins;
 }

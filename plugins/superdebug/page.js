@@ -3,7 +3,7 @@
   if (!window.Superpowers) {
     window.Superpowers = {};
   }
-  console.log("[superdebug/page.js] loaded in page context");
+  // console.log("[superdebug/page.js] loaded in page context");
 
   /**
    * Safely convert any input (object, array, etc.) into a readable string.
@@ -36,10 +36,10 @@
         console.warn(consoleLine);
         break;
       case "debug":
-        console.debug(consoleLine);
+        // console.debug(consoleLine);
         break;
       default:
-        console.log(consoleLine);
+        // console.log(consoleLine);
         break;
     }
 
@@ -75,5 +75,5 @@
     }, "*");
   };
 
-  console.log("[superdebug/page.js] window.Superpowers.debugLog is ready");
+  // console.log("[superdebug/page.js] window.Superpowers.debugLog is ready");
 })();

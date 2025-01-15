@@ -5,7 +5,7 @@
     if (!window.Superpowers) {
       window.Superpowers = {};
     }
-    console.log("[superenv/page.js] loaded in page context");
+    // console.log("[superenv/page.js] loaded in page context");
   
     window.Superpowers.getEnvVars = async function() {
       return new Promise((resolve, reject) => {
@@ -81,5 +81,5 @@
         }, "*");
     };
 
-    console.log("[superdebug/page.js] Debug logging initialized");
+    // console.log("[superdebug/page.js] Debug logging initialized");
 })();

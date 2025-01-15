@@ -2,14 +2,14 @@
 // Minimal bridging from the page => SW (service worker), exactly like superruntime.
 
 (function() {
-  console.log("[superwebrequest/content.js] loaded in content-script context");
+  // console.log("[superwebrequest/content.js] loaded in content-script context");
 
   window.addEventListener("message", (event) => {
     if (!event.data || event.data.direction !== "from-page") return;
     if (event.data.type !== "SUPER_WEBREQUEST_CALL") return;
 
     const { requestId, methodName, args } = event.data;
-    console.log("[superwebrequest/content.js] SUPER_WEBREQUEST_CALL =>", methodName, args);
+    // console.log("[superwebrequest/content.js] SUPER_WEBREQUEST_CALL =>", methodName, args);
 
     chrome.runtime.sendMessage(
       {

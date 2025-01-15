@@ -41,9 +41,9 @@ export const superopenai_extension = {
   name: "superopenai_extension",
 
   install(context) {
-    if (context.debug) {
-      console.log("[superopenai_extension] Installing in SW...");
-    }
+    /*
+    console.log("[superopenai_extension] Installing in SW...");
+    */
 
     // Map of requestId => Port (for streaming chunks)
     const streamingPorts = new Map();
@@ -72,7 +72,9 @@ export const superopenai_extension = {
     chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       if (request.type !== "SUPEROPENAI_CALL") return false;
       const { requestId, payload } = request;
+      /*
       console.log(`[superopenai_extension] #${requestId} => method: ${payload.method}`);
+      */
 
       // Handle config or test first
       if (payload.method === "setApiKey") {
@@ -229,7 +231,9 @@ export const superopenai_extension = {
       // 3) When promise finishes, send final response
       promise
         .then((result) => {
+          /*
           console.log(`[superopenai_extension] #${requestId} => returning success`);
+          */
           sendResponse({ success: true, result });
         })
         .catch((error) => {

@@ -212,7 +212,7 @@
     });
     STATE.initialized = true;
     STATE.eventListenersActive = true;
-    console.log("[superdebugger/page.js] window.Superpowers.debugger is ready");
+    // console.log("[superdebugger/page.js] window.Superpowers.debugger is ready");
   } catch (err) {
     console.error('[superdebugger/page.js] Failed to initialize debugger interface:', err);
     throw err;

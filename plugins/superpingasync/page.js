@@ -1,4 +1,3 @@
-
 (function () {
   if (!window.Superpowers) {
     window.Superpowers = {};
@@ -33,5 +32,5 @@
     });
   };
 
-  console.log("[superpingasync/page.js] Superpowers.asyncPing(...) is ready");
+  // console.log("[superpingasync/page.js] Superpowers.asyncPing(...) is ready");
 })();

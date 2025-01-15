@@ -10,7 +10,7 @@ export const superping_extension = {
    */
   install(context) {
     if (context.debug) {
-      console.log("[superping_extension] Installing Superping in SW...");
+      // console.log("[superping_extension] Installing Superping in SW...");
     }
 
     /**
@@ -20,7 +20,7 @@ export const superping_extension = {
     chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       if (request.type !== "SUPERPING") return false;
 
-      console.log("[superping_extension] Got SUPERPING =>", request.payload);
+      // console.log("[superping_extension] Got SUPERPING =>", request.payload);
 
       // Minimal synchronous response (in MV3, it's still callback-based),
       // but from the page's perspective, it's a "fire and forget".

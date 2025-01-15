@@ -1,6 +1,6 @@
 // plugins/superruntime/content.js
 (function() {
-  console.log("[superruntime/content.js] loaded in content-script context");
+  // console.log("[superruntime/content.js] loaded in content-script context");
 
   // Relay messages from the page => background
   window.addEventListener("message", (ev) => {
@@ -8,7 +8,7 @@
     if (ev.data.type !== "SUPER_RUNTIME_CALL") return;
 
     const { requestId, methodName, args } = ev.data;
-    console.log("[superruntime/content.js] SUPER_RUNTIME_CALL =>", methodName, args);
+    // console.log("[superruntime/content.js] SUPER_RUNTIME_CALL =>", methodName, args);
 
     chrome.runtime.sendMessage(
       {

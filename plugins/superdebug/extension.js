@@ -25,7 +25,7 @@ export const superdebug_extension = {
 
   install(context) {
     const { debug } = context;
-    if (debug) console.log("[superdebug_extension] Installing Superpowers.debugLog in SW...");
+    // if (debug) console.log("[superdebug_extension] Installing Superpowers.debugLog in SW...");
 
     // Add a message listener for SUPERPOWERS_DEBUGLOG
     chrome.runtime.onMessage.addListener((request, sender) => {

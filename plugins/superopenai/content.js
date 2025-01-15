@@ -9,7 +9,9 @@
  */
 
 (function() {
+  /*
   console.log("[superopenai/content.js] loaded in content-script context");
+  */
 
   let port = null;
   let isConnecting = false;
@@ -26,14 +28,18 @@
       port = chrome.runtime.connect({ name: "stream-channel" });
       
       port.onDisconnect.addListener(() => {
+        /*
         console.log("[superopenai/content.js] Port disconnected");
+        */
         port = null;
         
         // Try to reconnect if we haven't exceeded max attempts
         if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
           reconnectAttempts++;
           setTimeout(() => {
+            /*
             console.log(`[superopenai/content.js] Attempting to reconnect (${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`);
+            */
             setupPort();
           }, RECONNECT_DELAY);
         }
@@ -50,7 +56,9 @@
         }
       });
 
+      /*
       console.log("[superopenai/content.js] Port connected successfully");
+      */
       reconnectAttempts = 0; // Reset attempts on successful connection
       isConnecting = false;
       return port;

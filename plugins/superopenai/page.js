@@ -95,5 +95,7 @@
     chatCompletionStream: createOpenAICall("chatCompletionStream")
   };
 
+  /*
   console.log("[superopenai/page.js] window.Superpowers.OpenAI methods are ready, including chatCompletionStream.");
+  */
 })();

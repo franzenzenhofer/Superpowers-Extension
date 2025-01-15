@@ -83,6 +83,18 @@
       "extensionPath": "plugins/superdebugger/extension.js",
       "contentScript": "plugins/superdebugger/content.js",
       "pageScript": "plugins/superdebugger/page.js"
+    },
+    {
+      "name": "superwebnavigation",
+      "extensionPath": "plugins/superwebnavigation/extension.js",
+      "contentScript": "plugins/superwebnavigation/content.js",
+      "pageScript": "plugins/superwebnavigation/page.js"
+    },
+    {
+      "name": "superaction",
+      "extensionPath": "plugins/superaction/extension.js", 
+      "contentScript": "plugins/superaction/content.js",
+      "pageScript": "plugins/superaction/page.js"
     }
   ]
 }

@@ -8,7 +8,7 @@ export const superenv_extension = {
   
     install(context) {
       const { debug } = context;
-      if (debug) console.log("[superenv_extension] Installing superenv in SW...");
+      // if (debug) console.log("[superenv_extension] Installing superenv in SW...");
   
       // Initial load from storage
       loadEnvVarsFromStorage();
@@ -18,12 +18,12 @@ export const superenv_extension = {
   
         switch (request.type) {
           case "GET_ENV_VARS":
-            if (debug) console.log("[superenv_extension] GET_ENV_VARS request");
+            // if (debug) console.log("[superenv_extension] GET_ENV_VARS request");
             handleGetEnvVars(sendResponse, debug);
             return true; // async
   
           case "SET_ENV_VARS":
-            if (debug) console.log("[superenv_extension] SET_ENV_VARS request");
+            // if (debug) console.log("[superenv_extension] SET_ENV_VARS request");
             handleSetEnvVars(request, sendResponse, debug);
             return true; // async
 
@@ -55,7 +55,7 @@ async function loadEnvVarsFromStorage() {
         if (typeof envVarsCache !== "object") {
             envVarsCache = { default: envVarsCache || {} };
         }
-        console.log("[superenv_extension] Loaded env vars from storage:", envVarsCache);
+        // console.log("[superenv_extension] Loaded env vars from storage:", envVarsCache);
     } catch (err) {
         console.error("[superenv_extension] Error loading from storage:", err);
         envVarsCache = {};
@@ -65,7 +65,7 @@ async function loadEnvVarsFromStorage() {
 function handleGetEnvVars(sendResponse, debug) {
     // First check cache
     if (envVarsCache !== null) {
-        if (debug) console.log("[superenv_extension] Serving from cache:", envVarsCache);
+        // if (debug) console.log("[superenv_extension] Serving from cache:", envVarsCache);
         sendResponse(envVarsCache.default || {});
         return;
     }
@@ -73,7 +73,7 @@ function handleGetEnvVars(sendResponse, debug) {
     // If no cache, load from storage
     chrome.storage.local.get(['superEnvVars'], (result) => {
         envVarsCache = result.superEnvVars || {};
-        if (debug) console.log("[superenv_extension] Loaded from storage:", envVarsCache);
+        // if (debug) console.log("[superenv_extension] Loaded from storage:", envVarsCache);
         sendResponse(envVarsCache.default || {});
     });
 }
@@ -96,7 +96,7 @@ function handleSetEnvVars(request, sendResponse, debug) {
             });
             return;
         }
-        if (debug) console.log("[superenv_extension] Saved to storage:", newVars);
+        // if (debug) console.log("[superenv_extension] Saved to storage:", newVars);
         sendResponse({ 
             success: true,
             vars: newVars 

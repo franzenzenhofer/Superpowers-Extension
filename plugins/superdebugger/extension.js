@@ -234,7 +234,7 @@ export const superdebugger_extension = {
   async install(context) {
     try {
       if (context.debug) {
-        console.log("[superdebugger_extension] Installing superdebugger in SW...");
+        // console.log("[superdebugger_extension] Installing superdebugger in SW...");
       }
 
       // Validate API availability
@@ -250,7 +250,7 @@ export const superdebugger_extension = {
         if (request.type !== "SUPER_DEBUGGER_CALL") return false;
 
         const { requestId, methodName, args } = request;
-        console.log(`[superdebugger_extension] method=${methodName}, requestId=${requestId}`);
+        // console.log(`[superdebugger_extension] method=${methodName}, requestId=${requestId}`);
 
         callChromeDebugger(methodName, args)
           .then(result => sendResponse({ success: true, result }))

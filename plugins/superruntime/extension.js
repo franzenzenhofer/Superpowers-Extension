@@ -4,7 +4,7 @@ export const superruntime_extension = {
 
   install(context) {
     if (context.debug) {
-      console.log("[superruntime_extension] Installing superruntime in SW...");
+      // console.log("[superruntime_extension] Installing superruntime in SW...");
     }
 
     // Handle method calls
@@ -12,7 +12,7 @@ export const superruntime_extension = {
       if (request.type !== "SUPER_RUNTIME_CALL") return false;
 
       const { requestId, methodName, args } = request;
-      console.log(`[superruntime_extension] method=${methodName}, requestId=${requestId}`);
+      // console.log(`[superruntime_extension] method=${methodName}, requestId=${requestId}`);
 
       callChromeRuntime(methodName, args)
         .then(result => sendResponse({ success: true, result }))

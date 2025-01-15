@@ -5,16 +5,16 @@ export const superwebrequest_extension = {
   name: "superwebrequest_extension",
 
   install(context) {
-    if (context.debug) {
-      console.log("[superwebrequest_extension] Installing superwebrequest in SW...");
-    }
+    // if (context.debug) {
+    //   console.log("[superwebrequest_extension] Installing superwebrequest in SW...");
+    // }
 
     // 1) Listen for "SUPER_WEBREQUEST_CALL" messages from content.js => page.js
     chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       if (request.type !== "SUPER_WEBREQUEST_CALL") return false;
 
       const { requestId, methodName, args } = request;
-      console.log(`[superwebrequest_extension] method=${methodName}, requestId=${requestId}`);
+      // console.log(`[superwebrequest_extension] method=${methodName}, requestId=${requestId}`);
 
       callChromeWebRequest(methodName, args)
         .then(result => sendResponse({ success: true, result }))

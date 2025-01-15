@@ -1,6 +1,6 @@
 // plugins/superdebug/content.js
 (function() {
-  console.log("[superdebug/content.js] loaded in content-script context");
+  // console.log("[superdebug/content.js] loaded in content-script context");
 
   // Listen for messages from the page
   window.addEventListener("message", (event) => {

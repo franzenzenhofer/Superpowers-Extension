@@ -83,7 +83,7 @@
       }
 
       const { requestId, methodName, args } = event.data;
-      console.log("[superdebugger/content.js] SUPER_DEBUGGER_CALL =>", methodName, args);
+      // console.log("[superdebugger/content.js] SUPER_DEBUGGER_CALL =>", methodName, args);
 
       // Validate runtime connection
       if (!STATE.runtimeConnected) {
@@ -159,5 +159,5 @@
 
   // Initialize state
   STATE.initialized = true;
-  console.log("[superdebugger/content.js] loaded in content-script context");
+  // console.log("[superdebugger/content.js] loaded in content-script context");
 })();

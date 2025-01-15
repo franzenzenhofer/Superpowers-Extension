@@ -16,7 +16,7 @@ export const superscreenshot_extension = {
       if (request.type !== "SUPERSCREENSHOT") return false;
 
       const opId = request.requestId;
-      console.log(`[superscreenshot_extension] Starting operation ${opId}`);
+      // console.log(`[superscreenshot_extension] Starting operation ${opId}`);
 
       // Keep service worker alive
       const keepAlive = setInterval(() => {

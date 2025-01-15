@@ -1,7 +1,7 @@
 // plugins/superasyncrandominteger/content.js
 
 (function () {
-  console.log("[superpingasync/content.js] loaded in content-script context");
+  // console.log("[superpingasync/content.js] loaded in content-script context");
 
   window.addEventListener("message", (event) => {
     if (!event.data || event.data.direction !== "from-page") return;

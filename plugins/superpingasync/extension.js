@@ -5,7 +5,7 @@ export const superpingasync_extension = {
 
   install(context) {
     if (context.debug) {
-      console.log("[superpingasync_extension] Installing superpingasync in SW...");
+      // console.log("[superpingasync_extension] Installing superpingasync in SW...");
     }
 
     chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
@@ -13,7 +13,7 @@ export const superpingasync_extension = {
 
       const { requestId, payload } = request;
       const { message } = payload || {};
-      console.log(`[superpingasync_extension] #${requestId} => message: ${message}`);
+      // console.log(`[superpingasync_extension] #${requestId} => message: ${message}`);
 
       // Simulate async or do any needed logic before responding
       setTimeout(() => {

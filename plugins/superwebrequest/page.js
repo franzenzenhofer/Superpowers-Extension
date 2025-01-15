@@ -78,5 +78,5 @@
 
   window.Superpowers.webrequest = webrequestProxy;
 
-  console.log("[superwebrequest/page.js] window.Superpowers.webrequest is ready");
+  // console.log("[superwebrequest/page.js] window.Superpowers.webrequest is ready");
 })();

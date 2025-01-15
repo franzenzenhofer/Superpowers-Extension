@@ -442,7 +442,7 @@ function captureTab(windowId, format, quality) {
  */
 export function captureFullPage(tabId, windowId, format, quality) {
   return new Promise((resolve, reject) => {
-    console.log("[captureFullPage] Starting capture for tab:", tabId);
+    // console.log("[captureFullPage] Starting capture for tab:", tabId);
 
     // 1. Get page dimensions with error handling
     let dimensions;
@@ -470,7 +470,7 @@ export function captureFullPage(tabId, windowId, format, quality) {
         throw new Error("Failed to get page dimensions");
       }
       dimensions = injection.result;
-      console.log("[captureFullPage] Dimensions:", dimensions);
+      // console.log("[captureFullPage] Dimensions:", dimensions);
 
       // 2. Create canvas
       const canvas = new OffscreenCanvas(dimensions.pageWidth, dimensions.pageHeight);
@@ -480,7 +480,7 @@ export function captureFullPage(tabId, windowId, format, quality) {
       let currentY = 0;
       const captureSegments = () => {
         if (currentY < dimensions.pageHeight) {
-          console.log(`[captureFullPage] Processing segment at Y=${currentY}`);
+          // console.log(`[captureFullPage] Processing segment at Y=${currentY}`);
           
           // Scroll to position
           return chrome.scripting.executeScript({
@@ -511,7 +511,7 @@ export function captureFullPage(tabId, windowId, format, quality) {
         })
         .then(blobToDataURL)
         .then((finalDataUrl) => {
-          console.log("[captureFullPage] Successfully completed full page capture");
+          // console.log("[captureFullPage] Successfully completed full page capture");
           resolve(finalDataUrl);
         });
     })

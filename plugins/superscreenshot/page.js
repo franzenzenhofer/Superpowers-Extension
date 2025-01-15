@@ -35,5 +35,5 @@
     });
   };
 
-  console.log("[superscreenshot/page.js] Superpowers.screenshot() ready");
+  // console.log("[superscreenshot/page.js] Superpowers.screenshot() ready");
 })();

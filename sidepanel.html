@@ -1,105 +1,404 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <meta charset="utf-8"/>
-  <title>Superpowers Side Panel</title>
-  <script type="module" src="sidepanel.js"></script>
-  <style>
-    body {
-      font-family: sans-serif;
-      margin: 0;
-      padding: 8px;
-      background: #f9f9f9;
-    }
-    h1 { margin-top: 0; }
-    #envContainer .env-row {
-      display: flex;
-      margin-bottom: 8px;
-    }
-    #envContainer .env-row input {
-      flex: 1;
-      margin-right: 6px;
-    }
-    #saveBtn, #addRowBtn, #showDebugBtn {
-      margin-top: 10px;
-    }
-    #debugOutput {
-      margin-top: 10px;
-      padding: 6px;
-      background: #eee;
-      max-height: 200px;
-      overflow-y: auto;
-      font-size: 0.9em;
-    }
-    .env-name {
-      margin: 10px 0;
-      padding: 10px;
-      background: #f0f0f0;
-      border-radius: 4px;
-    }
-    .debug-section {
-      margin-top: 20px;
-      border-top: 1px solid #ccc;
-      padding-top: 10px;
-    }
-    #debugOutput {
-      font-family: monospace;
-      white-space: pre-wrap;
-      font-size: 12px;
-    }
-    .env-section {
-      border-bottom: 1px solid #ccc;
-      padding-bottom: 15px;
-      margin-bottom: 15px;
-    }
-    .test-section {
-      margin-top: 20px;
-      border-top: 1px solid #ccc;
-      padding-top: 10px;
-    }
-    #envTestOutput {
-      font-family: monospace;
-      white-space: pre-wrap;
-      font-size: 12px;
-      background: #f5f5f5;
-      padding: 10px;
-      border-radius: 4px;
-      max-height: 200px;
-      overflow-y: auto;
-    }
-    .refresh-button {
-      margin-bottom: 10px;
-      padding: 5px 10px;
-      background: #4a9eff;
-      color: white;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-    }
-    .refresh-button:hover {
-      background: #3a8eef;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#0033AD">
+    <title>Super Env Manager</title>
+    <style>
+        :root {
+            /* Superman Core Colors */
+            --super-blue-900: #002244;
+            --super-blue-700: #0033A0;
+            --super-blue-500: #0454A4;
+            --super-blue-300: #3B7DC9;
+            --super-yellow: #FFD700;
+            --super-yellow-light: #FFE44D;
+            --super-yellow-dark: #CCB100;
+            --steel-gray: #71797E;
+            --steel-light: #D3D3D3;
+            --white-pure: #FFFFFF;
+
+            /* Semantic mappings */
+            --editor-bg: var(--super-blue-900);
+            --panel-bg: rgba(255, 255, 255, 0.1);
+            --active-bg: var(--super-yellow-light);
+            --text-default: var(--white-pure);
+            --text-muted: var(--steel-light);
+            --text-bright: var(--white-pure);
+            --text-accent: var(--super-yellow);
+            --border-subtle: rgba(255, 255, 255, 0.1);
+            --border-strong: rgba(255, 255, 255, 0.2);
+
+            /* Component dimensions */
+            --space-1: 4px;
+            --space-2: 8px;
+            --space-3: 12px;
+            --space-4: 16px;
+            --space-5: 24px;
+            --space-6: 32px;
+            --border-radius: 4px;
+        }
+
+        /* Reset & Base Styles */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            background: var(--editor-bg);
+            color: var(--text-default);
+            min-height: 100vh;
+            padding: var(--space-2);
+        }
+
+        /* Main Container */
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: var(--space-2);
+        }
+
+        /* Header Styles */
+        .hero-header {
+            text-align: center;
+            background: var(--panel-bg);
+            padding: var(--space-4);
+            margin-bottom: var(--space-4);
+            border-radius: var(--border-radius);
+            border: 1px solid var(--border-strong);
+        }
+
+        .hero-title {
+            font-size: 28px;
+            font-weight: 800;
+            color: var(--super-yellow);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            position: relative;
+        }
+
+        .hero-subtitle {
+            color: var(--text-muted);
+            margin-top: var(--space-2);
+        }
+
+        /* Panel Styles */
+        .main-panel {
+            background: var(--panel-bg);
+            border-radius: var(--border-radius);
+            border: 1px solid var(--border-strong);
+            overflow: hidden;
+        }
+
+        /* Action Bar */
+        .action-bar {
+            background: var(--super-blue-700);
+            padding: var(--space-3);
+            display: grid;
+            gap: var(--space-2);
+            grid-template-columns: 1fr;
+        }
+
+        @media (min-width: 640px) {
+            .action-bar {
+                grid-template-columns: repeat(3, 1fr);
+                padding: var(--space-4);
+                gap: var(--space-4);
+            }
+        }
+
+        .super-button {
+            background: var(--super-blue-300);
+            color: var(--super-blue-900);
+            text-shadow: 0 1px 0 rgba(255, 255, 255, 0.2);
+            border: none;
+            padding: var(--space-3);
+            border-radius: var(--border-radius);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: var(--space-2);
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: var(--space-4);
+            transition: transform 0.2s;
+        }
+
+        .super-button:active {
+            transform: scale(0.98);
+        }
+
+        .super-button.secondary {
+            background: var(--super-yellow);
+            color: var(--super-blue-900);
+            font-weight: 600;
+        }
+
+        .variables-container {
+            padding: var(--space-4);
+        }
+
+        .variable-card {
+            background: var(--panel-bg);
+            border-radius: var(--border-radius);
+            padding: var(--space-4);
+            margin-bottom: var(--space-4);
+            display: grid;
+            gap: var(--space-4);
+            position: relative;
+            transition: transform 0.2s;
+            border: 1px solid var(--border-subtle);
+        }
+
+        @media (min-width: 768px) {
+            .variable-card {
+                grid-template-columns: repeat(3, 1fr);
+            }
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-2);
+        }
+
+        .input-group label {
+            color: var(--text-muted);
+            font-size: var(--space-3);
+            font-weight: 500;
+        }
+
+        .super-input {
+            padding: var(--space-3);
+            border: 2px solid var(--border-subtle);
+            border-radius: var(--border-radius);
+            font-size: var(--space-4);
+            width: 100%;
+        }
+
+        .super-input:focus {
+            outline: none;
+            border-color: var(--super-blue-300);
+        }
+
+        .variable-actions {
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-2);
+            width: 100%;
+        }
+
+        .action-row {
+            display: flex;
+            gap: var(--space-2);
+            width: 100%;
+        }
+
+        .action-button {
+            padding: var(--space-3);
+            border-radius: var(--border-radius);
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: var(--space-2);
+            font-size: var(--space-3);
+            font-weight: 600;
+            min-width: 100px;
+            transition: all 0.2s ease;
+            flex: 1;
+            width: 100%;
+        }
+
+        .action-button.toggle {
+            background: var(--super-blue-700);
+            color: var (--white-pure);
+            width: 50%;
+            flex: 1;
+        }
+
+        .action-button.toggle:hover {
+            background: var(--super-blue-500);
+            transform: translateY(-1px);
+        }
+
+        .action-button.delete {
+            background: var(--super-yellow-dark);
+            color: var (--white-pure);
+            width: 50%;
+            flex: 1;
+        }
+
+        .action-button.delete:hover {
+            background: var(--super-yellow);
+            color: var (--super-blue-900);
+            transform: translateY(-1px);
+        }
+
+        .action-button.save {
+            background: var(--super-yellow);
+            color: var(--super-blue-900);
+            font-weight: 700;
+            text-transform: uppercase;
+            margin-top: var(--space-2);
+            width: 100%;
+        }
+
+        .action-button.save:hover {
+            background: var(--super-yellow-light);
+            transform: translateY(-1px);
+        }
+
+        .save-field-btn {
+            display: none;
+        }
+
+        .toast {
+            position: fixed;
+            bottom: var(--space-4);
+            left: 50%;
+            transform: translateX(-50%) translateY(100%);
+            background: var(--super-yellow);
+            color: var(--super-blue-900);
+            padding: var(--space-3);
+            border-radius: var(--border-radius);
+            opacity: 0;
+            transition: all 0.3s ease;
+        }
+
+        .toast.show {
+            transform: translateX(-50%) translateY(0);
+            opacity: 1;
+        }
+
+        /* Updated Debug Section */
+        .debug-section {
+            background: var(--panel-bg);
+            border-radius: var(--border-radius);
+            border: 1px solid var(--border-strong);
+            margin-top: var(--space-4);
+            overflow: hidden;
+        }
+
+        .debug-header {
+            background: var(--super-blue-700);
+            padding: var(--space-3);
+            color: var(--super-yellow);
+            font-size: var(--space-4);
+            font-weight: 500;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .debug-clear-btn {
+            background: var(--super-yellow);
+            color: var (--super-blue-900);
+            border: none;
+            padding: var(--space-2) var(--space-3);
+            border-radius: var (--border-radius);
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 12px;
+            transition: all 0.2s;
+        }
+
+        .debug-clear-btn:hover {
+            background: var(--super-yellow-light);
+            transform: translateY(-1px);
+        }
+
+        #debugOutput {
+            padding: var(--space-3);
+            margin: 0;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            font-family: monospace;
+            font-size: 13px;
+            line-height: 1.5;
+            max-height: 300px;
+            overflow-y: auto;
+            background: var(--super-blue-900);
+            color: var(--text-default);
+        }
+
+        /* Responsive Debug Output */
+        @media (max-width: 768px) {
+            .debug-section {
+                margin-top: var(--space-3);
+            }
+
+            #debugOutput {
+                max-height: 200px;
+                font-size: 12px;
+            }
+        }
+
+        .close-panel-btn {
+            position: fixed;
+            bottom: var(--space-4);
+            right: var(--space-4);
+            background: var(--super-blue-700);
+            color: var(--text-bright);
+            border: none;
+            padding: var(--space-2) var(--space-4);
+            border-radius: var(--border-radius);
+            cursor: pointer;
+            font-weight: 600;
+            z-index: 1000;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .close-panel-btn:hover {
+            background: var(--super-blue-500);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+    </style>
 </head>
 <body>
-  <div class="env-section">
-    <h1>Superpowers Environment</h1>
-    <p>Edit environment variables for all Superpowers extensions.</p>
-    
-    <div id="envContainer"></div>
-    <button id="addRowBtn">+ Add Variable</button>
-    <button id="saveBtn">Save Variables</button>
-  </div>
+    <div class="container">
+        <header class="hero-header">
+            <h1 class="hero-title">Superpowers</h1>
+            <p class="hero-subtitle">Environment Variable Manager</p>
+        </header>
 
-  <div class="test-section">
-    <h3>Test Panel</h3>
-    <button id="refreshEnvBtn" class="refresh-button">🔄 Refresh Environment Variables</button>
-    <pre id="envTestOutput">Click refresh to load environment variables...</pre>
-  </div>
+        <main class="main-panel">
+            <div class="action-bar">
+                <button class="super-button" id="addRowBtn">
+                    <span>➕</span> New Variable
+                </button>
+                <button class="super-button secondary" id="saveBtn">
+                    <span>💾</span> Save All
+                </button>
+                <button class="super-button secondary" id="refreshEnvBtn">
+                    <span>🔄</span> Refresh
+                </button>
+            </div>
 
-  <div class="debug-section">
-    <h3>Debug Log</h3>
-    <pre id="debugOutput"></pre>
-  </div>
+            <div class="variables-container" id="envContainer">
+                <!-- Variables will be inserted here -->
+            </div>
+        </main>
+
+        <div class="debug-section">
+            <div class="debug-header">
+                <span>Debug Output</span>
+                <button class="debug-clear-btn" id="clearDebugBtn">Clear</button>
+            </div>
+            <pre id="debugOutput"></pre>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+    <button class="close-panel-btn" id="closePanelBtn">Close</button>
+    <script type="module" src="sidepanel.js"></script>
 </body>
 </html>

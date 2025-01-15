@@ -18,7 +18,9 @@ function extensionDebugLog(msg, level = "info") {
       console.warn(fullMsg);
       break;
     default:
+      /*
       console.log(fullMsg);
+      */
       break;
   }
 
@@ -32,7 +34,9 @@ function extensionDebugLog(msg, level = "info") {
 }
 
 function pageHasSuperpowersMeta() {
-  extensionDebugLog("Checking <meta name='superpowers' content='enabled'>...");
+  /*
+  extensionDebugLog("Checking <meta name='superpowers' content='enabled'>...", "info");
+  */
   const metas = document.getElementsByTagName("meta");
   for (let i = 0; i < metas.length; i++) {
     const n = metas[i].getAttribute("name")?.toLowerCase();
@@ -60,7 +64,9 @@ function ensureSWLoaded() {
         extensionDebugLog("SW responded but success=false?", "warning");
         return reject(new Error("SW not ready or no success"));
       }
+      /*
       extensionDebugLog("SW ping => success. Plugins presumably loaded.", "info");
+      */
       resolve();
     });
   });
@@ -83,7 +89,9 @@ async function loadPlugins() {
     return;
   }
 
+  /*
   extensionDebugLog(`Loaded plugin_config.json => found ${configData.plugins.length} plugins.`, "info");
+  */
 
   for (const plugin of configData.plugins) {
     extensionDebugLog(`Loading plugin '${plugin.name}'`, "info");
@@ -125,7 +133,7 @@ async function loadPlugins() {
 function createSuperpowersBadge() {
   const badge = document.createElement('div');
   badge.id = 'superpowers-badge';
-  badge.innerHTML = 'Superpowers';
+  badge.innerHTML = '🦸 Superpowers';
   badge.style.cssText = `
     position: fixed;
     bottom: 10px;
@@ -143,92 +151,25 @@ function createSuperpowersBadge() {
   return badge;
 }
 
-function createSuperpowersOverlay() {
-  const overlay = document.createElement('div');
-  overlay.id = 'superpowers-overlay';
-  overlay.style.cssText = `
-    position: fixed;
-    bottom: 45px;
-    right: 10px;
-    background: white;
-    padding: 15px;
-    border-radius: 6px;
-    font-family: system-ui;
-    font-size: 13px;
-    z-index: 2147483646;
-    width: 300px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-    display: none;
-  `;
-  
-  const content = document.createElement('div');
-  content.innerHTML = `
-    <h3 style="margin: 0 0 10px 0; font-size: 14px;">Superpowers Active</h3>
-    <p style="margin: 0 0 10px 0;">
-      URL: ${window.location.href}<br>
-      Frame: ${window.self === window.top ? 'Main Page' : 'Iframe'}
-    </p>
-    <div id="superpowers-plugins"></div>
-  `;
-  
-  overlay.appendChild(content);
-  return overlay;
-}
-
-function toggleOverlay() {
-  const overlay = document.getElementById('superpowers-overlay');
-  if (overlay) {
-    const isVisible = overlay.style.display === 'block';
-    overlay.style.display = isVisible ? 'none' : 'block';
-    
-    if (!isVisible) {
-      // Update plugins list when showing
-      const pluginsDiv = document.getElementById('superpowers-plugins');
-      if (pluginsDiv) {
-        chrome.runtime.sendMessage({ type: "GET_ACTIVE_PLUGINS" }, (response) => {
-          if (response?.plugins) {
-            pluginsDiv.innerHTML = `
-              <strong>Active Plugins:</strong><br>
-              ${response.plugins.map(p => {
-                // Debug: log full object
-                console.log('Plugin object:', p);
-                
-                // Format each plugin info
-                return `- ${JSON.stringify(p, null, 2)}`;
-              }).join('<br>')}
-            `;
-          }
-        });
-      }
-    }
-  }
-}
-
 function injectSuperpowersUI() {
   const badge = createSuperpowersBadge();
-  const overlay = createSuperpowersOverlay();
-  
-  document.body.appendChild(overlay);
   document.body.appendChild(badge);
   
-  badge.addEventListener('click', (e) => {
+  badge.addEventListener('click', async (e) => {
     e.stopPropagation();
-    toggleOverlay();
-  });
-  
-  document.addEventListener('click', (e) => {
-    const ov = document.getElementById('superpowers-overlay');
-    const bd = document.getElementById('superpowers-badge');
-    if (ov && bd) {
-      if (!ov.contains(e.target) && !bd.contains(e.target)) {
-        ov.style.display = 'none';
-      }
+    try {
+      await chrome.runtime.sendMessage({ type: "OPEN_SIDEPANEL" });
+    } catch (err) {
+      console.debug("[Superpowers] Fallback to tab open:", err);
+      chrome.runtime.sendMessage({ type: "OPEN_SIDEPANEL_TAB" });
     }
   });
 }
 
 async function initSuperpowersCS() {
+  /*
   extensionDebugLog("content_script.js => init start...", "info");
+  */
 
   // 1) Check if page wants superpowers
   if (!pageHasSuperpowersMeta()) {
@@ -253,10 +194,11 @@ async function initSuperpowersCS() {
 
   // 4) Load plugin scripts
   loadPlugins().then(() => {
+    /*
     extensionDebugLog("All plugins attempted to load!", "info");
+    extensionDebugLog("content_script.js => init done!", "info");
+    */
   });
-
-  extensionDebugLog("content_script.js => init done!", "info");
 }
 
 initSuperpowersCS();

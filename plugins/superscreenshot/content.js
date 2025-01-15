@@ -1,5 +1,5 @@
 (function() {
-  console.log("[superscreenshot/content.js] loaded in content-script context");
+  // console.log("[superscreenshot/content.js] loaded in content-script context");
 
   const operations = new Map();
 

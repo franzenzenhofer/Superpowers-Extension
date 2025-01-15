@@ -27,5 +27,5 @@
     return msg;
   };
 
-  console.log("[superping/page.js] Superpowers.ping() ready");
+  // console.log("[superping/page.js] Superpowers.ping() ready");
 })();

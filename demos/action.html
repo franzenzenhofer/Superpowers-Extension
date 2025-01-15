@@ -1,0 +1,99 @@
+<!-- demo-superaction.html -->
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="superpowers" content="enabled">
+  <title>Superpowers Action Demo</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 20px;
+      background: #fafafa;
+    }
+    .log {
+      white-space: pre-wrap;
+      background: #eee;
+      padding: 10px;
+      border-radius: 6px;
+      margin-top: 10px;
+      max-height: 200px;
+      overflow-y: auto;
+      font-size: 0.9em;
+      font-family: monospace;
+    }
+  </style>
+</head>
+<body>
+  <h1>Superpowers.action Demo</h1>
+  <p>This page uses <strong>Superpowers.action</strong> to set a badge, title, or handle <code>onClicked</code>.</p>
+  
+  <button id="setBadgeBtn">Set Badge Text</button>
+  <button id="setTitleBtn">Set Title</button>
+  <button id="clearBadgeBtn">Clear Badge</button>
+  <div class="log" id="logOutput">Open console or see logs here.</div>
+
+  <script>
+    function waitForSuperpowers() {
+      return new Promise(resolve => {
+        if (window.Superpowers?.action) return resolve();
+        const check = setInterval(() => {
+          if (window.Superpowers?.action) {
+            clearInterval(check);
+            resolve();
+          }
+        }, 100);
+      });
+    }
+
+    function log(msg) {
+      console.log(msg);
+      const outEl = document.getElementById("logOutput");
+      outEl.textContent += msg + "\n";
+      outEl.scrollTop = outEl.scrollHeight;
+    }
+
+    (async () => {
+      await waitForSuperpowers();
+      log("Superpowers.action is available!");
+
+      // Listen for onClicked event
+      Superpowers.action.on("onClicked", (tab) => {
+        log("[onClicked] => extension action was clicked in tab => " + JSON.stringify(tab));
+      });
+
+      // Setup buttons
+      document.getElementById("setBadgeBtn").addEventListener("click", async () => {
+        const text = prompt("Enter badge text (short!)", "42");
+        if (!text) return;
+        try {
+          await Superpowers.action.setBadgeText({ text });
+          log(`Badge text set to: "${text}"`);
+        } catch (err) {
+          log("Error setting badge text => " + err.message);
+        }
+      });
+
+      document.getElementById("clearBadgeBtn").addEventListener("click", async () => {
+        try {
+          await Superpowers.action.setBadgeText({ text: "" });
+          log("Cleared badge text.");
+        } catch (err) {
+          log("Error clearing badge text => " + err.message);
+        }
+      });
+
+      document.getElementById("setTitleBtn").addEventListener("click", async () => {
+        const title = prompt("Enter action title/tooltip", "My Extension");
+        if (!title) return;
+        try {
+          await Superpowers.action.setTitle({ title });
+          log(`Action title set to: "${title}"`);
+        } catch (err) {
+          log("Error setting title => " + err.message);
+        }
+      });
+    })();
+  </script>
+</body>
+</html>
