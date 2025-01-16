@@ -95,6 +95,12 @@
       "extensionPath": "plugins/superaction/extension.js", 
       "contentScript": "plugins/superaction/content.js",
       "pageScript": "plugins/superaction/page.js"
+    },
+    {
+      "name": "gsc",
+      "extensionPath": "plugins/gsc/extension.js",
+      "contentScript": "plugins/gsc/content.js",
+      "pageScript": "plugins/gsc/page.js"
     }
   ]
 }

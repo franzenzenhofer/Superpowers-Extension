@@ -19,6 +19,7 @@ import { superurlget_extension } from './plugins/superurlget/extension.js';
 import { superdebugger_extension } from './plugins/superdebugger/extension.js'; // <-- NEW
 import { superwebnavigation_extension } from './plugins/superwebnavigation/extension.js';
 import { superaction_extension } from './plugins/superaction/extension.js';
+import { gsc_extension } from './plugins/gsc/extension.js';
 
 
 /**
@@ -75,7 +76,8 @@ export async function initializePluginManager() {
     superurlget_extension,
     superdebugger_extension,
     superwebnavigation_extension,
-    superaction_extension
+    superaction_extension,
+    gsc_extension
   ];
 
   // Install each plugin with status tracking

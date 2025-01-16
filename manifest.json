@@ -30,11 +30,13 @@
   "web_accessible_resources": [
     {
       "resources": [
-        "globals_injected.js",
         "plugin_manager.js",
         "plugin_config.json",
         "plugins/*/*.js",
-        "plugins/*.js"
+        "plugins/*.js",
+        "pages/credentials_manager.html",
+        "pages/credentials_manager.js",
+        "scripts/credentials_helpers.js"
       ],
       "matches": ["<all_urls>"]
     }

@@ -149,6 +149,158 @@
     .active-nav {
       animation: pulse 1s infinite;
     }
+
+    .tabs-list {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      margin: 1rem 0;
+    }
+
+    .tab-item {
+      background: var(--card);
+      border: 2px solid transparent;
+      border-radius: 6px;
+      padding: 0.5rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      font-size: 0.9rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      max-width: 300px;
+    }
+
+    .tab-item:hover {
+      border-color: var(--primary);
+      transform: translateY(-1px);
+    }
+
+    .tab-item.active {
+      border-color: var(--primary);
+      background: var(--primary);
+      color: white;
+    }
+
+    .tab-favicon {
+      width: 16px;
+      height: 16px;
+    }
+
+    .tab-title {
+      flex: 1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .event-details {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: var(--card);
+      padding: 1rem;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+      max-width: 80vw;
+      max-height: 80vh;
+      overflow: auto;
+      z-index: 100;
+      display: none;
+    }
+
+    .event-details.visible {
+      display: block;
+    }
+
+    .overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 99;
+      display: none;
+    }
+
+    .overlay.visible {
+      display: block;
+    }
+
+    .navigation-sequence {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin: 1rem 0;
+      padding: 1rem;
+      background: #f0f4ff;
+      border-radius: 8px;
+      overflow-x: auto;
+    }
+
+    .sequence-event {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .sequence-arrow {
+      color: var(--primary);
+      font-size: 1.5rem;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 0.25rem 0.5rem;
+      border-radius: 12px;
+      font-size: 0.8rem;
+      font-weight: 500;
+    }
+
+    .badge-time {
+      background: #e3f2fd;
+      color: var(--primary);
+    }
+
+    .badge-type {
+      background: #f3e5f5;
+      color: #6a1b9a;
+    }
+
+    .close-button {
+      position: absolute;
+      top: 0.5rem;
+      right: 0.5rem;
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 1.2rem;
+    }
+
+    /* Add tooltips for timeline events */
+    .event::after {
+      content: attr(data-tooltip);
+      position: absolute;
+      bottom: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,0.8);
+      color: white;
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      white-space: nowrap;
+      opacity: 0;
+      transition: opacity 0.2s;
+      pointer-events: none;
+    }
+
+    .event:hover::after {
+      opacity: 1;
+    }
   </style>
 </head>
 <body>
@@ -159,8 +311,17 @@
     </div>
 
     <div class="controls">
-      <button id="inspectBtn" class="btn">Inspect Current Tab</button>
+      <button id="autoTrackBtn" class="btn">Track Current Tab</button>
+      <button id="showAllTabsBtn" class="btn">Show All Tabs</button>
       <button id="clearBtn" class="btn">Clear Events</button>
+    </div>
+
+    <div id="tabsList" class="tabs-list">
+      <!-- Tabs will be inserted here -->
+    </div>
+
+    <div class="navigation-sequence" id="navigationSequence">
+      <!-- Navigation sequence will be shown here -->
     </div>
 
     <div class="stats">
@@ -194,6 +355,12 @@
     </div>
   </div>
 
+  <div class="overlay" id="overlay"></div>
+  <div class="event-details" id="eventDetails">
+    <button class="close-button" id="closeDetails">×</button>
+    <div id="eventDetailsContent"></div>
+  </div>
+
   <script>
     // Wait for Superpowers to be available
     function waitForSuperpowers() {
@@ -208,15 +375,28 @@
       });
     }
 
-    class NavigationInspector {
+    class EnhancedNavigationInspector {
       constructor() {
-        this.events = [];
-        this.frames = new Map();
+        this.events = new Map(); // tabId -> events[]
+        this.frames = new Map(); // tabId -> frames Map
         this.startTime = Date.now();
+        this.currentTabId = null;
         this.setupHandlers();
       }
 
-      setupHandlers() {
+      async setupHandlers() {
+        // Track tab changes
+        Superpowers.tabs.on('onActivated', async ({tabId}) => {
+          this.setCurrentTab(tabId);
+        });
+
+        Superpowers.tabs.on('onRemoved', (tabId) => {
+          this.events.delete(tabId);
+          this.frames.delete(tabId);
+          this.updateUI();
+        });
+
+        // Track navigation events
         const events = [
           'onBeforeNavigate',
           'onCommitted',
@@ -224,8 +404,7 @@
           'onCompleted',
           'onErrorOccurred',
           'onHistoryStateUpdated',
-          'onReferenceFragmentUpdated',
-          'onTabReplaced'
+          'onReferenceFragmentUpdated'
         ];
 
         events.forEach(event => {
@@ -233,23 +412,62 @@
             this.handleEvent(event, details);
           });
         });
+
+        // Get current tab
+        const [tab] = await Superpowers.tabs.query({active: true, currentWindow: true});
+        if (tab) {
+          this.setCurrentTab(tab.id);
+        }
+      }
+
+      async setCurrentTab(tabId) {
+        this.currentTabId = tabId;
+        if (!this.events.has(tabId)) {
+          this.events.set(tabId, []);
+        }
+        if (!this.frames.has(tabId)) {
+          this.frames.set(tabId, new Map());
+        }
+        
+        // Get existing frames
+        try {
+          const frames = await Superpowers.webNavigation.getAllFrames({tabId});
+          if (frames) {
+            frames.forEach(frame => this.updateFrame(frame, tabId));
+          }
+        } catch (e) {
+          console.warn('Could not get frames:', e);
+        }
+
+        this.updateUI();
+        this.highlightCurrentTab();
       }
 
       handleEvent(eventName, details) {
+        const {tabId} = details;
+        if (!this.events.has(tabId)) {
+          this.events.set(tabId, []);
+        }
+
         const event = {
           type: eventName,
           details,
-          timestamp: Date.now() - this.startTime
+          timestamp: Date.now()
         };
 
-        this.events.push(event);
-        this.updateFrame(details);
-        this.updateUI(event);
+        this.events.get(tabId).push(event);
+        this.updateFrame(details, tabId);
+        
+        if (tabId === this.currentTabId) {
+          this.updateUI();
+        }
       }
 
-      updateFrame(details) {
-        const { frameId, url, parentFrameId } = details;
-        this.frames.set(frameId, {
+      updateFrame(details, tabId) {
+        const frameMap = this.frames.get(tabId) || new Map();
+        const {frameId, url, parentFrameId} = details;
+        
+        frameMap.set(frameId, {
           id: frameId,
           url,
           parentId: parentFrameId,
@@ -258,45 +476,94 @@
         });
 
         if (parentFrameId >= 0) {
-          const parent = this.frames.get(parentFrameId);
+          const parent = frameMap.get(parentFrameId);
           if (parent) parent.children.add(frameId);
         }
+
+        this.frames.set(tabId, frameMap);
       }
 
-      updateUI(event) {
-        this.updateTimeline(event);
+      async showAllTabs() {
+        const tabs = await Superpowers.tabs.query({});
+        const tabsList = document.getElementById('tabsList');
+        tabsList.innerHTML = '';
+
+        tabs.forEach(tab => {
+          const tabEl = document.createElement('div');
+          tabEl.className = `tab-item ${tab.id === this.currentTabId ? 'active' : ''}`;
+          tabEl.innerHTML = `
+            <img class="tab-favicon" src="${tab.favIconUrl || 'chrome://favicon'}" alt="">
+            <span class="tab-title">${tab.title}</span>
+            <span class="badge badge-type">${this.events.get(tab.id)?.length || 0} events</span>
+          `;
+          tabEl.addEventListener('click', () => this.setCurrentTab(tab.id));
+          tabsList.appendChild(tabEl);
+        });
+      }
+
+      highlightCurrentTab() {
+        document.querySelectorAll('.tab-item').forEach(el => {
+          el.classList.remove('active');
+          if (el.dataset.tabId === String(this.currentTabId)) {
+            el.classList.add('active');
+          }
+        });
+      }
+
+      updateUI() {
+        this.updateTimeline();
         this.updateFramesView();
         this.updateStats();
-        this.logEvent(event);
+        this.updateNavigationSequence();
       }
 
-      updateTimeline(event) {
-        const timeline = document.getElementById('timeline');
-        const dot = document.createElement('div');
-        dot.className = `event event-${event.type}`;
+      updateNavigationSequence() {
+        const sequence = document.getElementById('navigationSequence');
+        const events = this.events.get(this.currentTabId) || [];
         
-        // Position based on timestamp
-        const x = (event.timestamp / (30 * 1000)) * 100; // 30 second window
-        const y = 50 + (Math.random() * 30 - 15); // Random vertical position
+        // Get the latest navigation sequence (events between the last onBeforeNavigate)
+        const lastNavStart = [...events].reverse()
+          .findIndex(e => e.type === 'onBeforeNavigate');
         
-        dot.style.left = `${Math.min(98, x)}%`;
-        dot.style.top = `${y}%`;
-        
-        dot.title = `${event.type}\n${event.details.url}`;
-        timeline.appendChild(dot);
+        const recentEvents = lastNavStart >= 0 ? 
+          events.slice(events.length - lastNavStart - 1) : events;
 
-        // Cleanup old events
-        if (timeline.children.length > 100) {
-          timeline.removeChild(timeline.firstChild);
-        }
+        sequence.innerHTML = recentEvents.map((event, i) => `
+          <div class="sequence-event">
+            <span class="badge badge-time">${event.timestamp}ms</span>
+            <span class="badge badge-type">${event.type}</span>
+          </div>
+          ${i < recentEvents.length - 1 ? '<span class="sequence-arrow">→</span>' : ''}
+        `).join('');
+      }
+
+      updateTimeline() {
+        const timeline = document.getElementById('timeline');
+        timeline.innerHTML = '';
+
+        const events = this.events.get(this.currentTabId) || [];
+        events.forEach(event => {
+          const dot = document.createElement('div');
+          dot.className = `event event-${event.type}`;
+          dot.dataset.tooltip = `${event.type}\n${event.details.url}`;
+          
+          // Position based on timestamp
+          const x = (event.timestamp / (30 * 1000)) * 100; // 30 second window
+          const y = 50 + (Math.random() * 30 - 15); // Random vertical position
+          
+          dot.style.left = `${Math.min(98, x)}%`;
+          dot.style.top = `${y}%`;
+          
+          timeline.appendChild(dot);
+        });
       }
 
       updateFramesView() {
         const view = document.getElementById('framesView');
         view.innerHTML = '';
 
-        // Show main frame first
-        const mainFrame = this.frames.get(0);
+        const frameMap = this.frames.get(this.currentTabId) || new Map();
+        const mainFrame = frameMap.get(0);
         if (mainFrame) {
           this.renderFrame(mainFrame, view);
         }
@@ -318,19 +585,18 @@
 
         container.appendChild(card);
 
-        // Render children
         frame.children.forEach(childId => {
-          const child = this.frames.get(childId);
+          const child = this.frames.get(this.currentTabId).get(childId);
           if (child) this.renderFrame(child, container);
         });
       }
 
       updateStats() {
-        document.getElementById('eventCount').textContent = this.events.length;
-        document.getElementById('frameCount').textContent = this.frames.size;
+        const events = this.events.get(this.currentTabId) || [];
+        document.getElementById('eventCount').textContent = events.length;
+        document.getElementById('frameCount').textContent = this.frames.get(this.currentTabId)?.size || 0;
         
-        // Calculate average load time
-        const completedLoads = this.events.filter(e => e.type === 'onCompleted');
+        const completedLoads = events.filter(e => e.type === 'onCompleted');
         if (completedLoads.length > 0) {
           const avgTime = completedLoads.reduce((acc, evt) => 
             acc + evt.timestamp, 0) / completedLoads.length;
@@ -349,31 +615,35 @@
 
     (async () => {
       await waitForSuperpowers();
-      const inspector = new NavigationInspector();
-      document.getElementById('inspectBtn').addEventListener('click', async () => {
-        const tabId = prompt("Enter a numeric tabId to get frames for:", "0");
-        if (!tabId || isNaN(tabId)) {
-          alert("Invalid tabId entered, skipping.");
-          return;
-        }
-        try {
-          const frames = await Superpowers.webNavigation.getAllFrames({ tabId: Number(tabId) });
-          inspector.frames.clear();
-          frames.forEach(frame => inspector.updateFrame(frame));
-          inspector.updateFramesView();
-          inspector.updateStats();
-        } catch (err) {
-          alert("Error in getAllFrames => " + err.message);
+      const inspector = new EnhancedNavigationInspector();
+      document.getElementById('autoTrackBtn').addEventListener('click', async () => {
+        const [tab] = await Superpowers.tabs.query({active: true, currentWindow: true});
+        if (tab) {
+          inspector.setCurrentTab(tab.id);
         }
       });
 
+      document.getElementById('showAllTabsBtn').addEventListener('click', () => {
+        inspector.showAllTabs();
+      });
+
       document.getElementById('clearBtn').addEventListener('click', () => {
-        inspector.events = [];
+        inspector.events.clear();
         inspector.frames.clear();
         document.getElementById('timeline').innerHTML = '';
         document.getElementById('framesView').innerHTML = '';
         document.getElementById('eventLog').textContent = '';
         inspector.updateStats();
+      });
+
+      document.getElementById('closeDetails').addEventListener('click', () => {
+        document.getElementById('eventDetails').classList.remove('visible');
+        document.getElementById('overlay').classList.remove('visible');
+      });
+
+      document.getElementById('overlay').addEventListener('click', () => {
+        document.getElementById('eventDetails').classList.remove('visible');
+        document.getElementById('overlay').classList.remove('visible');
       });
     })();
   </script>

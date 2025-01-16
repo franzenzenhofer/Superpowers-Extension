@@ -1,0 +1,803 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="superpowers" content="enabled" />
+  <title>GSC Plugin Debug/Testing Demo</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f5f5f5;
+      margin: 0; 
+      padding: 16px;
+    }
+    h1 {
+      margin-top: 0;
+    }
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+      padding: 16px;
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+    .header button {
+      padding: 6px 12px;
+      border: 1px solid #ccc;
+      background: #fafafa;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .header button:hover {
+      background: #f0f0f0;
+    }
+    .status-line {
+      font-size: 0.9em;
+      color: #666;
+    }
+    fieldset {
+      margin-bottom: 16px;
+      padding: 10px;
+      border: 1px solid #ddd;
+    }
+    fieldset legend {
+      font-weight: bold;
+      color: #333;
+    }
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 8px;
+    }
+    .actions button {
+      padding: 6px 12px;
+      border: 1px solid #ccc;
+      background: #fafafa;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .actions button:hover {
+      background: #f0f0f0;
+    }
+    label {
+      display: inline-block;
+      margin-right: 4px;
+      font-size: 0.9em;
+      color: #333;
+    }
+    input[type="text"] {
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      padding: 4px 6px;
+      font-size: 0.9em;
+      width: 240px;
+    }
+    .debug-log {
+      background: #f8f8f8;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      padding: 8px;
+      max-height: 300px;
+      overflow-y: auto;
+      font-family: "Courier New", Courier, monospace;
+      font-size: 0.85em;
+      line-height: 1.4em;
+      white-space: pre-wrap;
+    }
+    .log-entry {
+      margin-bottom: 8px;
+      padding: 6px;
+      border-radius: 4px;
+    }
+    .log-entry.request {
+      background: #e6f3ff; /* light blue */
+      border-left: 4px solid #0077cc;
+    }
+    .log-entry.response {
+      background: #e6ffe6; /* light green */
+      border-left: 4px solid #00cc00;
+    }
+    .log-entry.error {
+      background: #ffe6e6; /* light red */
+      border-left: 4px solid #ff4444;
+      color: #c00;
+    }
+    .autotests h3 {
+      margin-top: 0;
+      margin-bottom: 6px;
+    }
+    .autotests .test-result {
+      margin: 4px 0;
+      font-size: 0.9em;
+    }
+    .cool-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 8px;
+    }
+    .cool-table th, .cool-table td {
+      border: 1px solid #ccc;
+      padding: 6px;
+    }
+    .cool-table th {
+      background: #eee;
+      font-weight: bold;
+    }
+    #analyticsDisplay {
+      margin-top: 16px;
+      background: #fdfdfd;
+      border: 1px solid #ccc;
+      padding: 8px;
+      border-radius: 6px;
+      min-height: 80px;
+    }
+    #propertiesSelect {
+      width: 240px;
+      padding: 4px;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+      font-size: 0.9em;
+    }
+  </style>
+</head>
+<body>
+  <h1>Google Search Console (GSC) - Ultra Testing/Debug Demo</h1>
+
+  <div class="container">
+    <div class="header">
+      <span class="status-line" id="statusLine">Awaiting Superpowers...</span>
+      <button id="clearLogBtn">Clear Log</button>
+    </div>
+
+    <!-- Credentials / Login -->
+    <fieldset>
+      <legend>1) Login / Credentials</legend>
+      <div>
+        <button id="btnLoginDefault">Login (Default Creds)</button>
+        <label for="customCredInput">OR custom:</label>
+        <input type="text" id="customCredInput" placeholder="e.g. superAuthCreds.someService.token.json" />
+        <button id="btnLoginCustom">Use Custom</button>
+      </div>
+      <div style="margin-top:6px;">
+        <button id="btnGetLoginStatus">Get Login Status</button>
+        <span id="loginStatus" style="margin-left:10px; font-weight:bold;"></span>
+      </div>
+    </fieldset>
+
+    <!-- Select a site property from the list -->
+    <fieldset>
+      <legend>Site Property Selection</legend>
+      <button id="btnLoadProperties">Load Properties</button>
+      <select id="propertiesSelect">
+        <option value="">(No sites loaded)</option>
+      </select>
+    </fieldset>
+
+    <!-- Non-destructive calls -->
+    <fieldset>
+      <legend>2) Non-Destructive GSC Calls</legend>
+      <div class="actions">
+        <button id="btnListSites">listSites()</button>
+        <button id="btnGetSiteInfo">getSiteInfo()</button>
+        <input type="text" id="siteUrlInput" placeholder="Site URL" />
+        <button id="btnListSitemaps">listSitemaps()</button>
+      </div>
+      <div class="actions">
+        <button id="btnQuerySearchAnalytics">querySearchAnalytics()</button>
+        <button id="btnGetTopQueries">getTopQueries()</button>
+        <button id="btnGetTopPages">getTopPages()</button>
+      </div>
+    </fieldset>
+
+    <!-- Potentially destructive calls (optional) -->
+    <fieldset>
+      <legend>3) Potentially Destructive Calls (optional test)</legend>
+      <div class="actions">
+        <button id="btnSubmitSitemap">submitSitemap()</button>
+        <input type="text" id="sitemapUrlInput" placeholder="Sitemap URL" />
+        <button id="btnDeleteSitemap">deleteSitemap()</button>
+      </div>
+    </fieldset>
+
+    <!-- Advanced Analytics -->
+    <fieldset>
+      <legend>Advanced Analytics</legend>
+      <div class="actions">
+        <button id="btnDetailedAnalytics">Detailed Analytics</button>
+        <button id="btnTopPagesDetailed">Top Pages (Detailed)</button>
+        <button id="btnDeviceAnalytics">Device Analytics</button>
+        <button id="btnCountryAnalytics">Country Analytics</button>
+      </div>
+      <div class="actions">
+        <button id="btnQueryAnalyticsByPage">Query Analytics for Page</button>
+        <input type="text" id="pageUrlInput" placeholder="Page URL" style="width: 300px;" />
+      </div>
+      <div class="actions">
+        <label>Date Range:</label>
+        <input type="date" id="startDate" />
+        <input type="date" id="endDate" />
+        <label>Row Limit:</label>
+        <input type="number" id="rowLimit" value="1000" min="1" max="5000" />
+      </div>
+    </fieldset>
+
+    <!-- Automatic tests on load -->
+    <div class="autotests">
+      <h3>Auto Test Sequence</h3>
+      <div id="autoTestsArea"></div>
+    </div>
+
+    <!-- Log area -->
+    <h3>Debug Log:</h3>
+    <div id="debugLog" class="debug-log"></div>
+
+    <!-- Analytics Display Section -->
+    <h3>Analytics Display:</h3>
+    <div id="analyticsDisplay"></div>
+  </div>
+
+<script>
+/************************************************************
+ * Basic Logging
+ ************************************************************/
+function logMessage(msg, type = "info") {
+  const logEl = document.getElementById("debugLog");
+  const entry = document.createElement("div");
+  entry.className = "log-entry";
+  if (type === "request") entry.classList.add("request");
+  if (type === "response") entry.classList.add("response");
+  if (type === "error") entry.classList.add("error");
+  entry.textContent = `[${new Date().toISOString()}] ${msg}`;
+  logEl.appendChild(entry);
+  // Autoscroll
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+function setStatusLine(text) {
+  document.getElementById("statusLine").textContent = text;
+}
+
+function setLoginStatusText(text) {
+  document.getElementById("loginStatus").textContent = text;
+}
+
+/************************************************************
+ * Wait for Superpowers.Gsc
+ ************************************************************/
+function waitForSuperpowersGsc() {
+  return new Promise(resolve => {
+    if (window.Superpowers && window.Superpowers.Gsc) {
+      return resolve();
+    }
+    const check = setInterval(() => {
+      if (window.Superpowers && window.Superpowers.Gsc) {
+        clearInterval(check);
+        resolve();
+      }
+    }, 200);
+  });
+}
+
+/************************************************************
+ * Automatic Tests
+ * We'll run them as soon as the page loads, step by step.
+ ************************************************************/
+async function runAutoTests() {
+  const autoTestsArea = document.getElementById("autoTestsArea");
+  function addTestLine(msg, isError = false) {
+    const p = document.createElement("div");
+    p.className = "test-result";
+    if (isError) {
+      p.style.color = "#c00";
+      p.style.fontWeight = "bold";
+    }
+    p.textContent = msg;
+    autoTestsArea.appendChild(p);
+  }
+
+  addTestLine("Starting auto-tests...");
+
+  try {
+    // 1) login() with default
+    addTestLine("Attempting login() with default credentials...");
+    await window.Superpowers.Gsc.login();
+    addTestLine("login() => success!");
+    setLoginStatusText("Logged in (auto-test) ✔");
+
+    // 2) getLoginStatus
+    const ls = await window.Superpowers.Gsc.getLoginStatus();
+    addTestLine("getLoginStatus() => " + JSON.stringify(ls));
+    
+    // 3) listSites (non-destructive)
+    addTestLine("listSites()...");
+    const sites = await window.Superpowers.Gsc.listSites();
+    addTestLine("Got " + (sites?.siteEntry?.length || 0) + " sites. (Check log for details)");
+
+    logMessage("AutoTest => listSites => " + JSON.stringify(sites, null, 2), "response");
+
+    // If we have at least one site, store it in #siteUrlInput for other tests
+    if (sites?.siteEntry?.length > 0) {
+      const firstSite = sites.siteEntry[0].siteUrl;
+      document.getElementById("siteUrlInput").value = firstSite;
+      addTestLine("siteUrl set to: " + firstSite);
+    }
+
+    addTestLine("Auto-tests completed with no errors. ✔");
+  } catch (err) {
+    console.error("Auto-test error:", err);
+    addTestLine("Auto-tests encountered error: " + err.message, true);
+  }
+}
+
+/************************************************************
+ * Hooking up buttons
+ ************************************************************/
+async function loginDefault() {
+  try {
+    console.log('🔄 [FLOW] 1. Demo page: initiating default login flow');
+    logMessage("Starting login flow...", "request");
+    
+    console.log('🔄 [FLOW] 2. Demo page: calling Gsc.login()');
+    const resp = await window.Superpowers.Gsc.login();
+    
+    console.log('🔄 [FLOW] 9. Demo page: login completed', resp);
+    logMessage("Login Response: " + JSON.stringify(resp), "response");
+    setLoginStatusText("Logged in (default) ✔");
+  } catch (err) {
+    console.error('❌ [FLOW] Demo page: login failed', err);
+    logMessage("Error in loginDefault: " + err.message, "error");
+  }
+}
+
+async function loginCustom() {
+  try {
+    const customCredStr = document.getElementById("customCredInput").value.trim();
+    if (!customCredStr) {
+      alert("Please enter a full or partial credential key, e.g.: superAuthCreds.google-searchconsole.token.json");
+      return;
+    }
+    logMessage("Calling Gsc.login() with customCreds=" + customCredStr, "request");
+    const resp = await window.Superpowers.Gsc.login({ service: customCredStr });
+    logMessage("Response: " + JSON.stringify(resp), "response");
+    setLoginStatusText("Logged in (custom) ✔");
+  } catch (err) {
+    logMessage("Error in loginCustom: " + err.message, "error");
+  }
+}
+
+async function getLoginStatus() {
+  try {
+    logMessage("Calling getLoginStatus()...", "request");
+    const stat = await window.Superpowers.Gsc.getLoginStatus();
+    logMessage("Response: " + JSON.stringify(stat), "response");
+    setLoginStatusText("Status => " + stat);
+  } catch (err) {
+    logMessage("Error in getLoginStatus: " + err.message, "error");
+  }
+}
+
+/************************************************************
+ * Non-Destructive
+ ************************************************************/
+async function listSites() {
+  try {
+    logMessage("Calling listSites()...", "request");
+    const result = await window.Superpowers.Gsc.listSites();
+    logMessage("Response => " + JSON.stringify(result, null, 2), "response");
+  } catch (err) {
+    logMessage("Error in listSites: " + err.message, "error");
+  }
+}
+
+async function getSiteInfo() {
+  const siteUrl = getSelectedSiteUrl();
+  if (!siteUrl) {
+    alert("Please enter a siteUrl first!");
+    return;
+  }
+  try {
+    logMessage(`Calling getSiteInfo(${siteUrl})...`, "request");
+    const info = await window.Superpowers.Gsc.getSiteInfo(siteUrl);
+    logMessage("Response => " + JSON.stringify(info, null, 2), "response");
+  } catch (err) {
+    logMessage("Error in getSiteInfo: " + err.message, "error");
+  }
+}
+
+async function listSitemaps() {
+  const siteUrl = getSelectedSiteUrl();
+  if (!siteUrl) {
+    alert("Please enter a siteUrl first!");
+    return;
+  }
+  try {
+    logMessage(`Calling listSitemaps(${siteUrl})...`, "request");
+    const sitemaps = await window.Superpowers.Gsc.listSitemaps(siteUrl);
+    logMessage("Response => " + JSON.stringify(sitemaps, null, 2), "response");
+  } catch (err) {
+    logMessage("Error in listSitemaps: " + err.message, "error");
+  }
+}
+
+async function querySearchAnalytics() {
+  const siteUrl = getSelectedSiteUrl();
+  if (!siteUrl) {
+    alert("Please select or enter a siteUrl first!");
+    return;
+  }
+  try {
+    // Minimal body
+    const requestBody = {
+      startDate: "2023-01-01",
+      endDate: "2023-01-15",
+      dimensions: ["query"],
+      rowLimit: 5
+    };
+    logMessage(`Calling querySearchAnalytics(${siteUrl}, body=...)`, "request");
+    const result = await window.Superpowers.Gsc.querySearchAnalytics(siteUrl, requestBody);
+    renderAnalyticsData(result);
+    logMessage("Response => " + JSON.stringify(result, null, 2), "response");
+  } catch (err) {
+    logMessage("Error in querySearchAnalytics: " + err.message, "error");
+  }
+}
+
+async function getTopQueries() {
+  const siteUrl = getSelectedSiteUrl();
+  if (!siteUrl) {
+    alert("Please enter a siteUrl first!");
+    return;
+  }
+  try {
+    logMessage(`Calling getTopQueries(${siteUrl})...`, "request");
+    const result = await window.Superpowers.Gsc.getTopQueries(siteUrl, { rowLimit: 5 });
+    renderAnalyticsData(result);
+    logMessage("Response => " + JSON.stringify(result, null, 2), "response");
+  } catch (err) {
+    logMessage("Error in getTopQueries: " + err.message, "error");
+  }
+}
+
+async function getTopPages() {
+  const siteUrl = getSelectedSiteUrl();
+  if (!siteUrl) {
+    alert("Please enter a siteUrl first!");
+    return;
+  }
+  try {
+    logMessage(`Calling getTopPages(${siteUrl})...`, "request");
+    const result = await window.Superpowers.Gsc.getTopPages(siteUrl, { rowLimit: 5 });
+    renderAnalyticsData(result);
+    logMessage("Response => " + JSON.stringify(result, null, 2), "response");
+  } catch (err) {
+    logMessage("Error in getTopPages: " + err.message, "error");
+  }
+}
+
+/************************************************************
+ * Potentially Destructive
+ ************************************************************/
+async function submitSitemap() {
+  const siteUrl = getSelectedSiteUrl();
+  const sitemapUrl = document.getElementById("sitemapUrlInput").value.trim();
+  if (!siteUrl || !sitemapUrl) {
+    alert("Enter siteUrl and sitemapUrl to proceed!");
+    return;
+  }
+  try {
+    logMessage(`Calling submitSitemap(${siteUrl}, ${sitemapUrl})...`, "request");
+    const resp = await window.Superpowers.Gsc.submitSitemap(siteUrl, sitemapUrl);
+    logMessage("Response => " + JSON.stringify(resp, null, 2), "response");
+  } catch (err) {
+    logMessage("Error in submitSitemap: " + err.message, "error");
+  }
+}
+
+async function deleteSitemap() {
+  const siteUrl = getSelectedSiteUrl();
+  const sitemapUrl = document.getElementById("sitemapUrlInput").value.trim();
+  if (!siteUrl || !sitemapUrl) {
+    alert("Enter siteUrl and sitemapUrl to proceed!");
+    return;
+  }
+  try {
+    logMessage(`Calling deleteSitemap(${siteUrl}, ${sitemapUrl})...`, "request");
+    const resp = await window.Superpowers.Gsc.deleteSitemap(siteUrl, sitemapUrl);
+    logMessage("Response => " + JSON.stringify(resp, null, 2), "response");
+  } catch (err) {
+    logMessage("Error in deleteSitemap: " + err.message, "error");
+  }
+}
+
+/************************************************************
+ * Advanced Analytics
+ ************************************************************/
+async function getDetailedAnalytics() {
+  const siteUrl = getSelectedSiteUrl();
+  if (!siteUrl) {
+    alert("Please enter a siteUrl first!");
+    return;
+  }
+
+  const startDate = document.getElementById("startDate").value || "2023-01-01";
+  const endDate = document.getElementById("endDate").value || "2023-12-31";
+  const rowLimit = parseInt(document.getElementById("rowLimit").value) || 1000;
+
+  try {
+    logMessage(`Calling getDetailedAnalytics for ${siteUrl}...`, "request");
+    const result = await window.Superpowers.Gsc.getDetailedAnalytics(siteUrl, {
+      startDate,
+      endDate,
+      rowLimit
+    });
+    renderAnalyticsData(result);
+    logMessage("Detailed Analytics Response:", "response");
+    logMessage(JSON.stringify(result, null, 2), "response");
+  } catch (err) {
+    logMessage("Error in getDetailedAnalytics: " + err.message, "error");
+  }
+}
+
+async function getTopPagesDetailed() {
+  const siteUrl = getSelectedSiteUrl();
+  if (!siteUrl) {
+    alert("Please enter a siteUrl first!");
+    return;
+  }
+
+  const startDate = document.getElementById("startDate").value || "2023-01-01";
+  const endDate = document.getElementById("endDate").value || "2023-12-31";
+  const rowLimit = parseInt(document.getElementById("rowLimit").value) || 1000;
+
+  try {
+    logMessage(`Calling getTopPagesDetailed for ${siteUrl}...`, "request");
+    const result = await window.Superpowers.Gsc.getTopPagesDetailed(siteUrl, {
+      startDate,
+      endDate,
+      rowLimit
+    });
+    renderAnalyticsData(result);
+    logMessage("Top Pages Detailed Response:", "response");
+    logMessage(JSON.stringify(result, null, 2), "response");
+  } catch (err) {
+    logMessage("Error in getTopPagesDetailed: " + err.message, "error");
+  }
+}
+
+async function getDeviceAnalytics() {
+  const siteUrl = getSelectedSiteUrl();
+  if (!siteUrl) {
+    alert("Please enter a siteUrl first!");
+    return;
+  }
+
+  const startDate = document.getElementById("startDate").value || "2023-01-01";
+  const endDate = document.getElementById("endDate").value || "2023-12-31";
+  const rowLimit = parseInt(document.getElementById("rowLimit").value) || 1000;
+
+  try {
+    logMessage(`Calling getDeviceAnalytics for ${siteUrl}...`, "request");
+    const result = await window.Superpowers.Gsc.getDeviceAnalytics(siteUrl, {
+      startDate,
+      endDate,
+      rowLimit
+    });
+    renderAnalyticsData(result);
+    logMessage("Device Analytics Response:", "response");
+    logMessage(JSON.stringify(result, null, 2), "response");
+  } catch (err) {
+    logMessage("Error in getDeviceAnalytics: " + err.message, "error");
+  }
+}
+
+async function getCountryAnalytics() {
+  const siteUrl = getSelectedSiteUrl();
+  if (!siteUrl) {
+    alert("Please enter a siteUrl first!");
+    return;
+  }
+
+  const startDate = document.getElementById("startDate").value || "2023-01-01";
+  const endDate = document.getElementById("endDate").value || "2023-12-31";
+  const rowLimit = parseInt(document.getElementById("rowLimit").value) || 1000;
+
+  try {
+    logMessage(`Calling getCountryAnalytics for ${siteUrl}...`, "request");
+    const result = await window.Superpowers.Gsc.getCountryAnalytics(siteUrl, {
+      startDate,
+      endDate,
+      rowLimit
+    });
+    renderAnalyticsData(result);
+    logMessage("Country Analytics Response:", "response");
+    logMessage(JSON.stringify(result, null, 2), "response");
+  } catch (err) {
+    logMessage("Error in getCountryAnalytics: " + err.message, "error");
+  }
+}
+
+async function getQueryAnalyticsByPage() {
+  const siteUrl = getSelectedSiteUrl();
+  const pageUrl = document.getElementById("pageUrlInput").value.trim();
+  if (!siteUrl || !pageUrl) {
+    alert("Please enter a siteUrl and pageUrl first!");
+    return;
+  }
+
+  const startDate = document.getElementById("startDate").value || "2023-01-01";
+  const endDate = document.getElementById("endDate").value || "2023-12-31";
+  const rowLimit = parseInt(document.getElementById("rowLimit").value) || 1000;
+
+  try {
+    logMessage(`Calling getQueryAnalyticsByPage for ${siteUrl} and ${pageUrl}...`, "request");
+    const result = await window.Superpowers.Gsc.getQueryAnalyticsByPage(siteUrl, pageUrl, {
+      startDate,
+      endDate,
+      rowLimit
+    });
+    renderAnalyticsData(result);
+    logMessage("Query Analytics By Page Response:", "response");
+    logMessage(JSON.stringify(result, null, 2), "response");
+  } catch (err) {
+    logMessage("Error in getQueryAnalyticsByPage: " + err.message, "error");
+  }
+}
+
+/************************************************************
+ * Support for site properties dropdown & displaying data
+ ************************************************************/
+function populateSiteProperties(sites) {
+  const selectEl = document.getElementById("propertiesSelect");
+  selectEl.innerHTML = "";
+  if (!sites || !sites.siteEntry || !sites.siteEntry.length) {
+    selectEl.innerHTML = "<option value=''>No properties found</option>";
+    return;
+  }
+  sites.siteEntry.forEach(site => {
+    const option = document.createElement("option");
+    option.value = site.siteUrl;
+    option.textContent = site.siteUrl;
+    selectEl.appendChild(option);
+  });
+  // Auto-select first entry
+  selectEl.selectedIndex = 0;
+  syncSiteUrlInput(); // keep old input and select in sync
+}
+
+function syncSiteUrlInput() {
+  const selectEl = document.getElementById("propertiesSelect");
+  document.getElementById("siteUrlInput").value = selectEl.value;
+}
+
+document.getElementById("propertiesSelect").addEventListener("change", () => {
+  syncSiteUrlInput();
+});
+
+/************************************************************
+ * Replace old siteUrl usage with the selected property
+ ************************************************************/
+function getSelectedSiteUrl() {
+  const val = document.getElementById("propertiesSelect").value.trim();
+  return val || document.getElementById("siteUrlInput").value.trim();
+}
+
+/************************************************************
+ * "Cool" display of data in #analyticsDisplay
+ ************************************************************/
+function renderAnalyticsData(data) {
+  const container = document.getElementById("analyticsDisplay");
+  container.innerHTML = "";
+
+  if (!data || typeof data !== "object") {
+    container.textContent = "No valid data to display.";
+    return;
+  }
+  // If data is an array, show as table
+  if (Array.isArray(data.rows) && data.rows.length > 0) {
+    const table = document.createElement("table");
+    table.className = "cool-table";
+    // Build table header from keys
+    const headerRow = document.createElement("tr");
+    const keys = Object.keys(data.rows[0]);
+    keys.forEach(k => {
+      const th = document.createElement("th");
+      th.textContent = k;
+      headerRow.appendChild(th);
+    });
+    table.appendChild(headerRow);
+
+    // Build table rows
+    data.rows.forEach(row => {
+      const tr = document.createElement("tr");
+      keys.forEach(k => {
+        const td = document.createElement("td");
+        td.textContent = row[k];
+        tr.appendChild(td);
+      });
+      table.appendChild(tr);
+    });
+    container.appendChild(table);
+  } else {
+    // Fallback: JSON format
+    container.textContent = JSON.stringify(data, null, 2);
+  }
+}
+
+/************************************************************
+ * Hook new property load button
+ ************************************************************/
+async function loadProperties() {
+  try {
+    logMessage("Calling listSites() to load props...", "request");
+    const sites = await window.Superpowers.Gsc.listSites();
+    logMessage("listSites() => " + JSON.stringify(sites, null, 2), "response");
+    populateSiteProperties(sites);
+  } catch (err) {
+    logMessage("Error loading properties: " + err.message, "error");
+  }
+}
+
+/************************************************************
+ * On DOMContentLoaded
+ ************************************************************/
+document.addEventListener("DOMContentLoaded", async () => {
+  setStatusLine("Initializing...");
+
+  // Clear log button
+  document.getElementById("clearLogBtn").addEventListener("click", () => {
+    document.getElementById("debugLog").textContent = "";
+  });
+
+  // Hook up all buttons
+  document.getElementById("btnLoginDefault").addEventListener("click", loginDefault);
+  document.getElementById("btnLoginCustom").addEventListener("click", loginCustom);
+  document.getElementById("btnGetLoginStatus").addEventListener("click", getLoginStatus);
+
+  document.getElementById("btnListSites").addEventListener("click", listSites);
+  document.getElementById("btnGetSiteInfo").addEventListener("click", getSiteInfo);
+  document.getElementById("btnListSitemaps").addEventListener("click", listSitemaps);
+
+  document.getElementById("btnQuerySearchAnalytics").addEventListener("click", querySearchAnalytics);
+  document.getElementById("btnGetTopQueries").addEventListener("click", getTopQueries);
+  document.getElementById("btnGetTopPages").addEventListener("click", getTopPages);
+
+  document.getElementById("btnSubmitSitemap").addEventListener("click", submitSitemap);
+  document.getElementById("btnDeleteSitemap").addEventListener("click", deleteSitemap);
+
+  // Set default dates
+  const today = new Date();
+  const thirtyDaysAgo = new Date(today);
+  thirtyDaysAgo.setDate(today.getDate() - 30);
+  
+  document.getElementById("startDate").value = thirtyDaysAgo.toISOString().split('T')[0];
+  document.getElementById("endDate").value = today.toISOString().split('T')[0];
+
+  // Hook up new analytics buttons
+  document.getElementById("btnDetailedAnalytics").addEventListener("click", getDetailedAnalytics);
+  document.getElementById("btnTopPagesDetailed").addEventListener("click", getTopPagesDetailed);
+  document.getElementById("btnDeviceAnalytics").addEventListener("click", getDeviceAnalytics);
+  document.getElementById("btnCountryAnalytics").addEventListener("click", getCountryAnalytics);
+  document.getElementById("btnQueryAnalyticsByPage").addEventListener("click", getQueryAnalyticsByPage);
+
+  // Add button to load site properties
+  document.getElementById("btnLoadProperties").addEventListener("click", loadProperties);
+
+  // Wait for GSC plugin
+  await waitForSuperpowersGsc();
+  setStatusLine("Superpowers.Gsc is ready!");
+  logMessage("Superpowers.Gsc loaded. Starting auto-tests...");
+
+  // Run auto-tests
+  runAutoTests();
+});
+</script>
+</body>
+</html>

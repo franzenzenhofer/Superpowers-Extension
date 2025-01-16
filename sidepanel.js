@@ -37,6 +37,9 @@ function init() {
         safeAddEventListener("refreshEnvBtn", "click", refreshEnvTest);
         safeAddEventListener("clearDebugBtn", "click", clearDebug);
         safeAddEventListener("closePanelBtn", "click", closePanel);
+        safeAddEventListener("loadCredsBtn", "click", () => {
+            window.location.href = chrome.runtime.getURL('pages/credentials_manager.html');
+        });
 
         // Setup event delegation for the variables container
         const container = document.getElementById("envContainer");
