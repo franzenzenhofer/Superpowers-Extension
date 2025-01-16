@@ -216,6 +216,27 @@ async function setupUIHandlers() {
         onModalSave();
     });
 
+    // Add new button handler
+    document.getElementById('btnViewEditToken').addEventListener('click', async () => {
+        try {
+            const tokenCred = await window.CredentialHelpers.getCredential('google-searchconsole', 'token');
+            if (!tokenCred) {
+                showStatus('No GSC token found', 'warn');
+                return;
+            }
+            
+            // Use existing modal with token data
+            await showModal({
+                filename: tokenCred.filename,
+                contents: JSON.stringify(tokenCred.contents, null, 2),
+                detectedService: 'google-searchconsole',
+                detectedType: 'token'
+            });
+        } catch (err) {
+            showStatus(`Error loading token: ${err.message}`, 'error');
+        }
+    });
+
     debugLog('UI handlers setup complete', 'init', 'success');
     return true;
 }
@@ -577,6 +598,13 @@ async function onModalSave() {
             currentFileIndex = 0;
         }
         showStatus('Credential saved successfully!');
+        
+        // After successful save
+        if (type === 'token') {
+            const now = new Date().toISOString();
+            console.log(`[Token] Updated at ${now}`);
+            logMessage(`Token updated at ${now}`, 'success');
+        }
     } catch (err) {
         debugLog(`Save error: ${err.message}`, 'save', 'error');
         showStatus(`Save failed: ${err.message}`, 'error');

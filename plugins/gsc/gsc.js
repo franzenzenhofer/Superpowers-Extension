@@ -35,7 +35,7 @@ async function ensureCredentialsLoaded(customCreds = {}) {
     console.log('🔄 [FLOW] GSC: Token load result:', tokenCred ? '✅' : '❌');
     
     console.log('🔑 Loading client secret...');
-    const clientSecret = await getCredential(service, clientSecretType); // Changed variable name
+    const clientSecret = await getCredential(service, clientSecretType);
     console.log('🔐 Client secret loaded:', clientSecret ? '✅' : '❌');
     
     if (!tokenCred || !tokenCred.contents) {
@@ -44,16 +44,15 @@ async function ensureCredentialsLoaded(customCreds = {}) {
       );
     }
     
-    if (!clientSecret || !clientSecret.contents) { // Using renamed variable
+    if (!clientSecret || !clientSecret.contents) {
       throw new Error(
         `[gsc] No client_secret found under default "${service}/${clientSecretType}".`
       );
     }
  
-
     // Assign
     _clientSecret = {
-      ...clientSecret.contents, // FIXED: was incorrectly using clientCred
+      ...clientSecret.contents,
       serviceKey: service
     };
     _token = {
@@ -142,98 +141,175 @@ async function ensureCredentialsLoaded(customCreds = {}) {
 }
 
 /**
- * A simple fetch wrapper that uses the loaded token's access_token or token,
- * with no refresh attempt.
+ * Checks if the token is expired or near expiry,
+ * and if so, refreshes it using the refresh_token.
+ * Updates the in-memory `_token` and also saves the updated token to storage.
+ */
+async function maybeRefreshToken() {
+  // If there's no token or no refresh token, we can't refresh
+  if (!_token) {
+    console.debug("[gsc/refresh] No token in memory, skipping refresh.");
+    return;
+  }
+  const storedRefreshToken = _token.refresh_token || _token.refreshToken;
+  if (!storedRefreshToken) {
+    console.debug("[gsc/refresh] No refresh_token available, cannot auto-refresh.");
+    return;
+  }
+
+  // Derive clientId/secret from token or from _clientSecret fields
+  const actualClientId = _token.client_id 
+    || _clientSecret?.installed?.client_id 
+    || _clientSecret?.web?.client_id;
+  const actualClientSecret = _token.client_secret 
+    || _clientSecret?.installed?.client_secret 
+    || _clientSecret?.web?.client_secret;
+
+  if (!actualClientId || !actualClientSecret) {
+    console.warn("[gsc/refresh] Missing client_id or client_secret, cannot refresh token.");
+    return;
+  }
+
+  // Convert expiry_date (could be a string or number). If no date, force refresh.
+  let expiryDate = _token.expiry_date;
+  if (typeof expiryDate === "string") {
+    try {
+      expiryDate = new Date(expiryDate).getTime();
+    } catch (err) {
+      console.warn("[gsc/refresh] Could not parse expiry_date string:", _token.expiry_date);
+      expiryDate = 0; // Force immediate refresh if parse fails
+    }
+  }
+
+  const now = Date.now();
+  // Refresh if no expiry date or within a 2-minute safety window
+  const safetyMarginMs = 2 * 60 * 1000;
+  if (!expiryDate || expiryDate <= now + safetyMarginMs) {
+    console.debug("[gsc/refresh] Token expired or near expiry, attempting refresh...");
+    try {
+      const tokenUri = _token.token_uri || "https://oauth2.googleapis.com/token";
+      const postData = new URLSearchParams();
+      postData.append("client_id", actualClientId);
+      postData.append("client_secret", actualClientSecret);
+      postData.append("refresh_token", storedRefreshToken);
+      postData.append("grant_type", "refresh_token");
+
+      const resp = await fetch(tokenUri, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: postData
+      });
+
+      if (!resp.ok) {
+        const errTxt = await resp.text();
+        throw new Error(`Refresh failed: ${resp.status} - ${resp.statusText}\n${errTxt}`);
+      }
+
+      const newToken = await resp.json();
+      console.debug("[gsc/refresh] Refresh response:", newToken);
+
+      // Merge into the existing _token
+      _token.access_token = newToken.access_token;
+      if (newToken.expires_in) {
+        _token.expiry_date = Date.now() + (newToken.expires_in * 1000);
+      }
+      if (newToken.scope) {
+        _token.scope = newToken.scope;
+      }
+      // Some OAuth servers resend refresh_token, some don't—keep existing if not present
+      if (newToken.refresh_token) {
+        _token.refresh_token = newToken.refresh_token;
+      }
+
+      // Immediately persist updated token to storage so we don't lose it
+      await setCredential("google-searchconsole", "token", {
+        id: _token.id || ("cred_" + Date.now()),
+        filename: "token.json",
+        contents: _token
+      });
+      console.debug("[gsc/refresh] Token updated & saved to storage.");
+
+      // After successful refresh, log it
+      if (newToken) {
+        const now = new Date().toISOString();
+        console.log(`[Token] Refreshed at ${now}`);
+      }
+
+    } catch (err) {
+      console.error("[gsc/refresh] Token refresh error:", err);
+      // If refresh fails, user might need a full re-auth (login).
+    }
+  } else {
+    console.debug("[gsc/refresh] Token still valid, no refresh needed.");
+  }
+}
+
+/**
+ * Wrapper for the GSC API. Uses the current token's access_token.
+ * If we get a 401/403, we'll refresh and retry once.
  */
 async function gscFetch(path, options = {}) {
-  console.log('🌐 ==========================================');
-  console.log('🌐 GSC API REQUEST STARTING');
-  console.log('🌐 ==========================================');
-  
-  // Debug current token state
-  console.log('🔑 Raw Token Object:', _token);
+  // Ensure token is loaded & possibly refresh it first
+  await maybeRefreshToken();
 
-  // Fix: Handle nested token structure
-  const actualToken = _token?.token || _token?.access_token;
-  if (!actualToken) {
-    console.error('❌ No valid token available');
-    console.error('Current token structure:', _token);
-    throw new Error("[gsc] Missing or invalid access_token in memory. Possibly not logged in?");
+  const tokenString = _token?.access_token || _token?.token;
+  if (!tokenString) {
+    console.error("[gscFetch] No valid access token found. Possibly not logged in?");
+    throw new Error("[gsc] Missing or invalid token.");
   }
 
   const url = `${GSC_API_BASE}${path}`;
-  
-  // Prepare request details with correct token
+  const method = options.method || "GET";
   const headers = {
-    Authorization: `Bearer ${actualToken}`,
-    "Content-Type": "application/json"
+    Authorization: `Bearer ${tokenString}`,
+    "Content-Type": "application/json",
+    ...(options.headers || {})
   };
-
-  // Log complete request details
-  console.log('🌐 Full Request Details:', {
-    url,
-    method: options.method || "GET",
-    headers: {
-      ...headers,
-      Authorization: `Bearer ${actualToken.substring(0, 15)}...` // Show start of token
-    }
-  });
-
-  // Create proper curl command
-  const curlCmd = `curl -X ${options.method || 'GET'} '${url}' \
-  -H 'Authorization: Bearer ${actualToken}' \
-  -H 'Content-Type: application/json' \
-  ${options.body ? `-d '${typeof options.body === 'string' ? options.body : JSON.stringify(options.body)}'` : ''} \
-  --compressed`;
-  
-  console.log('🌐 Generated curl command:', curlCmd);
-
   let body = options.body;
   if (body && typeof body !== "string") {
     body = JSON.stringify(body);
   }
 
-  console.log('🌐 Making request...');
-  const resp = await fetch(url, {
-    method: options.method || "GET",
-    headers: { ...headers, ...(options.headers || {}) },
-    body
-  });
+  console.debug(`[gscFetch] Request: ${method} ${url}`, { headers, body });
+  const resp = await fetch(url, { method, headers, body });
 
-  console.log('🌐 Response received:', {
-    status: resp.status,
-    statusText: resp.statusText,
-    headers: Object.fromEntries([...resp.headers.entries()])
-  });
+  // If unauthorized, attempt one refresh and retry
+  if (resp.status === 401 || resp.status === 403) {
+    console.warn(`[gscFetch] Got ${resp.status}, attempting a token refresh...`);
+    await maybeRefreshToken();
+
+    // Retry with fresh token
+    const freshToken = _token?.access_token || _token?.token;
+    if (!freshToken) {
+      throw new Error("[gscFetch] No valid token even after refresh attempt.");
+    }
+    const retryHeaders = { ...headers, Authorization: `Bearer ${freshToken}` };
+    const resp2 = await fetch(url, { method, headers: retryHeaders, body });
+    if (!resp2.ok) {
+      const errorTxt = await resp2.text().catch(() => "");
+      throw new Error(`[gsc] GSC API Error (2nd try) ${resp2.status}: ${errorTxt}`);
+    }
+    return resp2.json();
+  }
 
   if (!resp.ok) {
-    const errorTxt = await resp.text().catch(() => "Unknown error body");
-    console.error('❌ API Request Failed:', {
-      status: resp.status,
-      statusText: resp.statusText,
-      error: errorTxt,
-      path,
-      requestBody: body ? JSON.parse(body) : undefined
-    });
+    const errorTxt = await resp.text().catch(() => "");
     throw new Error(`[gsc] GSC API Error ${resp.status}: ${errorTxt}`);
   }
 
   const data = await resp.json();
-  console.log('🌐 ==========================================');
-  console.log('✅ API Request Successful');
-  console.log('🌐 Response data:', data);
-  console.log('🌐 ==========================================');
-  
+  console.debug("[gscFetch] Response OK:", data);
   return data;
 }
+
 
 // -----------------------------------------------------------------------
 // Date Utilities
 // -----------------------------------------------------------------------
 function getDateRange(range = 'last28days') {
   const end = new Date();
-  const start = new Date();
-  
+  let start = new Date();
+
   switch(range) {
     case 'today':
       break;
@@ -262,14 +338,14 @@ function getDateRange(range = 'last28days') {
       lastMonth.setMonth(lastMonth.getMonth() - 1);
       const lastDayOfLastMonth = new Date(lastMonth.getFullYear(), lastMonth.getMonth() + 1, 0);
       start = lastMonth;
-      end = lastDayOfLastMonth;
+      end.setTime(lastDayOfLastMonth.getTime());
       break;
     }
     case 'thisMonth':
       start.setDate(1);
       break;
     default:
-      start.setDate(start.getDate() - 28); // Default to last 28 days
+      start.setDate(start.getDate() - 28);
   }
 
   return {
@@ -288,7 +364,7 @@ export async function login(customCreds = {}) {
     _token = null;
 
     await ensureCredentialsLoaded(customCreds);
-    // quick test => just call /sites:
+    // Quick test => just call /sites:
     await gscFetch("/sites", { method: "GET" });
 
     _lastLoginStatus = true;
@@ -335,10 +411,12 @@ export async function getSiteInfo(siteUrl) {
 export async function querySearchAnalytics(siteUrl, queryBody) {
   if (!siteUrl) throw new Error("[gsc] querySearchAnalytics: missing siteUrl");
   
-  // Ensure dates are set
-  const defaultRange = getDateRange();
-  queryBody.startDate = queryBody.startDate || defaultRange.startDate;
-  queryBody.endDate = queryBody.endDate || defaultRange.endDate;
+  // Ensure dates are set in the body
+  if (!queryBody.startDate || !queryBody.endDate) {
+    const defaultRange = getDateRange(); // default last28days
+    queryBody.startDate = queryBody.startDate || defaultRange.startDate;
+    queryBody.endDate = queryBody.endDate || defaultRange.endDate;
+  }
   
   const enc = encodeURIComponent(siteUrl);
   return gscFetch(`/sites/${enc}/searchAnalytics/query`, {
@@ -372,45 +450,53 @@ export async function listSitemaps(siteUrl) {
 }
 
 // -----------------------------------------------------------------------
+// Helper for building request bodies in sugar methods
+// -----------------------------------------------------------------------
+function buildQueryBody(options = {}, dimensions = ["query"]) {
+  // For sugar methods, default rowLimit can vary
+  const rowLimit = options.rowLimit || 100;
+  // For advanced methods, some use 1000 as default
+  const advancedRowLimit = (options.defaultRowLimitIfMissing || rowLimit);
+
+  const dates = {
+    startDate: options.startDate || getDateRange().startDate,
+    endDate: options.endDate || getDateRange().endDate
+  };
+
+  return {
+    ...dates,
+    dimensions,
+    rowLimit: advancedRowLimit,
+    // Only 'type' is valid now; searchType is deprecated
+    // Valid type values: 'web', 'image', 'video', 'news', 'googleNews', 'discover'
+    type: options.type || "web",
+
+    // "aggregationType" can be "auto", "byPage", "byProperty", or "byNewsShowcasePanel"
+    aggregationType: options.aggregationType || "auto",
+
+    // dimensionFilterGroups is still valid for certain filters
+    dimensionFilterGroups: options.filters || [],
+
+    // The API doesn't need "metrics" array, ignoring it
+    // dataState can be "final" or "all". "all" includes fresh data
+    dataState: options.dataState || "all",
+  };
+}
+
+// -----------------------------------------------------------------------
 // Sugar Methods
 // -----------------------------------------------------------------------
 export async function getTopQueries(siteUrl, options = {}) {
   if (!siteUrl) throw new Error("[gsc] getTopQueries: missing siteUrl");
-  
-  const dates = getDateRange(options.dateRange);
-  
-  const body = {
-    ...dates,
-    dimensions: ["query"],
-    rowLimit: options.rowLimit || 100,
-    searchType: options.searchType || "web",
-    type: options.type || "web",
-    dataState: options.dataState || "all",
-    dimensionFilterGroups: options.filters || [],
-    aggregationType: options.aggregationType || "auto",
-    metrics: options.metrics || ["clicks", "impressions", "ctr", "position"]
-  };
 
+  const body = buildQueryBody(options, ["query"]);
   return querySearchAnalytics(siteUrl, body);
 }
 
 export async function getTopPages(siteUrl, options = {}) {
   if (!siteUrl) throw new Error("[gsc] getTopPages: missing siteUrl");
-  
-  const dates = getDateRange(options.dateRange);
-  
-  const body = {
-    ...dates,
-    dimensions: ["page"],
-    rowLimit: options.rowLimit || 100,
-    searchType: options.searchType || "web",
-    type: options.type || "web",
-    dataState: options.dataState || "all",
-    dimensionFilterGroups: options.filters || [],
-    aggregationType: options.aggregationType || "auto",
-    metrics: options.metrics || ["clicks", "impressions", "ctr", "position"]
-  };
 
+  const body = buildQueryBody(options, ["page"]);
   return querySearchAnalytics(siteUrl, body);
 }
 
@@ -418,16 +504,11 @@ export async function getTopPages(siteUrl, options = {}) {
 export async function getDetailedAnalytics(siteUrl, options = {}) {
   if (!siteUrl) throw new Error("[gsc] getDetailedAnalytics: missing siteUrl");
 
-  const dates = getDateRange(options.dateRange);
-
-  const body = {
-    ...dates,
-    dimensions: options.dimensions || ["query", "page", "device", "country"],
-    rowLimit: options.rowLimit || 1000,
-    searchType: options.searchType || "web",
-    dataState: options.dataState || "all",
-    dimensionFilterGroups: options.filters || []
-  };
+  // Typically a higher rowLimit default, e.g. 1000
+  const body = buildQueryBody(
+    { ...options, defaultRowLimitIfMissing: 1000 }, 
+    options.dimensions || ["query", "page", "device", "country"]
+  );
 
   return querySearchAnalytics(siteUrl, body);
 }
@@ -435,36 +516,19 @@ export async function getDetailedAnalytics(siteUrl, options = {}) {
 export async function getTopPagesDetailed(siteUrl, options = {}) {
   if (!siteUrl) throw new Error("[gsc] getTopPagesDetailed: missing siteUrl");
 
-  const dates = getDateRange(options.dateRange);
-  const {
-    rowLimit = 1000,
-    minClicks = 10,
-    minImpressions = 100,
-    minPosition = 0,
-    maxPosition = 100
-  } = options;
+  // We remove the old "position" filter because it's not valid,
+  // and the "between" operator is not recognized. So no custom filter now.
+  const rowLimit = options.rowLimit || 1000;
 
-  const dimensionFilterGroups = [{
-    filters: []
-  }];
+  const baseBody = buildQueryBody(
+    { ...options, rowLimit, defaultRowLimitIfMissing: rowLimit },
+    ["page"]
+  );
 
-  if (minPosition || maxPosition) {
-    dimensionFilterGroups[0].filters.push({
-      dimension: "position",
-      operator: "between",
-      expression: minPosition,
-      expression2: maxPosition
-    });
-  }
+  // Aggregation can be "byPage" if we want to specifically group by page
+  baseBody.aggregationType = "byPage";
 
-  return querySearchAnalytics(siteUrl, {
-    ...dates,
-    dimensions: ["page"],
-    rowLimit,
-    dimensionFilterGroups,
-    aggregationType: "byPage",
-    searchType: "web"
-  });
+  return querySearchAnalytics(siteUrl, baseBody);
 }
 
 export async function getQueryAnalyticsByPage(siteUrl, pageUrl, options = {}) {
@@ -472,8 +536,7 @@ export async function getQueryAnalyticsByPage(siteUrl, pageUrl, options = {}) {
     throw new Error("[gsc] getQueryAnalyticsByPage: missing siteUrl or pageUrl");
   }
 
-  const dates = getDateRange(options.dateRange);
-
+  // dimensionFilterGroups can only do limited operators: "equals", "contains", "notContains", "notEquals", "includingRegex", or "excludingRegex"
   const dimensionFilterGroups = [{
     filters: [{
       dimension: "page",
@@ -482,48 +545,43 @@ export async function getQueryAnalyticsByPage(siteUrl, pageUrl, options = {}) {
     }]
   }];
 
-  return querySearchAnalytics(siteUrl, {
-    ...dates,
-    dimensions: ["query", "device", "country"],
-    rowLimit: options.rowLimit || 1000,
-    dimensionFilterGroups
-  });
+  const body = buildQueryBody(
+    { ...options, rowLimit: options.rowLimit || 1000 },
+    ["query", "device", "country"]
+  );
+
+  body.dimensionFilterGroups = dimensionFilterGroups;
+  return querySearchAnalytics(siteUrl, body);
 }
 
 export async function getDeviceAnalytics(siteUrl, options = {}) {
   if (!siteUrl) throw new Error("[gsc] getDeviceAnalytics: missing siteUrl");
 
-  const dates = getDateRange(options.dateRange);
+  // aggregator can't be "byDevice"; let's just use "auto"
+  const body = buildQueryBody(
+    { ...options, rowLimit: options.rowLimit || 1000 },
+    ["device"]
+  );
 
-  return querySearchAnalytics(siteUrl, {
-    ...dates,
-    dimensions: ["device"],
-    rowLimit: options.rowLimit || 1000,
-    aggregationType: "byDevice"
-  });
+  return querySearchAnalytics(siteUrl, body);
 }
 
 export async function getCountryAnalytics(siteUrl, options = {}) {
   if (!siteUrl) throw new Error("[gsc] getCountryAnalytics: missing siteUrl");
 
-  const dates = getDateRange(options.dateRange);
-
+  // aggregator can't be "byCountry"; let's just use "auto"
   const dimensionFilterGroups = [];
-  if (options.minClicks > 0) {
-    dimensionFilterGroups.push({
-      filters: [{
-        dimension: "clicks",
-        operator: "greaterThan",
-        expression: options.minClicks.toString()
-      }]
-    });
-  }
+  // minClicks-based filtering isn't standard with the new API (no "clicks" dimension).
+  // So we skip that logic, or allow "query" dimension filters, etc.
+  // For now, we remove minClicks entirely to avoid 400 error.
 
-  return querySearchAnalytics(siteUrl, {
-    ...dates,
-    dimensions: ["country"],
-    rowLimit: options.rowLimit || 1000,
-    dimensionFilterGroups,
-    aggregationType: "byCountry"
-  });
+  const baseBody = buildQueryBody(
+    { ...options, rowLimit: options.rowLimit || 1000 },
+    ["country"]
+  );
+
+  // Do not use aggregator "byCountry" because that's invalid.
+  // We'll just rely on "auto".
+  baseBody.dimensionFilterGroups = dimensionFilterGroups;
+  return querySearchAnalytics(siteUrl, baseBody);
 }
