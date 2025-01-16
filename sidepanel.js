@@ -36,7 +36,6 @@ function init() {
         safeAddEventListener("saveBtn", "click", saveEnvVars);
         safeAddEventListener("refreshEnvBtn", "click", refreshEnvTest);
         safeAddEventListener("clearDebugBtn", "click", clearDebug);
-        safeAddEventListener("closePanelBtn", "click", closePanel);
         safeAddEventListener("loadCredsBtn", "click", () => {
             window.location.href = chrome.runtime.getURL('pages/credentials_manager.html');
         });
@@ -409,11 +408,3 @@ function handleVariableActions(event) {
     }
 }
 
-// Add close panel functionality
-async function closePanel() {
-    try {
-        await chrome.runtime.sendMessage({ type: "CLOSE_SIDEPANEL" });
-    } catch (error) {
-        console.error("Error closing panel:", error);
-    }
-}

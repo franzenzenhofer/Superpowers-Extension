@@ -91,6 +91,27 @@ export const gsc_extension = {
           promise = getCountryAnalytics(...args);
           break;
 
+        // Add new method cases
+        case "inspectUrl":
+          promise = inspectUrl(...args);
+          break;
+
+        case "getRichResults":
+          promise = getRichResults(...args);
+          break;
+
+        case "getAmpStatus":
+          promise = getAmpStatus(...args);
+          break;
+
+        case "getMobileUsability":
+          promise = getMobileUsability(...args);
+          break;
+
+        case "getSearchAnalyticsByFilter":
+          promise = getSearchAnalyticsByFilter(...args);
+          break;
+
         default:
           promise = Promise.reject(
             new Error(`[gsc_extension] Unknown method: ${methodName}`)

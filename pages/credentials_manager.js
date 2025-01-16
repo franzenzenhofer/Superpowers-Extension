@@ -57,7 +57,15 @@ function verifyRequiredElements() {
         'credsList',
         'debugLogs',
         'modalOverlay',
-        'modalContent'
+        'modalContent',
+        'modalTitle',
+        'modalSaveBtn',
+        'modalCancelBtn',
+        'viewEditModal',
+        'viewEditModalContent',
+        'viewEditModalTitle',
+        'viewEditModalSave',
+        'viewEditModalCancel'
     ];
     
     const missingElements = [];
@@ -214,27 +222,6 @@ async function setupUIHandlers() {
     elements.modalSaveBtn.addEventListener('click', () => {
         debugLog('Modal save clicked', 'modal');
         onModalSave();
-    });
-
-    // Add new button handler
-    document.getElementById('btnViewEditToken').addEventListener('click', async () => {
-        try {
-            const tokenCred = await window.CredentialHelpers.getCredential('google-searchconsole', 'token');
-            if (!tokenCred) {
-                showStatus('No GSC token found', 'warn');
-                return;
-            }
-            
-            // Use existing modal with token data
-            await showModal({
-                filename: tokenCred.filename,
-                contents: JSON.stringify(tokenCred.contents, null, 2),
-                detectedService: 'google-searchconsole',
-                detectedType: 'token'
-            });
-        } catch (err) {
-            showStatus(`Error loading token: ${err.message}`, 'error');
-        }
     });
 
     debugLog('UI handlers setup complete', 'init', 'success');
@@ -598,13 +585,6 @@ async function onModalSave() {
             currentFileIndex = 0;
         }
         showStatus('Credential saved successfully!');
-        
-        // After successful save
-        if (type === 'token') {
-            const now = new Date().toISOString();
-            console.log(`[Token] Updated at ${now}`);
-            logMessage(`Token updated at ${now}`, 'success');
-        }
     } catch (err) {
         debugLog(`Save error: ${err.message}`, 'save', 'error');
         showStatus(`Save failed: ${err.message}`, 'error');
@@ -649,6 +629,24 @@ async function renderAllCredentials() {
                 const credInfo = document.createElement('span');
                 credInfo.innerHTML = `<strong>${displayType}:</strong> ${cred.filename}`;
                 mainInfo.appendChild(credInfo);
+
+                // Add timestamp display
+                const timestamp = document.createElement('span');
+                timestamp.className = 'timestamp';
+                timestamp.innerHTML = `
+                    <span title="Last Updated">
+                        🕒 ${formatDate(cred.contents.last_updated || cred.contents.created_at || Date.now())}
+                    </span>`;
+                mainInfo.appendChild(timestamp);
+
+                // Add view/edit button
+                const viewButton = document.createElement('button');
+                viewButton.className = 'view-btn';
+                viewButton.textContent = 'View/Edit';
+                viewButton.addEventListener('click', () => {
+                    showViewEditModal(service, storageType, cred);
+                });
+                mainInfo.appendChild(viewButton);
 
                 // Remove button using storage type
                 const removeButton = document.createElement('button');
@@ -731,3 +729,97 @@ window.selectCustomService = (service) => {
         customInput.value = service;
     }
 };
+
+// Add this after other imports
+function formatDate(timestamp) {
+    if (!timestamp) return 'No date';
+    return new Date(timestamp).toLocaleString();
+}
+
+// Add new functions for viewing/editing credentials
+function showViewEditModal(service, type, cred) {
+    const modal = document.getElementById('viewEditModal');
+    const title = document.getElementById('viewEditModalTitle');
+    const content = document.getElementById('viewEditModalContent');
+    const closeBtn = document.getElementById('viewEditModalClose');
+    const saveBtn = document.getElementById('viewEditModalSave');
+    const cancelBtn = document.getElementById('viewEditModalCancel');
+    
+    if (!modal || !title || !content || !closeBtn || !saveBtn || !cancelBtn) {
+        debugLog('View/Edit modal elements not found!', 'modal', 'error');
+        showStatus('UI Error: Missing modal elements', 'error');
+        return;
+    }
+
+    // Setup close handlers
+    const closeModal = () => {
+        modal.style.display = 'none';
+        document.removeEventListener('keydown', handleEscape);
+    };
+
+    const handleEscape = (e) => {
+        if (e.key === 'Escape') closeModal();
+    };
+
+    // Close on escape key
+    document.addEventListener('keydown', handleEscape);
+
+    // Close on clicking close button or cancel
+    closeBtn.onclick = closeModal;
+    cancelBtn.onclick = closeModal;
+
+    // Close on clicking outside modal
+    modal.onclick = (e) => {
+        if (e.target === modal) closeModal();
+    };
+
+    // Prevent closing when clicking modal content
+    content.onclick = (e) => e.stopPropagation();
+
+    title.textContent = `${service}/${type}`;
+    
+    const modalBody = content.querySelector('.modal-body');
+    modalBody.innerHTML = `
+        <div class="form-group">
+            <label>Content:</label>
+            <textarea id="editJsonContent" spellcheck="false">${JSON.stringify(cred.contents, null, 2)}</textarea>
+        </div>
+        <div class="timestamp-info">
+            ${cred.contents.last_updated ? 
+                `Last Updated: ${formatDate(cred.contents.last_updated)}` : 
+                `Created: ${formatDate(cred.contents.created_at || Date.now())}`}
+        </div>`;
+
+    // Setup save handler
+    saveBtn.onclick = async () => {
+        try {
+            const textarea = document.getElementById('editJsonContent');
+            if (!textarea) {
+                throw new Error('Could not find edit content textarea');
+            }
+
+            const newContent = JSON.parse(textarea.value);
+            
+            // Add/update timestamps
+            newContent.last_updated = Date.now();
+            if (!newContent.created_at) {
+                newContent.created_at = cred.contents.created_at || Date.now();
+            }
+
+            await setCredential(service, type, {
+                ...cred,
+                contents: newContent
+            });
+            
+            closeModal();
+            showStatus('Credential updated successfully!', 'success');
+            await renderAllCredentials();
+
+        } catch (err) {
+            showStatus(`Failed to update: ${err.message}`, 'error');
+            debugLog(`Save error: ${err.message}`, 'modal', 'error');
+        }
+    };
+
+    modal.style.display = 'flex';
+}

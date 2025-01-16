@@ -585,3 +585,66 @@ export async function getCountryAnalytics(siteUrl, options = {}) {
   baseBody.dimensionFilterGroups = dimensionFilterGroups;
   return querySearchAnalytics(siteUrl, baseBody);
 }
+
+// Add new URL Inspection API methods
+export async function inspectUrl(siteUrl, inspectionUrl, languageCode = 'en-US') {
+  if (!siteUrl || !inspectionUrl) {
+    throw new Error("[gsc] inspectUrl: missing required parameters");
+  }
+
+  const body = {
+    inspectionUrl,
+    siteUrl,
+    languageCode
+  };
+
+  return gscFetch('https://searchconsole.googleapis.com/v1/urlInspection/index:inspect', {
+    method: 'POST',
+    body
+  });
+}
+
+// Add Rich Results inspection
+export async function getRichResults(siteUrl, pageUrl) {
+  const results = await inspectUrl(siteUrl, pageUrl);
+  return results?.inspectionResult?.richResultsResult || null;
+}
+
+// Add AMP inspection
+export async function getAmpStatus(siteUrl, pageUrl) {
+  const results = await inspectUrl(siteUrl, pageUrl);
+  return results?.inspectionResult?.ampResult || null;
+}
+
+// Add Mobile usability inspection
+export async function getMobileUsability(siteUrl, pageUrl) {
+  const results = await inspectUrl(siteUrl, pageUrl);
+  return results?.inspectionResult?.mobileUsabilityResult || null;
+}
+
+// Enhanced search analytics with more filtering
+export async function getSearchAnalyticsByFilter(siteUrl, options = {}) {
+  const {
+    startDate,
+    endDate,
+    dimensions = ['query'],
+    filters = [],
+    dataState = 'all',
+    rowLimit = 1000,
+    searchType,
+    aggregationType = 'auto'
+  } = options;
+
+  const body = {
+    startDate: startDate || getDateRange().startDate,
+    endDate: endDate || getDateRange().endDate,
+    dimensions,
+    dimensionFilterGroups: filters.length ? [{ filters }] : [],
+    type: searchType || 'web',
+    dataState,
+    rowLimit,
+    aggregationType
+  };
+
+  return querySearchAnalytics(siteUrl, body);
+}

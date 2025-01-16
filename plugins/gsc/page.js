@@ -103,7 +103,14 @@
     getTopPagesDetailed: methodWrapper('getTopPagesDetailed'),
     getQueryAnalyticsByPage: methodWrapper('getQueryAnalyticsByPage'),
     getDeviceAnalytics: methodWrapper('getDeviceAnalytics'),
-    getCountryAnalytics: methodWrapper('getCountryAnalytics')
+    getCountryAnalytics: methodWrapper('getCountryAnalytics'),
+    
+    // Add new methods
+    inspectUrl: methodWrapper('inspectUrl'),
+    getRichResults: methodWrapper('getRichResults'),
+    getAmpStatus: methodWrapper('getAmpStatus'), 
+    getMobileUsability: methodWrapper('getMobileUsability'),
+    getSearchAnalyticsByFilter: methodWrapper('getSearchAnalyticsByFilter')
   };
 
   console.debug('[gsc/page] GSC page script initialization complete', {
