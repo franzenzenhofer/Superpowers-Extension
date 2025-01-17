@@ -129,7 +129,7 @@ export async function login(customCreds = {}) {
     // Quick test => just call /v1beta/properties:runReport on a dummy property?
     // Or simply trust that the token is valid. We'll do a minimal call:
     // For example, we can do a getMetadata on property=0 (common metadata).
-    await getMetadata("properties/0");
+    await getMetadata("properties/0/metadata");
 
     _lastLoginStatus = true;
     return { success: true, message: "[ga] GA login verified!" };
