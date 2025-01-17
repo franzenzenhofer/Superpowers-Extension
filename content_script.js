@@ -18,9 +18,7 @@ function extensionDebugLog(msg, level = "info") {
       console.warn(fullMsg);
       break;
     default:
-      /*
-      console.log(fullMsg);
-      */
+      // console.log(fullMsg);
       break;
   }
 
@@ -34,15 +32,13 @@ function extensionDebugLog(msg, level = "info") {
 }
 
 function pageHasSuperpowersMeta() {
-  /*
-  extensionDebugLog("Checking <meta name='superpowers' content='enabled'>...", "info");
-  */
+  // extensionDebugLog("Checking <meta name='superpowers' content='enabled'>...", "info");
   const metas = document.getElementsByTagName("meta");
   for (let i = 0; i < metas.length; i++) {
     const n = metas[i].getAttribute("name")?.toLowerCase();
     const c = metas[i].getAttribute("content")?.toLowerCase();
     if (n === "superpowers" && c === "enabled") {
-      extensionDebugLog("✅ Found superpowers meta tag!", "info");
+      // extensionDebugLog("✅ Found superpowers meta tag!", "info");
       return true;
     }
   }

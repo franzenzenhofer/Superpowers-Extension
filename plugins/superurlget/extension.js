@@ -2,10 +2,6 @@ export const superurlget_extension = {
   name: "superurlget_extension",
 
   install(context) {
-    if (context.debug) {
-      console.log("[superurlget_extension] Installing in SW...");
-    }
-
     chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       if (request.type !== "SUPERURLGET_CALL") return false;
 
@@ -40,12 +36,6 @@ async function handleUrlGet(method, url, config = {}) {
     injectJs,
     fallbackDelay = 1000 // New: minimum wait time if events fail
   } = config;
-
-  console.log("[superurlget_extension] Starting with:", {
-    method, url, waitForEvent, timeoutMs, fallbackDelay,
-    hasInjectCss: !!injectCss,
-    hasInjectJs: !!injectJs
-  });
 
   const tab = await chrome.tabs.create({ 
     url, 
@@ -148,18 +138,14 @@ async function handleUrlGet(method, url, config = {}) {
                 if (document.readyState === 'complete' || 
                     (params.waitForEvent === 'DOMContentLoaded' && 
                      document.readyState !== 'loading')) {
-                  console.log("[urlget/injection] Document ready, grabbing now");
                   grabContent();
                 } else {
-                  console.log("[urlget/injection] Waiting for:", params.waitForEvent);
                   document.addEventListener(params.waitForEvent, () => {
-                    console.log("[urlget/injection] Event fired:", params.waitForEvent);
                     grabContent();
                   }, { once: true });
                   
                   // Backup in case event never fires
                   setTimeout(() => {
-                    console.log("[urlget/injection] Safety timeout, grabbing anyway");
                     grabContent();
                   }, 2000);
                 }
@@ -178,11 +164,6 @@ async function handleUrlGet(method, url, config = {}) {
           }]
         }).then(([injection]) => {
           if (injection.result) {
-            console.log("[superurlget_extension] Got content:", {
-              readyState: injection.result.readyState,
-              wasTimeout: injection.result.wasTimeout,
-              contentLength: injection.result.contentLength
-            });
             resolve(injection.result);
           } else {
             reject(new Error('No content returned'));

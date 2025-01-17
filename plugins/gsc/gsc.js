@@ -1,295 +1,105 @@
 // gsc.js
 // -------------------------------------------------------------------------
-// Provides internal logic for Google Search Console usage.
+// Provides internal logic for Google Search Console usage, with robust checks.
 // -------------------------------------------------------------------------
 
-import { getCredential } from "../../scripts/credentials_helpers.js";
+import { 
+  ensureCredentialsLoaded, 
+  maybeRefreshToken,
+  getToken,
+  getClientSecret,
+  setToken,
+  setClientSecret
+} from "./auth.js";
+
+// We still need these credential helpers for the entire flow in auth.js
+// but the actual loading logic was moved to auth.js.
+import { getCredential, setCredential } from "../../scripts/credentials_helpers.js";
 
 const GSC_API_BASE = "https://www.googleapis.com/webmasters/v3";
 
-let _clientSecret = null;
-let _token = null;
+// Keep lastLoginStatus in this file
 let _lastLoginStatus = false;
 
 /**
- * Ensure we've loaded the relevant credentials into _clientSecret and _token.
- * customCreds can be either:
- *   - an OBJECT with { service, clientSecretType, tokenType },
- *   - or a STRING like "superAuthCreds.google-searchconsole.token.json".
- * Otherwise, defaults to { service: "google-searchconsole", clientSecretType: "client_secret", tokenType: "token" }.
+ * Helper: Asserts that a given parameter is a non-empty string.
  */
-async function ensureCredentialsLoaded(customCreds = {}) {
-  console.log('🔐 =======================================');
-  console.log('🔄 [FLOW] GSC: Starting credential load');
-  console.log('🔐 =======================================');
-  console.debug('[gsc/debug] Request params:', { customCreds });
-  
-  let service = "google-searchconsole";
-  let clientSecretType = "client_secret";
-  let tokenType = "token";
-
-  // Case A: If customCreds is a string, interpret it as a direct storage key for the token.
-  if (typeof customCreds === "string") {
-    console.log('🔄 [FLOW] GSC: Loading token from custom key:', customCreds);
-    const tokenCred = await getCredential(customCreds);
-    console.log('🔄 [FLOW] GSC: Token load result:', tokenCred ? '✅' : '❌');
-    
-    console.log('🔑 Loading client secret...');
-    const clientSecret = await getCredential(service, clientSecretType);
-    console.log('🔐 Client secret loaded:', clientSecret ? '✅' : '❌');
-    
-    if (!tokenCred || !tokenCred.contents) {
-      throw new Error(
-        `[gsc] Could not load token from key "${customCreds}". Check your credential manager.`
-      );
-    }
-    
-    if (!clientSecret || !clientSecret.contents) {
-      throw new Error(
-        `[gsc] No client_secret found under default "${service}/${clientSecretType}".`
-      );
-    }
- 
-    // Assign
-    _clientSecret = {
-      ...clientSecret.contents,
-      serviceKey: service
-    };
-    _token = {
-      ...tokenCred.contents,
-      serviceKey: "[stringKey]"
-    };
-    console.debug('[gsc/debug] Token loaded:', _token);
-    console.log('🔓 CREDENTIALS LOADED SUCCESSFULLY');
-    console.log('🔑 Token Details:', {
-      type: 'directKey',
-      hasAccessToken: !!_token.access_token,
-      hasRefreshToken: !!_token.refresh_token,
-      scopes: _token.scope || _token.scopes || []
-    });
-    return;
-  }
-
-  // Case B: If customCreds is an object, do normal destructuring
-  console.log('🔄 [FLOW] GSC: Loading standard credentials');
-  const {
-    service: objService = "google-searchconsole",
-    clientSecretType: objCsType = "client_secret",
-    tokenType: objTkType = "token"
-  } = customCreds;
-
-  service = objService;
-  clientSecretType = objCsType;
-  tokenType = objTkType;
-
-  // If already loaded with the same service, skip
-  if (_clientSecret && _token && _clientSecret.serviceKey === service && _token.serviceKey === service) {
-    return; // Already loaded
-  }
-
-  console.log('🔄 [FLOW] GSC: Service:', service);
-  console.log('🔑 Loading credentials for service:', service);
-  const clientSecretCred = await getCredential(service, clientSecretType);
-  console.log('🔄 [FLOW] GSC: Client secret load result:', !!clientSecretCred?.contents);
-  
-  const tokenCred = await getCredential(service, tokenType);
-  console.log('🔄 [FLOW] GSC: Token load result:', !!tokenCred?.contents);
-
-  if (!clientSecretCred || !clientSecretCred.contents) {
-    throw new Error(
-      `[gsc] No client secret found in "${service}/${clientSecretType}". Please add it in the credential manager.`
-    );
-  }
-  if (!tokenCred || !tokenCred.contents) {
-    throw new Error(
-      `[gsc] No GSC token found in "${service}/${tokenType}". Please add it in the credential manager.`
-    );
-  }
-
-  _clientSecret = { ...clientSecretCred.contents, serviceKey: service };
-  _token = { ...tokenCred.contents, serviceKey: service };
-
-  console.log('🔐 =======================================');
-  console.log('🔑 TOKEN STRUCTURE CHECK');
-  console.log('🔐 =======================================');
-  console.log('Raw token object:', _token);
-  console.log('Token location check:', {
-    hasDirectToken: !!_token.token,
-    hasAccessToken: !!_token.access_token,
-    tokenValue: _token.token || _token.access_token || 'NONE',
-    isNested: !!(_token.token && typeof _token.token === 'string')
-  });
-
-  console.log('🔓 =======================================');
-  console.log('🔑 CREDENTIALS LOADED SUCCESSFULLY');
-  console.log('🔐 Service:', service);
-  console.log('🔑 Token Details:', {
-    hasAccessToken: !!_token.access_token,
-    hasRefreshToken: !!_token.refresh_token,
-    scopes: _token.scope || _token.scopes || [],
-    expiryDate: _token.expiry_date || 'unknown'
-  });
-  console.log('🔓 =======================================');
-  console.debug('[gsc/debug] Credentials loaded successfully:', {
-    service,
-    clientSecretType,
-    tokenType,
-    hasClientSecret: !!_clientSecret,
-    hasToken: !!_token
-  });
-  console.debug('[gsc/debug] Token loaded:', _token);
-}
-
-/**
- * Checks if the token is expired or near expiry,
- * and if so, refreshes it using the refresh_token.
- * Updates the in-memory `_token` and also saves the updated token to storage.
- */
-async function maybeRefreshToken() {
-  // If there's no token or no refresh token, we can't refresh
-  if (!_token) {
-    console.debug("[gsc/refresh] No token in memory, skipping refresh.");
-    return;
-  }
-  const storedRefreshToken = _token.refresh_token || _token.refreshToken;
-  if (!storedRefreshToken) {
-    console.debug("[gsc/refresh] No refresh_token available, cannot auto-refresh.");
-    return;
-  }
-
-  // Derive clientId/secret from token or from _clientSecret fields
-  const actualClientId = _token.client_id 
-    || _clientSecret?.installed?.client_id 
-    || _clientSecret?.web?.client_id;
-  const actualClientSecret = _token.client_secret 
-    || _clientSecret?.installed?.client_secret 
-    || _clientSecret?.web?.client_secret;
-
-  if (!actualClientId || !actualClientSecret) {
-    console.warn("[gsc/refresh] Missing client_id or client_secret, cannot refresh token.");
-    return;
-  }
-
-  // Convert expiry_date (could be a string or number). If no date, force refresh.
-  let expiryDate = _token.expiry_date;
-  if (typeof expiryDate === "string") {
-    try {
-      expiryDate = new Date(expiryDate).getTime();
-    } catch (err) {
-      console.warn("[gsc/refresh] Could not parse expiry_date string:", _token.expiry_date);
-      expiryDate = 0; // Force immediate refresh if parse fails
-    }
-  }
-
-  const now = Date.now();
-  // Refresh if no expiry date or within a 2-minute safety window
-  const safetyMarginMs = 2 * 60 * 1000;
-  if (!expiryDate || expiryDate <= now + safetyMarginMs) {
-    console.debug("[gsc/refresh] Token expired or near expiry, attempting refresh...");
-    try {
-      const tokenUri = _token.token_uri || "https://oauth2.googleapis.com/token";
-      const postData = new URLSearchParams();
-      postData.append("client_id", actualClientId);
-      postData.append("client_secret", actualClientSecret);
-      postData.append("refresh_token", storedRefreshToken);
-      postData.append("grant_type", "refresh_token");
-
-      const resp = await fetch(tokenUri, {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: postData
-      });
-
-      if (!resp.ok) {
-        const errTxt = await resp.text();
-        throw new Error(`Refresh failed: ${resp.status} - ${resp.statusText}\n${errTxt}`);
-      }
-
-      const newToken = await resp.json();
-      console.debug("[gsc/refresh] Refresh response:", newToken);
-
-      // Merge into the existing _token
-      _token.access_token = newToken.access_token;
-      if (newToken.expires_in) {
-        _token.expiry_date = Date.now() + (newToken.expires_in * 1000);
-      }
-      if (newToken.scope) {
-        _token.scope = newToken.scope;
-      }
-      // Some OAuth servers resend refresh_token, some don't—keep existing if not present
-      if (newToken.refresh_token) {
-        _token.refresh_token = newToken.refresh_token;
-      }
-
-      // Immediately persist updated token to storage so we don't lose it
-      await setCredential("google-searchconsole", "token", {
-        id: _token.id || ("cred_" + Date.now()),
-        filename: "token.json",
-        contents: _token
-      });
-      console.debug("[gsc/refresh] Token updated & saved to storage.");
-
-      // After successful refresh, log it
-      if (newToken) {
-        const now = new Date().toISOString();
-        console.log(`[Token] Refreshed at ${now}`);
-      }
-
-    } catch (err) {
-      console.error("[gsc/refresh] Token refresh error:", err);
-      // If refresh fails, user might need a full re-auth (login).
-    }
-  } else {
-    console.debug("[gsc/refresh] Token still valid, no refresh needed.");
+function assertNonEmptyString(value, paramName) {
+  if (typeof value !== "string" || !value.trim()) {
+    throw new Error(`[gsc] ${paramName}: missing or invalid string`);
   }
 }
 
 /**
- * Wrapper for the GSC API. Uses the current token's access_token.
- * If we get a 401/403, we'll refresh and retry once.
+ * Single wrapper for GSC endpoints. Retries once on 401/403 (refresh).
  */
 async function gscFetch(path, options = {}) {
-  // Ensure token is loaded & possibly refresh it first
+  // Possibly refresh token first
   await maybeRefreshToken();
 
-  const tokenString = _token?.access_token || _token?.token;
+  // Retrieve the current token from auth.js
+  const token = getToken();
+  const tokenString = token?.access_token || token?.token;
   if (!tokenString) {
     console.error("[gscFetch] No valid access token found. Possibly not logged in?");
     throw new Error("[gsc] Missing or invalid token.");
   }
 
-  const url = `${GSC_API_BASE}${path}`;
+  const isAbsoluteUrl = path.startsWith("http");
+  const finalUrl = isAbsoluteUrl ? path : (GSC_API_BASE + path);
   const method = options.method || "GET";
   const headers = {
     Authorization: `Bearer ${tokenString}`,
     "Content-Type": "application/json",
     ...(options.headers || {})
   };
+
   let body = options.body;
   if (body && typeof body !== "string") {
     body = JSON.stringify(body);
   }
 
-  console.debug(`[gscFetch] Request: ${method} ${url}`, { headers, body });
-  const resp = await fetch(url, { method, headers, body });
+  // console.debug(`[gscFetch] Request => ${method} ${finalUrl}`, { headers, body });
 
-  // If unauthorized, attempt one refresh and retry
+  let resp;
+  try {
+    resp = await fetch(finalUrl, { method, headers, body });
+  } catch (networkErr) {
+    console.error("[gscFetch] Network/connection error:", networkErr);
+    throw new Error("[gsc] Failed to reach GSC endpoint (network error).");
+  }
+
+  // If 401 or 403, try refresh once, then retry.
   if (resp.status === 401 || resp.status === 403) {
     console.warn(`[gscFetch] Got ${resp.status}, attempting a token refresh...`);
     await maybeRefreshToken();
 
-    // Retry with fresh token
-    const freshToken = _token?.access_token || _token?.token;
+    const freshToken = getToken()?.access_token || getToken()?.token;
     if (!freshToken) {
       throw new Error("[gscFetch] No valid token even after refresh attempt.");
     }
     const retryHeaders = { ...headers, Authorization: `Bearer ${freshToken}` };
-    const resp2 = await fetch(url, { method, headers: retryHeaders, body });
+
+    let resp2;
+    try {
+      resp2 = await fetch(finalUrl, { method, headers: retryHeaders, body });
+    } catch (networkErr) {
+      console.error("[gscFetch] Network error on retry:", networkErr);
+      throw new Error("[gsc] Failed again after refresh (network error).");
+    }
+
     if (!resp2.ok) {
       const errorTxt = await resp2.text().catch(() => "");
       throw new Error(`[gsc] GSC API Error (2nd try) ${resp2.status}: ${errorTxt}`);
     }
-    return resp2.json();
+
+    console.debug("[gscFetch] Retried fetch success.");
+    try {
+      return await resp2.json();
+    } catch (parseErr) {
+      console.error("[gscFetch] JSON parse error (2nd try):", parseErr);
+      throw new Error("[gsc] Could not parse GSC response (2nd try).");
+    }
   }
 
   if (!resp.ok) {
@@ -297,11 +107,17 @@ async function gscFetch(path, options = {}) {
     throw new Error(`[gsc] GSC API Error ${resp.status}: ${errorTxt}`);
   }
 
-  const data = await resp.json();
+  let data;
+  try {
+    data = await resp.json();
+  } catch (parseErr) {
+    console.error("[gscFetch] JSON parse error:", parseErr);
+    throw new Error("[gsc] Could not parse GSC response.");
+  }
+
   console.debug("[gscFetch] Response OK:", data);
   return data;
 }
-
 
 // -----------------------------------------------------------------------
 // Date Utilities
@@ -310,7 +126,7 @@ function getDateRange(range = 'last28days') {
   const end = new Date();
   let start = new Date();
 
-  switch(range) {
+  switch (range) {
     case 'today':
       break;
     case 'yesterday':
@@ -336,7 +152,11 @@ function getDateRange(range = 'last28days') {
       const lastMonth = new Date();
       lastMonth.setDate(1);
       lastMonth.setMonth(lastMonth.getMonth() - 1);
-      const lastDayOfLastMonth = new Date(lastMonth.getFullYear(), lastMonth.getMonth() + 1, 0);
+      const lastDayOfLastMonth = new Date(
+        lastMonth.getFullYear(),
+        lastMonth.getMonth() + 1,
+        0
+      );
       start = lastMonth;
       end.setTime(lastDayOfLastMonth.getTime());
       break;
@@ -358,17 +178,18 @@ function getDateRange(range = 'last28days') {
 // Public login/test
 // -----------------------------------------------------------------------
 export async function login(customCreds = {}) {
-  console.debug('[gsc/debug] Login attempt started:', { customCreds });
+  // console.debug('[gsc/debug] Login attempt started:', { customCreds });
   try {
-    _clientSecret = null;
-    _token = null;
+    // Reset credentials in auth.js
+    setClientSecret(null);
+    setToken(null);
 
     await ensureCredentialsLoaded(customCreds);
     // Quick test => just call /sites:
     await gscFetch("/sites", { method: "GET" });
 
     _lastLoginStatus = true;
-    console.debug('[gsc/debug] Login successful');
+    // console.debug('[gsc/debug] Login successful');
     return { success: true, message: "[gsc] GSC login verified!" };
   } catch (err) {
     _lastLoginStatus = false;
@@ -381,43 +202,53 @@ export function getLoginStatus() {
   return _lastLoginStatus;
 }
 
-/**
- * test() => calls login() with no args (default).
- */
 export async function test() {
   return login({});
 }
 
 // -----------------------------------------------------------------------
-// Core GSC calls
+// Sites (official methods)
 // -----------------------------------------------------------------------
-export async function listSites() {
-  console.debug('[gsc/debug] Listing sites');
-  const results = await gscFetch("/sites");
-  console.debug('[gsc/debug] Sites retrieved:', results);
-  return results;
-}
-
-export async function getSiteInfo(siteUrl) {
-  console.debug('[gsc/debug] Getting site info:', { siteUrl });
-  if (!siteUrl) {
-    console.error('[gsc/debug] getSiteInfo called without siteUrl');
-    throw new Error("[gsc] getSiteInfo: missing siteUrl");
-  }
+export async function addSite(siteUrl) {
+  assertNonEmptyString(siteUrl, "siteUrl");
   const enc = encodeURIComponent(siteUrl);
-  return gscFetch(`/sites/${enc}`);
+  return gscFetch(`/sites/${enc}`, { method: "PUT" });
 }
 
+export async function deleteSite(siteUrl) {
+  assertNonEmptyString(siteUrl, "siteUrl");
+  const enc = encodeURIComponent(siteUrl);
+  return gscFetch(`/sites/${enc}`, { method: "DELETE" });
+}
+
+export async function getSite(siteUrl) {
+  assertNonEmptyString(siteUrl, "siteUrl");
+  const enc = encodeURIComponent(siteUrl);
+  return gscFetch(`/sites/${enc}`, { method: "GET" });
+}
+
+export async function listSites() {
+  return gscFetch("/sites", { method: "GET" });
+}
+
+// Legacy sugar alias for "getSite"
+export async function getSiteInfo(siteUrl) {
+  return getSite(siteUrl);
+}
+
+// -----------------------------------------------------------------------
+// Search Analytics (official 'query')
+// -----------------------------------------------------------------------
 export async function querySearchAnalytics(siteUrl, queryBody) {
-  if (!siteUrl) throw new Error("[gsc] querySearchAnalytics: missing siteUrl");
-  
-  // Ensure dates are set in the body
+  assertNonEmptyString(siteUrl, "siteUrl");
+  if (!queryBody || typeof queryBody !== "object") {
+    throw new Error("[gsc] querySearchAnalytics: missing queryBody object");
+  }
   if (!queryBody.startDate || !queryBody.endDate) {
-    const defaultRange = getDateRange(); // default last28days
+    const defaultRange = getDateRange();
     queryBody.startDate = queryBody.startDate || defaultRange.startDate;
     queryBody.endDate = queryBody.endDate || defaultRange.endDate;
   }
-  
   const enc = encodeURIComponent(siteUrl);
   return gscFetch(`/sites/${enc}/searchAnalytics/query`, {
     method: "POST",
@@ -425,38 +256,45 @@ export async function querySearchAnalytics(siteUrl, queryBody) {
   });
 }
 
-export async function submitSitemap(siteUrl, sitemapUrl) {
-  if (!siteUrl || !sitemapUrl) {
-    throw new Error("[gsc] submitSitemap: need both siteUrl + sitemapUrl");
-  }
-  const siteEnc = encodeURIComponent(siteUrl);
-  const mapEnc = encodeURIComponent(sitemapUrl);
-  return gscFetch(`/sites/${siteEnc}/sitemaps/${mapEnc}`, { method: "PUT" });
-}
-
+// -----------------------------------------------------------------------
+// Sitemaps (delete, get, list, submit)
+// -----------------------------------------------------------------------
 export async function deleteSitemap(siteUrl, sitemapUrl) {
-  if (!siteUrl || !sitemapUrl) {
-    throw new Error("[gsc] deleteSitemap: need both siteUrl + sitemapUrl");
-  }
+  assertNonEmptyString(siteUrl, "siteUrl");
+  assertNonEmptyString(sitemapUrl, "sitemapUrl");
   const siteEnc = encodeURIComponent(siteUrl);
   const mapEnc = encodeURIComponent(sitemapUrl);
   return gscFetch(`/sites/${siteEnc}/sitemaps/${mapEnc}`, { method: "DELETE" });
 }
 
-export async function listSitemaps(siteUrl) {
-  if (!siteUrl) throw new Error("[gsc] listSitemaps: missing siteUrl");
+export async function getSitemap(siteUrl, sitemapUrl) {
+  assertNonEmptyString(siteUrl, "siteUrl");
+  assertNonEmptyString(sitemapUrl, "sitemapUrl");
   const siteEnc = encodeURIComponent(siteUrl);
-  return gscFetch(`/sites/${siteEnc}/sitemaps`);
+  const mapEnc = encodeURIComponent(sitemapUrl);
+  return gscFetch(`/sites/${siteEnc}/sitemaps/${mapEnc}`, { method: "GET" });
+}
+
+export async function listSitemaps(siteUrl) {
+  assertNonEmptyString(siteUrl, "siteUrl");
+  const siteEnc = encodeURIComponent(siteUrl);
+  return gscFetch(`/sites/${siteEnc}/sitemaps`, { method: "GET" });
+}
+
+export async function submitSitemap(siteUrl, sitemapUrl) {
+  assertNonEmptyString(siteUrl, "siteUrl");
+  assertNonEmptyString(sitemapUrl, "sitemapUrl");
+  const siteEnc = encodeURIComponent(siteUrl);
+  const mapEnc = encodeURIComponent(sitemapUrl);
+  return gscFetch(`/sites/${siteEnc}/sitemaps/${mapEnc}`, { method: "PUT" });
 }
 
 // -----------------------------------------------------------------------
-// Helper for building request bodies in sugar methods
+// Helper for building request bodies for sugar methods
 // -----------------------------------------------------------------------
 function buildQueryBody(options = {}, dimensions = ["query"]) {
-  // For sugar methods, default rowLimit can vary
   const rowLimit = options.rowLimit || 100;
-  // For advanced methods, some use 1000 as default
-  const advancedRowLimit = (options.defaultRowLimitIfMissing || rowLimit);
+  const advancedRowLimit = options.defaultRowLimitIfMissing || rowLimit;
 
   const dates = {
     startDate: options.startDate || getDateRange().startDate,
@@ -467,163 +305,127 @@ function buildQueryBody(options = {}, dimensions = ["query"]) {
     ...dates,
     dimensions,
     rowLimit: advancedRowLimit,
-    // Only 'type' is valid now; searchType is deprecated
-    // Valid type values: 'web', 'image', 'video', 'news', 'googleNews', 'discover'
     type: options.type || "web",
-
-    // "aggregationType" can be "auto", "byPage", "byProperty", or "byNewsShowcasePanel"
     aggregationType: options.aggregationType || "auto",
-
-    // dimensionFilterGroups is still valid for certain filters
     dimensionFilterGroups: options.filters || [],
-
-    // The API doesn't need "metrics" array, ignoring it
-    // dataState can be "final" or "all". "all" includes fresh data
-    dataState: options.dataState || "all",
+    dataState: options.dataState || "all"
   };
 }
 
 // -----------------------------------------------------------------------
-// Sugar Methods
+// Sugar Methods for Search Analytics
 // -----------------------------------------------------------------------
 export async function getTopQueries(siteUrl, options = {}) {
-  if (!siteUrl) throw new Error("[gsc] getTopQueries: missing siteUrl");
-
+  assertNonEmptyString(siteUrl, "siteUrl");
   const body = buildQueryBody(options, ["query"]);
   return querySearchAnalytics(siteUrl, body);
 }
 
 export async function getTopPages(siteUrl, options = {}) {
-  if (!siteUrl) throw new Error("[gsc] getTopPages: missing siteUrl");
-
+  assertNonEmptyString(siteUrl, "siteUrl");
   const body = buildQueryBody(options, ["page"]);
   return querySearchAnalytics(siteUrl, body);
 }
 
-// Enhanced analytics methods
 export async function getDetailedAnalytics(siteUrl, options = {}) {
-  if (!siteUrl) throw new Error("[gsc] getDetailedAnalytics: missing siteUrl");
-
-  // Typically a higher rowLimit default, e.g. 1000
+  assertNonEmptyString(siteUrl, "siteUrl");
   const body = buildQueryBody(
     { ...options, defaultRowLimitIfMissing: 1000 }, 
     options.dimensions || ["query", "page", "device", "country"]
   );
-
   return querySearchAnalytics(siteUrl, body);
 }
 
 export async function getTopPagesDetailed(siteUrl, options = {}) {
-  if (!siteUrl) throw new Error("[gsc] getTopPagesDetailed: missing siteUrl");
-
-  // We remove the old "position" filter because it's not valid,
-  // and the "between" operator is not recognized. So no custom filter now.
+  assertNonEmptyString(siteUrl, "siteUrl");
   const rowLimit = options.rowLimit || 1000;
-
   const baseBody = buildQueryBody(
     { ...options, rowLimit, defaultRowLimitIfMissing: rowLimit },
     ["page"]
   );
-
-  // Aggregation can be "byPage" if we want to specifically group by page
   baseBody.aggregationType = "byPage";
-
   return querySearchAnalytics(siteUrl, baseBody);
 }
 
 export async function getQueryAnalyticsByPage(siteUrl, pageUrl, options = {}) {
-  if (!siteUrl || !pageUrl) {
-    throw new Error("[gsc] getQueryAnalyticsByPage: missing siteUrl or pageUrl");
-  }
-
-  // dimensionFilterGroups can only do limited operators: "equals", "contains", "notContains", "notEquals", "includingRegex", or "excludingRegex"
-  const dimensionFilterGroups = [{
-    filters: [{
-      dimension: "page",
-      operator: "equals",
-      expression: pageUrl
-    }]
-  }];
-
+  assertNonEmptyString(siteUrl, "siteUrl");
+  assertNonEmptyString(pageUrl, "pageUrl");
+  const dimensionFilterGroups = [
+    {
+      filters: [
+        {
+          dimension: "page",
+          operator: "equals",
+          expression: pageUrl
+        }
+      ]
+    }
+  ];
   const body = buildQueryBody(
     { ...options, rowLimit: options.rowLimit || 1000 },
     ["query", "device", "country"]
   );
-
   body.dimensionFilterGroups = dimensionFilterGroups;
   return querySearchAnalytics(siteUrl, body);
 }
 
 export async function getDeviceAnalytics(siteUrl, options = {}) {
-  if (!siteUrl) throw new Error("[gsc] getDeviceAnalytics: missing siteUrl");
-
-  // aggregator can't be "byDevice"; let's just use "auto"
+  assertNonEmptyString(siteUrl, "siteUrl");
   const body = buildQueryBody(
     { ...options, rowLimit: options.rowLimit || 1000 },
     ["device"]
   );
-
   return querySearchAnalytics(siteUrl, body);
 }
 
 export async function getCountryAnalytics(siteUrl, options = {}) {
-  if (!siteUrl) throw new Error("[gsc] getCountryAnalytics: missing siteUrl");
-
-  // aggregator can't be "byCountry"; let's just use "auto"
-  const dimensionFilterGroups = [];
-  // minClicks-based filtering isn't standard with the new API (no "clicks" dimension).
-  // So we skip that logic, or allow "query" dimension filters, etc.
-  // For now, we remove minClicks entirely to avoid 400 error.
-
+  assertNonEmptyString(siteUrl, "siteUrl");
   const baseBody = buildQueryBody(
     { ...options, rowLimit: options.rowLimit || 1000 },
     ["country"]
   );
-
-  // Do not use aggregator "byCountry" because that's invalid.
-  // We'll just rely on "auto".
-  baseBody.dimensionFilterGroups = dimensionFilterGroups;
   return querySearchAnalytics(siteUrl, baseBody);
 }
 
-// Add new URL Inspection API methods
+// -----------------------------------------------------------------------
+// URL Inspection
+//    Official method is "index.inspect" => we provide "inspectUrl"
+// -----------------------------------------------------------------------
 export async function inspectUrl(siteUrl, inspectionUrl, languageCode = 'en-US') {
-  if (!siteUrl || !inspectionUrl) {
-    throw new Error("[gsc] inspectUrl: missing required parameters");
-  }
+  assertNonEmptyString(siteUrl, "siteUrl");
+  assertNonEmptyString(inspectionUrl, "inspectionUrl");
 
   const body = {
     inspectionUrl,
     siteUrl,
     languageCode
   };
-
-  return gscFetch('https://searchconsole.googleapis.com/v1/urlInspection/index:inspect', {
-    method: 'POST',
+  // The /urlInspection endpoint is separate (v1), so we supply a full URL:
+  return gscFetch("https://searchconsole.googleapis.com/v1/urlInspection/index:inspect", {
+    method: "POST",
     body
   });
 }
 
-// Add Rich Results inspection
+// Sugar around the URL Inspection results
 export async function getRichResults(siteUrl, pageUrl) {
   const results = await inspectUrl(siteUrl, pageUrl);
   return results?.inspectionResult?.richResultsResult || null;
 }
-
-// Add AMP inspection
 export async function getAmpStatus(siteUrl, pageUrl) {
   const results = await inspectUrl(siteUrl, pageUrl);
   return results?.inspectionResult?.ampResult || null;
 }
-
-// Add Mobile usability inspection
 export async function getMobileUsability(siteUrl, pageUrl) {
   const results = await inspectUrl(siteUrl, pageUrl);
   return results?.inspectionResult?.mobileUsabilityResult || null;
 }
 
-// Enhanced search analytics with more filtering
+// -----------------------------------------------------------------------
+// Enhanced analytics with filters
+// -----------------------------------------------------------------------
 export async function getSearchAnalyticsByFilter(siteUrl, options = {}) {
+  assertNonEmptyString(siteUrl, "siteUrl");
   const {
     startDate,
     endDate,

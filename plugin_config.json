@@ -101,6 +101,12 @@
       "extensionPath": "plugins/gsc/extension.js",
       "contentScript": "plugins/gsc/content.js",
       "pageScript": "plugins/gsc/page.js"
+    },
+    {
+      "name": "superconsoleintercept",
+      "extensionPath": "plugins/superconsoleintercept/extension.js",
+      "contentScript": "plugins/superconsoleintercept/content.js",
+      "pageScript": "plugins/superconsoleintercept/page.js"
     }
   ]
 }

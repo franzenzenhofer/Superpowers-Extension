@@ -3,6 +3,7 @@
 // Provides a minimal wrapper over chrome.storage.local for "superAuthCreds".
 
 const STORE_KEY = 'superAuthCreds';
+const TIMESTAMPS_KEY = 'credentialTimestamps';  // New key for timestamps
 
 /**
  * Return ALL stored credentials (object):
@@ -37,7 +38,7 @@ export async function getAllCredentials() {
  * Returns { id, filename, contents } or null if not found.
  */
 export async function getCredential(serviceOrFullKey, maybeType) {
-  console.log(`[getCredential] Searching for:`, { serviceOrFullKey, maybeType });
+  // console.log(`[getCredential] Searching for:`, { serviceOrFullKey, maybeType });  // commented out success log
 
   // 1) Handle full key path
   if (
@@ -57,13 +58,13 @@ export async function getCredential(serviceOrFullKey, maybeType) {
     const service = stripped.substring(0, dotIndex);
     const typePart = stripped.substring(dotIndex + 1);
     
-    console.log(`[getCredential] Parsed path:`, { service, typePart });
+    // console.log(`[getCredential] Parsed path:`, { service, typePart });  // commented out success log
     return getCredentialByParts(service, typePart);
   }
 
   // 2) Handle service + type
   if (typeof serviceOrFullKey === 'string' && typeof maybeType === 'string') {
-    console.log(`[getCredential] Using direct service/type:`, { service: serviceOrFullKey, type: maybeType });
+    // console.log(`[getCredential] Using direct service/type:`, { service: serviceOrFullKey, type: maybeType });  // commented out success log
     return getCredentialByParts(serviceOrFullKey, maybeType);
   }
 
@@ -128,12 +129,15 @@ export async function setCredential(service, type, credObj) {
     }
     all[service][storageType] = credObj;
 
-    chrome.storage.local.set({ [STORE_KEY]: all }, () => {
-      if (chrome.runtime.lastError) {
-        return reject(new Error(chrome.runtime.lastError.message));
-      }
+    try {
+      await Promise.all([
+        chrome.storage.local.set({ [STORE_KEY]: all }),
+        updateCredentialTimestamp(service, storageType)
+      ]);
       resolve(true);
-    });
+    } catch (err) {
+      reject(err);
+    }
   });
 }
 
@@ -168,12 +172,50 @@ export async function removeCredential(service, type) {
         delete all[service];
       }
 
-      await chrome.storage.local.set({ [STORE_KEY]: all });
+      const timestamps = await new Promise((resolve) => {
+        chrome.storage.local.get([TIMESTAMPS_KEY], (res) => resolve(res[TIMESTAMPS_KEY] || {}));
+      });
+      
+      const key = `${service}/${type}`;
+      delete timestamps[key];
+      
+      await Promise.all([
+        chrome.storage.local.set({ [STORE_KEY]: all }),
+        chrome.storage.local.set({ [TIMESTAMPS_KEY]: timestamps })
+      ]);
+      
       resolve(removed);
     } catch (err) {
       reject(err);
     }
   });
+}
+
+// Add new timestamp management functions
+export async function getCredentialTimestamp(service, type) {
+  return new Promise((resolve) => {
+    chrome.storage.local.get([TIMESTAMPS_KEY], (res) => {
+      const timestamps = res[TIMESTAMPS_KEY] || {};
+      const key = `${service}/${type}`;
+      resolve(timestamps[key] || null);
+    });
+  });
+}
+
+async function updateCredentialTimestamp(service, type) {
+  const timestamps = await new Promise((resolve) => {
+    chrome.storage.local.get([TIMESTAMPS_KEY], (res) => resolve(res[TIMESTAMPS_KEY] || {}));
+  });
+  
+  const key = `${service}/${type}`;
+  const now = Date.now();
+  
+  if (!timestamps[key]) {
+    timestamps[key] = { created_at: now };
+  }
+  timestamps[key].last_updated = now;
+  
+  return chrome.storage.local.set({ [TIMESTAMPS_KEY]: timestamps });
 }
 
 // Optional fallback for non-module usage

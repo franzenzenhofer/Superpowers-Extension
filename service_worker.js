@@ -132,7 +132,7 @@ function logSW(msg, level = DEBUG.LEVELS.INFO, extra = {}) {
       console.warn(logMsg, extra);
       break;
     default:
-      // console.log(logMsg, extra);
+      // console.log(logMsg, extra); // Comment out general logging
       break;
   }
 

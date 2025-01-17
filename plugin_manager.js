@@ -20,6 +20,7 @@ import { superdebugger_extension } from './plugins/superdebugger/extension.js'; 
 import { superwebnavigation_extension } from './plugins/superwebnavigation/extension.js';
 import { superaction_extension } from './plugins/superaction/extension.js';
 import { gsc_extension } from './plugins/gsc/extension.js';
+import { superconsoleintercept_extension } from './plugins/superconsoleintercept/extension.js';
 
 
 /**
@@ -77,6 +78,7 @@ export async function initializePluginManager() {
     superdebugger_extension,
     superwebnavigation_extension,
     superaction_extension,
+    superconsoleintercept_extension,
     gsc_extension
   ];
 

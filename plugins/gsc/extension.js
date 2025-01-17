@@ -6,19 +6,33 @@ import {
   login,
   getLoginStatus,
   test,
+  // Official sites
+  addSite,
+  deleteSite,
+  getSite,
   listSites,
-  getSiteInfo,
+  getSiteInfo, // sugar
+  // Official search analytics
   querySearchAnalytics,
+  // Official sitemaps
   submitSitemap,
   deleteSitemap,
   listSitemaps,
+  getSitemap,
+  // Sugar analytics
   getTopQueries,
   getTopPages,
   getDetailedAnalytics,
   getTopPagesDetailed,
   getQueryAnalyticsByPage,
   getDeviceAnalytics,
-  getCountryAnalytics
+  getCountryAnalytics,
+  // URL inspection
+  inspectUrl,
+  getRichResults,
+  getAmpStatus,
+  getMobileUsability,
+  getSearchAnalyticsByFilter
 } from "./gsc.js";
 
 export const gsc_extension = {
@@ -46,16 +60,29 @@ export const gsc_extension = {
           promise = test();
           break;
 
-        // Core:
+        // Sites
+        case "addSite":
+          promise = addSite(...args);
+          break;
+        case "deleteSite":
+          promise = deleteSite(...args);
+          break;
+        case "getSite":
+          promise = getSite(...args);
+          break;
         case "listSites":
           promise = listSites();
           break;
         case "getSiteInfo":
           promise = getSiteInfo(...args);
           break;
+
+        // Search Analytics
         case "querySearchAnalytics":
           promise = querySearchAnalytics(...args);
           break;
+
+        // Sitemaps
         case "submitSitemap":
           promise = submitSitemap(...args);
           break;
@@ -65,6 +92,9 @@ export const gsc_extension = {
         case "listSitemaps":
           promise = listSitemaps(...args);
           break;
+        case "getSitemap":
+          promise = getSitemap(...args);
+          break;
 
         // Sugar:
         case "getTopQueries":
@@ -73,8 +103,6 @@ export const gsc_extension = {
         case "getTopPages":
           promise = getTopPages(...args);
           break;
-
-        // New analytics methods
         case "getDetailedAnalytics":
           promise = getDetailedAnalytics(...args);
           break;
@@ -91,23 +119,21 @@ export const gsc_extension = {
           promise = getCountryAnalytics(...args);
           break;
 
-        // Add new method cases
+        // URL Inspection
         case "inspectUrl":
           promise = inspectUrl(...args);
           break;
-
         case "getRichResults":
           promise = getRichResults(...args);
           break;
-
         case "getAmpStatus":
           promise = getAmpStatus(...args);
           break;
-
         case "getMobileUsability":
           promise = getMobileUsability(...args);
           break;
 
+        // Enhanced search analytics with filters
         case "getSearchAnalyticsByFilter":
           promise = getSearchAnalyticsByFilter(...args);
           break;

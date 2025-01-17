@@ -1,6 +1,6 @@
 // plugins/superruntime/content.js
 (function() {
-  // console.log("[superruntime/content.js] loaded in content-script context");
+  // Remove initial loaded message
 
   // Relay messages from the page => background
   window.addEventListener("message", (ev) => {

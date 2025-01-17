@@ -1,4 +1,3 @@
-
 (function () {
   if (!window.Superpowers) {
     window.Superpowers = {};
@@ -30,5 +29,4 @@
     });
   };
 
-  console.log("[superasyncrandominteger/page.js] Superpowers.asyncRandomInteger(...) is ready");
 })();

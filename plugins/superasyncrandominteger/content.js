@@ -1,8 +1,7 @@
-
 // plugins/superasyncrandominteger/content.js
 
 (function () {
-  console.log("[superasyncrandominteger/content.js] loaded in content-script context");
+  // Remove initial loaded message
 
   window.addEventListener("message", (event) => {
     if (!event.data || event.data.direction !== "from-page") return;

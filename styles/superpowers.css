@@ -1,0 +1,1019 @@
+/* ==========================================================================
+   Superpowers CSS - Core Design System
+   ========================================================================== */
+
+   :root {
+    /* Core Color Palette */
+    --super-blue-900: #002244;
+    --super-blue-800: #001e3d;
+    --super-blue-700: #0033A0;
+    --super-blue-500: #0454A4;
+    --super-blue-400: #0057bd;
+    --super-blue-300: #3B7DC9;
+    --super-yellow: #FFD700;
+    --super-yellow-light: #FFE44D;
+    --super-yellow-dark: #CCB100;
+    --super-yellow-glow: #ffd70033;
+    --steel-gray: #71797E;
+    --steel-light: #D3D3D3;
+    --white-pure: #FFFFFF;
+
+    /* Semantic Color Mappings */
+    --bg-primary: var(--super-blue-900);
+    --bg-secondary: var(--super-blue-800);
+    --bg-elevated: var(--super-blue-700);
+    --bg-interactive: var(--super-blue-500);
+    --editor-bg: var(--super-blue-900);
+    --panel-bg: rgba(255, 255, 255, 0.1);
+    --active-bg: var(--super-yellow-light);
+    
+    /* Text Colors */
+    --text-primary: var(--white-pure);
+    --text-secondary: rgba(255, 255, 255, 0.7);
+    --text-default: var(--white-pure);
+    --text-muted: var(--steel-light);
+    --text-bright: var(--white-pure);
+    --text-accent: var(--super-yellow);
+
+    /* Borders & Effects */
+    --border-glow: 0 0 20px var(--super-yellow-glow);
+    --border-subtle: rgba(255, 255, 255, 0.1);
+    --border-strong: rgba(255, 255, 255, 0.2);
+    --border-radius: 4px;
+
+    /* Spacing Scale */
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-5: 24px;
+    --space-6: 32px;
+    
+    /* Animation Timings */
+    --transition-fast: 0.15s ease;
+    --transition-smooth: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Credential Item Styles */
+.credential-item {
+    padding: var(--space-3);
+    margin: var(--space-2) 0;
+    background: var(--panel-bg);
+    border-radius: var(--border-radius);
+    border: 1px solid var(--border-subtle);
+    transition: all 0.2s ease;
+}
+
+.credential-item:hover {
+    border-color: var(--border-strong);
+    background: rgba(255, 255, 255, 0.15);
+}
+
+/* Close Panel Button */
+.close-panel-btn {
+    position: fixed;
+    bottom: var(--space-4);
+    right: var(--space-4);
+    background: var(--super-blue-700);
+    color: var(--text-bright);
+    border: none;
+    padding: var(--space-2) var(--space-4);
+    border-radius: var(--border-radius);
+    cursor: pointer;
+    font-weight: 600;
+    z-index: 1000;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.close-panel-btn:hover {
+    background: var(--super-blue-500);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+/* Custom Service Input */
+#customServiceInput {
+    display: none;
+    margin-top: var(--space-3);
+    width: 100%;
+}
+
+#customServiceInput.visible {
+    display: block;
+}
+
+/* Existing Services */
+.existing-services {
+    margin-top: var(--space-3);
+    font-size: 0.9em;
+    color: var(--text-muted);
+}
+
+/* Service Selector */
+#existingServicesDropdown {
+    width: 100%;
+    padding: var(--space-2);
+    margin-top: var(--space-3);
+    background: var(--bg-primary);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--border-radius);
+    color: var(--text-primary);
+}
+
+/* Modal Title */
+#modalTitle,
+#viewEditModalTitle {
+    color: var(--super-yellow);
+    margin-bottom: var(--space-4);
+    font-size: 1.5em;
+    font-weight: 600;
+}
+
+/* View/Edit Modal Content */
+#editJsonContent {
+    width: 100%;
+    min-height: 200px;
+    padding: var(--space-3);
+    background: var(--bg-primary);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--border-radius);
+    color: var(--text-primary);
+    font-family: monospace;
+    font-size: 14px;
+    line-height: 1.5;
+    resize: vertical;
+}
+
+/* Timestamp Info */
+.timestamp-info {
+    margin-top: var(--space-3);
+    padding: var(--space-2);
+    background: var(--bg-primary);
+    border-radius: var(--border-radius);
+    color: var(--text-muted);
+    font-size: 0.9em;
+}
+
+/* File Input */
+#fileInput {
+    display: none;
+}
+
+/* Status Messages Container */
+#status-messages {
+    position: fixed;
+    top: var(--space-3);
+    right: var(--space-3);
+    max-width: 300px;
+    z-index: 10000;
+}
+
+/* Button States */
+.btn-primary {
+    background: var(--super-yellow);
+    color: var(--super-blue-900);
+    border: none;
+    padding: var(--space-2) var(--space-4);
+    border-radius: var(--border-radius);
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-primary:hover {
+    background: var(--super-yellow-light);
+    transform: translateY(-1px);
+}
+
+.btn-secondary {
+    background: var(--super-blue-700);
+    color: var(--text-primary);
+    border: none;
+    padding: var(--space-2) var(--space-4);
+    border-radius: var(--border-radius);
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-secondary:hover {
+    background: var(--super-blue-500);
+    transform: translateY(-1px);
+}
+
+/* Disabled State */
+button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none !important;
+}
+
+/* Loading States */
+.loading {
+    position: relative;
+    pointer-events: none;
+}
+
+.loading::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: inherit;
+}
+
+/* Focus States */
+:focus {
+    outline: 2px solid var(--super-yellow);
+    outline-offset: 2px;
+}
+
+/* Scrollbar Styling */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--bg-primary);
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--super-blue-700);
+    border-radius: var(--border-radius);
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--super-blue-500);
+}
+
+/* Print Styles */
+@media print {
+    body {
+        background: white;
+        color: black;
+    }
+
+    .debug-section,
+    .action-bar,
+    .modal-buttons,
+    .close-panel-btn {
+        display: none !important;
+    }
+
+    .credential-content {
+        break-inside: avoid;
+        page-break-inside: avoid;
+    }
+}
+
+/* High Contrast Mode */
+@media (prefers-contrast: high) {
+    :root {
+        --super-yellow: #FFE44D;
+        --text-muted: #FFFFFF;
+        --border-subtle: rgba(255, 255, 255, 0.3);
+        --border-strong: rgba(255, 255, 255, 0.5);
+    }
+}
+
+/* Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+    * {
+        transition: none !important;
+        animation: none !important;
+    }
+}
+
+
+/* Base Reset & Typography
+   ========================================================================== */
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+}
+
+/* Form Controls within Modals */
+.form-group {
+    margin-bottom: var(--space-4);
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: var(--space-2);
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
+.form-group select,
+.form-group input[type="text"],
+.form-group textarea {
+    width: 100%;
+    padding: var(--space-2);
+    background: var(--bg-primary);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--border-radius);
+    color: var(--text-primary);
+    font-size: 14px;
+    margin-top: var(--space-1);
+}
+
+.form-group select:focus,
+.form-group input[type="text"]:focus,
+.form-group textarea:focus {
+    outline: none;
+    border-color: var(--super-yellow);
+}
+
+#manualJsonInput {
+    height: 120px;
+    font-family: monospace;
+    resize: vertical;
+    min-height: 80px;
+}
+
+/* Credentials List Styles */
+.service-group {
+    margin-bottom: var(--space-4);
+}
+
+.service-group h3 {
+    color: var(--super-yellow);
+    margin-bottom: var(--space-3);
+    padding-bottom: var(--space-2);
+    border-bottom: 1px solid var(--border-subtle);
+}
+
+.credential-content {
+    background: var(--panel-bg);
+    border-radius: var(--border-radius);
+    margin: var(--space-2) 0;
+    padding: var(--space-3);
+    border: 1px solid var(--border-subtle);
+}
+
+.cred-main {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+}
+
+/* Storage Information Display */
+.storage-info {
+    font-family: monospace;
+    font-size: 0.85em;
+    color: var(--text-muted);
+    padding: var(--space-2) var(--space-3);
+    background: var(--bg-primary);
+    border-radius: var(--border-radius);
+    cursor: pointer;
+    margin-top: var(--space-2);
+    display: flex;
+    align-items: center;
+    transition: all 0.2s ease;
+}
+
+.storage-info:hover {
+    background: var(--bg-elevated);
+    color: var(--text-primary);
+}
+
+.storage-key {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.key-icon {
+    opacity: 0.6;
+}
+
+.storage-info:hover .key-icon {
+    opacity: 1;
+}
+
+/* Status Messages */
+.status-message {
+    padding: var(--space-2) var(--space-3);
+    margin-bottom: var(--space-2);
+    border-radius: var(--border-radius);
+}
+
+.status-message.error {
+    background: rgba(255, 0, 0, 0.1);
+    color: #ff6b6b;
+    border: 1px solid rgba(255, 0, 0, 0.2);
+}
+
+.status-message.success {
+    background: rgba(0, 255, 0, 0.1);
+    color: #69db7c;
+    border: 1px solid rgba(0, 255, 0, 0.2);
+}
+
+.status-message.warn {
+    background: rgba(255, 165, 0, 0.1);
+    color: #ffd43b;
+    border: 1px solid rgba(255, 165, 0, 0.2);
+}
+
+/* Debug Line Styles */
+.debug-line {
+    padding: var(--space-1) var(--space-2);
+    border-bottom: 1px solid var(--border-subtle);
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+.debug-line.error {
+    color: #ff6b6b;
+    background: rgba(255, 0, 0, 0.1);
+}
+
+.debug-line.success {
+    color: #69db7c;
+    background: rgba(0, 255, 0, 0.1);
+}
+
+.debug-line.warn {
+    color: #ffd43b;
+    background: rgba(255, 165, 0, 0.1);
+}
+
+/* Existing Services Hint */
+.hint-text {
+    color: var(--text-muted);
+    font-size: 0.9em;
+    margin-top: var(--space-2);
+}
+
+.service-suggestion {
+    display: inline-block;
+    margin: var(--space-1);
+    padding: var(--space-1) var(--space-2);
+    background: var(--bg-elevated);
+    border-radius: var(--border-radius);
+    cursor: pointer;
+    color: var(--text-primary);
+    transition: all 0.2s ease;
+}
+
+.service-suggestion:hover {
+    background: var(--super-blue-500);
+    transform: translateY(-1px);
+}
+
+/* View/Edit Buttons */
+.view-btn {
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--border-radius);
+    border: 1px solid var(--border-strong);
+    background: var(--super-blue-700);
+    color: var(--text-primary);
+    cursor: pointer;
+    font-weight: 500;
+    transition: all 0.2s ease;
+}
+
+.view-btn:hover {
+    background: var(--super-blue-500);
+    transform: translateY(-1px);
+}
+
+.remove-btn {
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--border-radius);
+    border: 1px solid var(--border-strong);
+    background: var(--super-yellow-dark);
+    color: var(--text-primary);
+    cursor: pointer;
+    font-weight: 500;
+    transition: all 0.2s ease;
+}
+
+.remove-btn:hover {
+    background: var(--super-yellow);
+    color: var(--super-blue-900);
+    transform: translateY(-1px);
+}
+
+/* Timestamp Display */
+.timestamp {
+    color: var(--text-muted);
+    font-size: 0.85em;
+    text-align: right;
+}
+
+/* Responsive Adjustments */
+@media (max-width: 640px) {
+    .cred-main {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .manual-buttons {
+        flex-direction: column;
+    }
+    
+    .view-btn,
+    .remove-btn {
+        width: 100%;
+        margin: var(--space-1) 0;
+    }
+}
+/* Layout Components
+   ========================================================================== */
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: var(--space-4);
+}
+
+/* Header Components
+   ========================================================================== */
+.hero-header {
+    text-align: center;
+    background: var(--panel-bg);
+    padding: var(--space-4);
+    margin-bottom: var(--space-4);
+    border-radius: var(--border-radius);
+    border: 1px solid var(--border-strong);
+}
+
+.hero-title {
+    font-size: 28px;
+    font-weight: 800;
+    color: var(--super-yellow);
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    text-shadow: 0 0 10px var(--super-yellow-glow);
+}
+
+.hero-subtitle {
+    color: var(--text-muted);
+    margin-top: var(--space-2);
+}
+
+/* Panel Components
+   ========================================================================== */
+.main-panel {
+    background: var(--panel-bg);
+    border-radius: var(--border-radius);
+    border: 1px solid var(--border-strong);
+    overflow: hidden;
+}
+
+.action-bar {
+    background: var(--super-blue-700);
+    padding: var(--space-3);
+    display: grid;
+    gap: var(--space-2);
+    grid-template-columns: 1fr;
+}
+
+@media (min-width: 640px) {
+    .action-bar {
+        grid-template-columns: repeat(3, 1fr);
+        padding: var(--space-4);
+        gap: var(--space-4);
+    }
+}
+
+/* Button Styles
+   ========================================================================== */
+.super-button {
+    background: var(--super-blue-300);
+    color: var(--super-blue-900);
+    text-shadow: 0 1px 0 rgba(255, 255, 255, 0.2);
+    border: none;
+    padding: var(--space-3);
+    border-radius: var(--border-radius);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: var(--space-4);
+    transition: transform 0.2s;
+}
+
+.super-button:active {
+    transform: scale(0.98);
+}
+
+.super-button.secondary {
+    background: var(--super-yellow);
+    color: var (--super-blue-900);
+    font-weight: 600;
+}
+
+/* Variable Card Components
+   ========================================================================== */
+.variables-container {
+    padding: var(--space-4);
+}
+
+.variable-card {
+    background: var(--panel-bg);
+    border-radius: var(--border-radius);
+    padding: var(--space-4);
+    margin-bottom: var(--space-4);
+    display: grid;
+    gap: var(--space-4);
+    position: relative;
+    transition: transform 0.2s;
+    border: 1px solid var(--border-subtle);
+}
+
+@media (min-width: 768px) {
+    .variable-card {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+
+/* Form Components
+   ========================================================================== */
+.input-group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.input-group label {
+    color: var(--text-muted);
+    font-size: var(--space-3);
+    font-weight: 500;
+}
+
+.super-input {
+    padding: var(--space-3);
+    border: 2px solid var(--border-subtle);
+    border-radius: var(--border-radius);
+    font-size: var(--space-4);
+    width: 100%;
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-primary);
+}
+
+.super-input:focus {
+    outline: none;
+    border-color: var(--super-blue-300);
+}
+
+/* Action Buttons
+   ========================================================================== */
+.variable-actions {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    width: 100%;
+}
+
+.action-row {
+    display: flex;
+    gap: var(--space-2);
+    width: 100%;
+}
+
+.action-button {
+    padding: var(--space-3);
+    border-radius: var(--border-radius);
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    font-size: var(--space-3);
+    font-weight: 600;
+    min-width: 100px;
+    transition: all 0.2s ease;
+    flex: 1;
+    width: 100%;
+}
+
+.action-button.toggle {
+    background: var(--super-blue-700);
+    color: var(--white-pure);
+    width: 50%;
+    flex: 1;
+}
+
+.action-button.toggle:hover {
+    background: var(--super-blue-500);
+    transform: translateY(-1px);
+}
+
+.action-button.delete {
+    background: var(--super-yellow-dark);
+    color: var(--white-pure);
+    width: 50%;
+    flex: 1;
+}
+
+.action-button.delete:hover {
+    background: var(--super-yellow);
+    color: var(--super-blue-900);
+    transform: translateY(-1px);
+}
+
+.action-button.save {
+    background: var(--super-yellow);
+    color: var(--super-blue-900);
+    font-weight: 700;
+    text-transform: uppercase;
+    margin-top: var(--space-2);
+    width: 100%;
+}
+
+.action-button.save:hover {
+    background: var(--super-yellow-light);
+    transform: translateY(-1px);
+}
+
+/* Debug Section
+   ========================================================================== */
+.debug-section {
+    background: var(--panel-bg);
+    border-radius: var(--border-radius);
+    border: 1px solid var(--border-strong);
+    margin-top: var(--space-4);
+    overflow: hidden;
+}
+
+.debug-header {
+    background: var(--super-blue-700);
+    padding: var(--space-3);
+    color: var(--super-yellow);
+    font-size: var(--space-4);
+    font-weight: 500;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.debug-clear-btn {
+    background: var(--super-yellow);
+    color: var(--super-blue-900);
+    border: none;
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--border-radius);
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 12px;
+    transition: all 0.2s;
+}
+
+.debug-clear-btn:hover {
+    background: var(--super-yellow-light);
+    transform: translateY(-1px);
+}
+
+#debugOutput {
+    padding: var(--space-3);
+    margin: 0;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    font-family: monospace;
+    font-size: 13px;
+    line-height: 1.5;
+    max-height: 300px;
+    overflow-y: auto;
+    background: var(--super-blue-900);
+    color: var(--text-default);
+}
+
+@media (max-width: 768px) {
+    .debug-section {
+        margin-top: var(--space-3);
+    }
+
+    #debugOutput {
+        max-height: 200px;
+        font-size: 12px;
+    }
+}
+
+/* Toast Notifications
+   ========================================================================== */
+.toast {
+    position: fixed;
+    bottom: var(--space-4);
+    left: 50%;
+    transform: translateX(-50%) translateY(100%);
+    background: var(--super-yellow);
+    color: var(--super-blue-900);
+    padding: var(--space-3);
+    border-radius: var(--border-radius);
+    opacity: 0;
+    transition: all 0.3s ease;
+}
+
+.toast.show {
+    transform: translateX(-50%) translateY(0);
+    opacity: 1;
+}
+
+/* Credentials Manager Specific Styles
+   ========================================================================== */
+#dropZone {
+    border: 2px dashed var(--border-strong);
+    padding: var(--space-5);
+    text-align: center;
+    margin-bottom: var(--space-3);
+    cursor: pointer;
+    background: var(--panel-bg);
+    border-radius: var(--border-radius);
+    color: var(--text-muted);
+    transition: all 0.2s ease;
+}
+
+#dropZone:hover {
+    border-color: var(--super-yellow);
+    color: var(--super-yellow);
+}
+
+#credsList {
+    border: 1px solid var(--border-strong);
+    padding: var(--space-3);
+    min-height: 30px;
+    margin-bottom: var(--space-3);
+    background: var(--panel-bg);
+    border-radius: var(--border-radius);
+}
+
+.manual-buttons {
+    margin: var(--space-3) 0;
+    display: flex;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+}
+
+.manual-buttons button {
+    padding: var(--space-3);
+    border-radius: var(--border-radius);
+    border: 1px solid var(--border-strong);
+    background: var(--super-blue-700);
+    color: var(--text-primary);
+    cursor: pointer;
+    font-weight: 500;
+    transition: all 0.2s ease;
+}
+
+.manual-buttons button:hover {
+    background: var(--super-blue-500);
+    transform: translateY(-1px);
+}
+
+/* Credentials Manager Enhancements
+   ========================================================================== */
+.section-title {
+    color: var(--super-yellow);
+    font-size: 1.2em;
+    margin: var(--space-4) var(--space-4) var(--space-3);
+    padding-bottom: var(--space-2);
+    border-bottom: 1px solid var(--border-subtle);
+}
+
+.drop-zone {
+    margin: var(--space-4);
+    min-height: 120px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    background: var(--panel-bg);
+    border: 2px dashed var(--border-strong);
+    border-radius: var (--border-radius);
+    color: var(--text-muted);
+    transition: all var(--transition-fast);
+}
+
+.drop-zone:hover,
+.drop-zone.drag-over {
+    border-color: var(--super-yellow);
+    color: var(--super-yellow);
+    background: var(--bg-elevated);
+}
+
+.drop-zone.drag-over {
+    box-shadow: var(--border-glow);
+}
+
+.creds-list {
+    margin: var(--space-4);
+    padding: var(--space-3);
+    background: var(--panel-bg);
+    border-radius: var(--border-radius);
+    border: 1px solid var(--border-strong);
+    min-height: 100px;
+}
+
+#debugLogs {
+    padding: var(--space-3);
+    margin: 0;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    font-family: monospace;
+    font-size: 13px;
+    line-height: 1.5;
+    max-height: 300px;
+    overflow-y: auto;
+    background: var(--super-blue-900);
+    color: var(--text-default);
+}
+
+/* Enhanced Modal Styles */
+.modal-body {
+    margin: var(--space-4) 0;
+}
+
+#manualJsonInput {
+    font-family: monospace;
+    min-height: 150px;
+    resize: vertical;
+    width: 100%;
+    padding: var(--space-3);
+    background: var(--bg-primary);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--border-radius);
+    color: var(--text-primary);
+}
+
+/* Modal Styles
+   ========================================================================== */
+#modalOverlay,
+#viewEditModal {
+    display: none;
+    position: fixed;
+    z-index: 9999;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.75);
+    align-items: center;
+    justify-content: center;
+}
+
+#modalContent,
+#viewEditModalContent {
+    background: var(--bg-secondary);
+    border-radius: var(--border-radius);
+    padding: var(--space-5);
+    max-width: 600px;
+    width: 90%;
+    margin: 0 auto;
+    color: var(--text-primary);
+    border: 1px solid var(--border-strong);
+}
+
+.modal-buttons {
+    margin-top: var(--space-6);  /* Increased from space-4 to space-6 */
+    text-align: right;
+    display: flex;
+    gap: var(--space-3);  /* Increased from space-2 */
+    justify-content: flex-end;
+}
+
+.modal-buttons button {
+    padding: var(--space-2) var(--space-5);  /* Increased horizontal padding */
+    border-radius: var(--border-radius);
+    border: none;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 14px;  /* Added explicit font size */
+    transition: all 0.2s ease;
+}
+
+/* Enhanced Modal for Credentials */
+#modalOverlay {
+    background: rgba(0, 34, 68, 0.9);
+}
+
+#modalContent {
+    max-width: 500px;
+    width: 90%;
+}
+
+#manualJsonInput {
+    font-family: monospace;
+    min-height: 150px;
+    resize: vertical;
+}
+

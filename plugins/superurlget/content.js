@@ -1,6 +1,4 @@
 (function() {
-  console.log("[superurlget/content.js] loaded in content-script context");
-
   window.addEventListener("message", (event) => {
     if (!event.data || event.data.direction !== "from-page") return;
     if (event.data.type !== "SUPERURLGET_CALL") return;

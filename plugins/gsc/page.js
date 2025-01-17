@@ -1,12 +1,12 @@
 (function() {
-  console.debug('[gsc/page] Initializing GSC page script');
+  // console.debug('[gsc/page] Initializing GSC page script');
   
   if (!window.Superpowers) {
-    console.debug('[gsc/page] Creating Superpowers namespace');
+    // console.debug('[gsc/page] Creating Superpowers namespace');
     window.Superpowers = {};
   }
   if (!window.Superpowers.Gsc) {
-    console.debug('[gsc/page] Creating Superpowers.Gsc namespace');
+    // console.debug('[gsc/page] Creating Superpowers.Gsc namespace');
     window.Superpowers.Gsc = {};
   }
 
@@ -14,14 +14,14 @@
   const RESPONSE_TYPE = "GSC_RESPONSE";
 
   function callGscMethod(methodName, ...args) {
-    console.log('🔄 [FLOW] 3. Page script: calling GSC method:', { methodName, args });
+    // console.log('🔄 [FLOW] 3. Page script: calling GSC method:', { methodName, args });
     
     return new Promise((resolve, reject) => {
       const requestId = Math.random().toString(36).slice(2);
-      console.log('🔄 [FLOW] 4. Page script: generated requestId:', requestId);
+      // console.log('🔄 [FLOW] 4. Page script: generated requestId:', requestId);
 
       function handleResponse(ev) {
-        console.log('🔄 [FLOW] 8. Page script: received response from content script:', ev.data);
+        // console.log('🔄 [FLOW] 8. Page script: received response from content script:', ev.data);
         
         if (!ev.data || ev.data.direction !== "from-content-script") {
           console.debug('[page] Ignoring non-content-script message:', ev);
@@ -41,7 +41,7 @@
         window.removeEventListener("message", handleResponse);
 
         if (ev.data.success) {
-          console.log('✅ [FLOW] Page script: successful response:', ev.data.result);
+          // console.log('✅ [FLOW] Page script: successful response:', ev.data.result);
           resolve(ev.data.result);
         } else {
           console.error('❌ [FLOW] Page script: error response:', ev.data.error);
@@ -60,17 +60,17 @@
         args
       };
       
-      console.log('🔄 [FLOW] 5. Page script: posting message to content script:', message);
+      // console.log('🔄 [FLOW] 5. Page script: posting message to content script:', message);
       window.postMessage(message, "*");
     });
   }
 
   // Wrap each method call with debug logging
   const methodWrapper = (methodName) => (...args) => {
-    console.debug(`[gsc/page] Calling method ${methodName}:`, { args });
+    // console.debug(`[gsc/page] Calling method ${methodName}:`, { args });
     return callGscMethod(methodName, ...args)
       .then(result => {
-        console.debug(`[gsc/page] ${methodName} returned:`, result);
+        // console.debug(`[gsc/page] ${methodName} returned:`, result);
         return result;
       })
       .catch(error => {
@@ -79,41 +79,48 @@
       });
   };
 
-  // Attach public API to Superpowers.Gsc
-  console.debug('[gsc/page] Setting up public API methods');
+  // console.debug('[gsc/page] Setting up public API methods');
   window.Superpowers.Gsc = {
     login: methodWrapper('login'),
     getLoginStatus: methodWrapper('getLoginStatus'),
     test: methodWrapper('test'),
     
-    // core
+    // Core
     listSites: methodWrapper('listSites'),
-    getSiteInfo: methodWrapper('getSiteInfo'),
+    getSiteInfo: methodWrapper('getSiteInfo'), // legacy/sugar
     querySearchAnalytics: methodWrapper('querySearchAnalytics'),
     submitSitemap: methodWrapper('submitSitemap'),
     deleteSitemap: methodWrapper('deleteSitemap'),
     listSitemaps: methodWrapper('listSitemaps'),
-    
-    // sugar
+
+    // Official new site-level calls
+    addSite: methodWrapper('addSite'),
+    deleteSite: methodWrapper('deleteSite'),
+    getSite: methodWrapper('getSite'),
+    getSitemap: methodWrapper('getSitemap'),
+
+    // Sugar
     getTopQueries: methodWrapper('getTopQueries'),
     getTopPages: methodWrapper('getTopPages'),
-    
+
     // advanced analytics
     getDetailedAnalytics: methodWrapper('getDetailedAnalytics'),
     getTopPagesDetailed: methodWrapper('getTopPagesDetailed'),
     getQueryAnalyticsByPage: methodWrapper('getQueryAnalyticsByPage'),
     getDeviceAnalytics: methodWrapper('getDeviceAnalytics'),
     getCountryAnalytics: methodWrapper('getCountryAnalytics'),
-    
-    // Add new methods
+
+    // URL inspection (official + sugar)
     inspectUrl: methodWrapper('inspectUrl'),
     getRichResults: methodWrapper('getRichResults'),
-    getAmpStatus: methodWrapper('getAmpStatus'), 
+    getAmpStatus: methodWrapper('getAmpStatus'),
     getMobileUsability: methodWrapper('getMobileUsability'),
+    
+    // Enhanced search analytics with filters
     getSearchAnalyticsByFilter: methodWrapper('getSearchAnalyticsByFilter')
   };
 
-  console.debug('[gsc/page] GSC page script initialization complete', {
-    availableMethods: Object.keys(window.Superpowers.Gsc)
-  });
+  // console.debug('[gsc/page] GSC page script initialization complete', {
+  //   availableMethods: Object.keys(window.Superpowers.Gsc)
+  // });
 })();

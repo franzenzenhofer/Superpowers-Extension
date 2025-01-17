@@ -58,5 +58,4 @@
     getText: (url, config) => callMethod('getText', url, config)
   };
 
-  console.log("[superurlget/page.js] window.Superpowers.Urlget is ready");
 })();

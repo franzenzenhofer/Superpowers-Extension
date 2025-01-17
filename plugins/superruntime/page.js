@@ -74,5 +74,4 @@
 
   window.Superpowers.runtime = runtimeProxy;
 
-  console.log("[superruntime/page.js] window.Superpowers.runtime is ready");
 })();

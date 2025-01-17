@@ -12,7 +12,7 @@
     if (!event.data || event.data.direction !== "from-page") return;
     if (event.data.type !== CALL_TYPE) return;
 
-    console.log('🔄 [FLOW] 6. Content script: received message from page:', event.data);
+    // console.log('🔄 [FLOW] 6. Content script: received message from page:', event.data);
 
     const { requestId, methodName, args } = event.data;
     chrome.runtime.sendMessage(
@@ -23,7 +23,7 @@
         args
       },
       (response) => {
-        console.log('🔄 [FLOW] 7. Content script: got response from extension:', response);
+        // console.log('🔄 [FLOW] 7. Content script: got response from extension:', response);
         
         if (chrome.runtime.lastError) {
           console.error('❌ [FLOW] Content script: runtime error:', chrome.runtime.lastError);

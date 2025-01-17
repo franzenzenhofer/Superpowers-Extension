@@ -46,47 +46,12 @@ function verifyRequiredScripts() {
     return true;
 }
 
-// Update the required elements list to match our new button structure
-function verifyRequiredElements() {
-    const requiredElements = [
-        'dropZone',
-        'fileInput',
-        'btnAddClientSecret',
-        'btnAddToken',
-        'btnAddCustom',
-        'credsList',
-        'debugLogs',
-        'modalOverlay',
-        'modalContent',
-        'modalTitle',
-        'modalSaveBtn',
-        'modalCancelBtn',
-        'viewEditModal',
-        'viewEditModalContent',
-        'viewEditModalTitle',
-        'viewEditModalSave',
-        'viewEditModalCancel'
-    ];
-    
-    const missingElements = [];
-    requiredElements.forEach(id => {
-        if (!document.getElementById(id)) {
-            missingElements.push(id);
-        }
-    });
-    
-    if (missingElements.length > 0) {
-        debugLog(`Missing required DOM elements: ${missingElements.join(', ')}`, 'DOM', 'error');
-        return false;
-    }
-    debugLog('All required DOM elements verified', 'DOM', 'success');
-    return true;
-}
 
 import {
   getAllCredentials,
   setCredential,
-  removeCredential
+  removeCredential,
+  getCredentialTimestamp  // Add this
 } from '../scripts/credentials_helpers.js';
 
 let currentFilesQueue = [];
@@ -240,10 +205,6 @@ async function initCredsManager() {
     }
 
     try {
-        // Verify requirements
-        if (!verifyRequiredScripts() || !verifyRequiredElements()) {
-            throw new Error('Missing required elements or scripts');
-        }
 
         // Test storage access
         debugLog('Testing storage access...', 'storage');
@@ -633,10 +594,7 @@ async function renderAllCredentials() {
                 // Add timestamp display
                 const timestamp = document.createElement('span');
                 timestamp.className = 'timestamp';
-                timestamp.innerHTML = `
-                    <span title="Last Updated">
-                        🕒 ${formatDate(cred.contents.last_updated || cred.contents.created_at || Date.now())}
-                    </span>`;
+                timestamp.innerHTML = await getTimestampDisplay(service, storageType, cred);
                 mainInfo.appendChild(timestamp);
 
                 // Add view/edit button
@@ -779,6 +737,12 @@ function showViewEditModal(service, type, cred) {
     title.textContent = `${service}/${type}`;
     
     const modalBody = content.querySelector('.modal-body');
+    if (!modalBody) {
+        debugLog('Modal body element not found!', 'modal', 'error');
+        showStatus('UI Error: Missing modal body', 'error');
+        return;
+    }
+
     modalBody.innerHTML = `
         <div class="form-group">
             <label>Content:</label>
@@ -823,3 +787,27 @@ function showViewEditModal(service, type, cred) {
 
     modal.style.display = 'flex';
 }
+
+// Update the timestamp display function to be backward compatible
+async function getTimestampDisplay(service, storageType, cred) {
+    // Try to get timestamp from separate storage first
+    const timestamp = await getCredentialTimestamp(service, storageType);
+    
+    if (timestamp) {
+        return `<span class="timestamp" title="Last Updated">
+            🕒 ${formatDate(timestamp.last_updated)}
+            ${timestamp.created_at ? `<br><small>Created: ${formatDate(timestamp.created_at)}</small>` : ''}
+        </span>`;
+    }
+    
+    // Fallback to legacy timestamp in credential contents
+    if (cred.contents.last_updated || cred.contents.created_at) {
+        return `<span class="timestamp" title="Last Updated">
+            🕒 ${formatDate(cred.contents.last_updated || cred.contents.created_at)}
+        </span>`;
+    }
+    
+    return '<span class="timestamp" title="No timestamp">⏱️ Unknown</span>';
+}
+
+// No CSS changes needed as styles are managed via superpowers.css
