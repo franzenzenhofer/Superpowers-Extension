@@ -107,6 +107,12 @@
       "extensionPath": "plugins/superconsoleintercept/extension.js",
       "contentScript": "plugins/superconsoleintercept/content.js",
       "pageScript": "plugins/superconsoleintercept/page.js"
+    },
+    {
+      "name": "ga",
+      "extensionPath": "plugins/ga/extension.js",
+      "contentScript": "plugins/ga/content.js",
+      "pageScript": "plugins/ga/page.js"
     }
   ]
 }

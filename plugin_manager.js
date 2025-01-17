@@ -21,6 +21,7 @@ import { superwebnavigation_extension } from './plugins/superwebnavigation/exten
 import { superaction_extension } from './plugins/superaction/extension.js';
 import { gsc_extension } from './plugins/gsc/extension.js';
 import { superconsoleintercept_extension } from './plugins/superconsoleintercept/extension.js';
+import { ga_extension } from './plugins/ga/extension.js';
 
 
 /**
@@ -79,7 +80,8 @@ export async function initializePluginManager() {
     superwebnavigation_extension,
     superaction_extension,
     superconsoleintercept_extension,
-    gsc_extension
+    gsc_extension,
+    ga_extension  // Add GA plugin
   ];
 
   // Install each plugin with status tracking
