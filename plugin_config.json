@@ -113,6 +113,12 @@
       "extensionPath": "plugins/ga/extension.js",
       "contentScript": "plugins/ga/content.js",
       "pageScript": "plugins/ga/page.js"
+    },
+    {
+      "name": "storage",
+      "extensionPath": "plugins/storage/extension.js",
+      "contentScript": "plugins/storage/content.js",
+      "pageScript": "plugins/storage/page.js"
     }
   ]
 }

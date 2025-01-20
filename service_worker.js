@@ -303,6 +303,39 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
 });
 
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.type === 'EXCHANGE_OAUTH_CODE') {
+    // Important: Return true to indicate we will send response asynchronously
+    (async () => {
+      try {
+        const tokenData = await exchangeOAuthToken(request.data);
+        sendResponse({ success: true, data: tokenData });
+      } catch (err) {
+        sendResponse({ success: false, error: err.message });
+      }
+    })();
+    return true; // Keep message channel open for async response
+  }
+});
+
+async function exchangeOAuthToken(data) {
+    const resp = await fetch('https://oauth2.googleapis.com/token', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body: new URLSearchParams(data)
+    });
+
+    const result = await resp.json();
+    
+    if (!resp.ok) {
+        throw new Error(result.error_description || result.error || 'Token exchange failed');
+    }
+
+    return result;
+}
+
 // ----------------------------------------------------------------------------
 // 3) Our main initialization function
 // ----------------------------------------------------------------------------

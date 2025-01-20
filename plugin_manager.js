@@ -22,6 +22,7 @@ import { superaction_extension } from './plugins/superaction/extension.js';
 import { gsc_extension } from './plugins/gsc/extension.js';
 import { superconsoleintercept_extension } from './plugins/superconsoleintercept/extension.js';
 import { ga_extension } from './plugins/ga/extension.js';
+import { storage_extension } from './plugins/storage/extension.js';  // Add this import
 
 
 /**
@@ -81,7 +82,8 @@ export async function initializePluginManager() {
     superaction_extension,
     superconsoleintercept_extension,
     gsc_extension,
-    ga_extension  // Add GA plugin
+    ga_extension,
+    storage_extension  // Add this to the plugin list
   ];
 
   // Install each plugin with status tracking

@@ -300,6 +300,187 @@ async function handleFiles(fileList) {
     }
 }
 
+// Add after handleFiles function
+async function handleClientSecretUpload(fileObj) {
+    const modal = document.getElementById('tokenGeneratorModal');
+    const statusEl = document.getElementById('tokenGenStatus');
+    const startBtn = document.getElementById('startTokenGenBtn');
+    const cancelBtn = document.getElementById('cancelTokenGenBtn');
+    
+    // Add close button to modal
+    if (!modal.querySelector('.close-x')) {
+        const closeX = document.createElement('button');
+        closeX.className = 'close-x';
+        closeX.innerHTML = '×';
+        closeX.onclick = () => modal.style.display = 'none';
+        modal.querySelector('.modal-content').appendChild(closeX);
+    }
+
+    modal.style.display = 'flex';
+
+    cancelBtn.onclick = () => {
+        modal.style.display = 'none';
+    };
+
+    startBtn.onclick = async () => {
+        try {
+            startBtn.disabled = true;
+            let authTab = null;
+            let tabUpdateHandler = null;
+
+            // Define the cleanup function for this flow
+            const cleanup = async () => {
+                if (tabUpdateHandler) {
+                    chrome.tabs.onUpdated.removeListener(tabUpdateHandler);
+                }
+                if (authTab?.id) {
+                    try {
+                        await chrome.tabs.remove(authTab.id);
+                    } catch (err) {
+                        debugLog('Tab cleanup error (non-critical)', 'oauth', 'info');
+                    }
+                }
+            };
+
+            statusEl.textContent = 'Starting OAuth flow...';
+
+            const installed = fileObj.contents.installed;
+            if (!installed) {
+                throw new Error('Invalid client secret format');
+            }
+
+            const client_id = installed.client_id;
+            const client_secret = installed.client_secret;
+            const redirect_uri = 'http://localhost';
+
+            const scopes = ['https://www.googleapis.com/auth/webmasters.readonly'];
+
+            const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
+            authUrl.searchParams.set('client_id', client_id);
+            authUrl.searchParams.set('redirect_uri', redirect_uri);
+            authUrl.searchParams.set('response_type', 'code');
+            authUrl.searchParams.set('scope', scopes.join(' '));
+            authUrl.searchParams.set('access_type', 'offline');
+
+            statusEl.textContent = 'Opening consent screen...';
+            
+            try {
+                // Create auth tab
+                authTab = await chrome.tabs.create({ 
+                    url: authUrl.toString(),
+                    active: true 
+                });
+
+                tabUpdateHandler = async function(tabId, changeInfo) {
+                    if (tabId === authTab.id && changeInfo.url && changeInfo.url.startsWith(redirect_uri)) {
+                        const url = new URL(changeInfo.url);
+                        const code = url.searchParams.get('code');
+                        const error = url.searchParams.get('error');
+
+                        // Always clean up the tab and listener
+                        await cleanup();
+
+                        if (code) {
+                            await processOAuthCode(
+                                code, client_id, client_secret, redirect_uri, 
+                                fileObj, statusEl, modal
+                            );
+                        } else if (error) {
+                            statusEl.innerHTML = `
+                                <div style="text-align:center; padding: 20px;">
+                                    <div style="font-size:48px;margin:10px;">🤔</div>
+                                    <strong style="color:#DC2626;">Auth Error: ${error}</strong>
+                                    <p style="margin:15px 0;">Would you like to try again?</p>
+                                    <button class="btn-primary" onclick="location.reload()">
+                                        Try Again
+                                    </button>
+                                </div>`;
+                            startBtn.disabled = false;
+                        }
+                    }
+                };
+
+                chrome.tabs.onUpdated.addListener(tabUpdateHandler);
+
+            } catch (err) {
+                await cleanup();
+                throw err;
+            }
+
+        } catch (err) {
+            statusEl.innerHTML = `
+                <div style="text-align:center; padding: 20px;">
+                    <div style="font-size:48px;margin:10px;">🛠️</div>
+                    <strong style="color:#DC2626;">Error: ${err.message}</strong>
+                    <p style="margin:15px 0;">Would you like to try again?</p>
+                    <button class="btn-primary" onclick="location.reload()">
+                        Try Again
+                    </button>
+                </div>`;
+            startBtn.disabled = false;
+        }
+    };
+}
+
+// Add this new helper function to process the OAuth code
+async function processOAuthCode(code, client_id, client_secret, redirect_uri, fileObj, statusEl, modal) {
+    try {
+        statusEl.textContent = 'Received code, exchanging for token...';
+        
+        const tokenData = await exchangeCodeForTokens(
+            code, client_id, client_secret, redirect_uri
+        );
+
+        // Store token
+        await setCredential(fileObj.service, 'token', {
+            id: 'token_' + Date.now(),
+            filename: 'token.json',
+            contents: tokenData
+        });
+
+        // Show success with safe button handler
+        statusEl.innerHTML = `
+            <div style="text-align:center; padding: 20px;">
+                <div style="font-size:48px;margin:10px;">🎉</div>
+                <strong style="color:#059669;font-size:1.2em;">Token generated and saved!</strong>
+                <p style="margin:15px 0;">Everything is ready to use.</p>
+                <div style="font-size:24px;margin:10px;">✨</div>
+                <button class="btn-primary done-btn" style="margin-top:10px;">
+                    Done - Close & Refresh
+                </button>
+            </div>`;
+
+        // Add click handler properly
+        const doneBtn = statusEl.querySelector('.done-btn');
+        doneBtn.addEventListener('click', () => {
+            modal.style.display = 'none';
+            // Clean up any remaining state
+            currentFilesQueue = [];
+            currentFileIndex = 0;
+            // Refresh page to show new state
+            window.location.reload();
+        });
+
+        // Reset UI state
+        await renderAllCredentials();
+
+    } catch (err) {
+        statusEl.innerHTML = `
+            <div style="text-align:center; padding: 20px;">
+                <div style="font-size:48px;margin:10px;">⚠️</div>
+                <strong style="color:#DC2626;font-size:1.2em;">Error: ${err.message}</strong>
+                <p style="margin:15px 0;">You can try again if you'd like.</p>
+                <button class="btn-primary retry-btn">
+                    Try Again
+                </button>
+            </div>`;
+
+        // Add click handler for retry
+        const retryBtn = statusEl.querySelector('.retry-btn');
+        retryBtn.addEventListener('click', () => window.location.reload());
+    }
+}
+
 /**
  * Attempt to detect the service by looking at known fields
  * in the JSON content (preferred), then fallback to filename-based detection.
@@ -531,21 +712,34 @@ async function onModalSave() {
         try {
             await setCredential(service, type, credObj);
             debugLog(`Saved credential => ${service}/${type}`, 'save', 'success');
-            renderAllCredentials();
+            
+            // Check if this is a client_secret and offer token generation
+            if (type === 'client_secret') {
+                // Close the current modal first
+                document.getElementById('modalOverlay').style.display = 'none';
+                // Then show token generation modal
+                await handleClientSecretUpload({
+                    service: service,
+                    contents: parsed,
+                    type: type
+                });
+            } else {
+                // For non-client_secret, continue with normal flow
+                if (currentFileIndex < currentFilesQueue.length - 1) {
+                    currentFileIndex++;
+                    showModal(currentFilesQueue[currentFileIndex]);
+                } else {
+                    currentFilesQueue = [];
+                    currentFileIndex = 0;
+                }
+            }
+            
+            await renderAllCredentials();
+            showStatus('Credential saved successfully!');
         } catch (err) {
             debugLog(`Error saving credential => ${service}/${type}: ${err}`, 'save', 'error');
         }
 
-        document.getElementById('modalOverlay').style.display = 'none';
-
-        if (currentFileIndex < currentFilesQueue.length - 1) {
-            currentFileIndex++;
-            showModal(currentFilesQueue[currentFileIndex]);
-        } else {
-            currentFilesQueue = [];
-            currentFileIndex = 0;
-        }
-        showStatus('Credential saved successfully!');
     } catch (err) {
         debugLog(`Save error: ${err.message}`, 'save', 'error');
         showStatus(`Save failed: ${err.message}`, 'error');
@@ -808,6 +1002,36 @@ async function getTimestampDisplay(service, storageType, cred) {
     }
     
     return '<span class="timestamp" title="No timestamp">⏱️ Unknown</span>';
+}
+
+// Update the exchangeCodeForTokens function to use chrome.runtime.sendMessage
+async function exchangeCodeForTokens(code, client_id, client_secret, redirect_uri) {
+    return new Promise((resolve, reject) => {
+        chrome.runtime.sendMessage({
+            type: 'EXCHANGE_OAUTH_CODE',
+            data: {
+                code,
+                client_id,
+                client_secret,
+                redirect_uri,
+                grant_type: 'authorization_code'
+            }
+        }, response => {
+            if (chrome.runtime.lastError) {
+                return reject(new Error(chrome.runtime.lastError.message));
+            }
+            
+            if (!response) {
+                return reject(new Error('No response from background script'));
+            }
+
+            if (!response.success) {
+                return reject(new Error(response.error || 'Token exchange failed'));
+            }
+
+            resolve(response.data);
+        });
+    });
 }
 
 // No CSS changes needed as styles are managed via superpowers.css
