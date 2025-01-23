@@ -48,12 +48,11 @@
   "side_panel": {
     "default_path": "sidepanel.html"
   },
-
   "action": {
     "default_icon": {
-      "16": "icons/icon16.png",
-      "48": "icons/icon48.png",
-      "128": "icons/icon128.png"
+      "16": "img/icons/icon-16x16.png",
+      "48": "img/icons/icon-48x48.png",
+      "128": "img/icons/icon-128x128.png"
     },
     "default_title": "Superpowers"
   },

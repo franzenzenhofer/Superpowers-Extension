@@ -11,6 +11,31 @@ const OPENAI_API_BASE = "https://api.openai.com/v1";
 let _apiKey = null;
 let _organizationId = null;
 
+const MODEL_CONFIGS = {
+  'o1':         { maxTokens: 100000, temperature: 1,   matches: ['o1','o1-'] },
+  'o1-mini':    { maxTokens: 65536,  temperature: 1,   matches: ['o1-mini'] },
+  'o1-preview': { maxTokens: 32768,  temperature: 1,   matches: ['o1-preview'] },
+  'gpt-4o':     { maxTokens: 16384,  temperature: 0.7, matches: ['gpt-4o','gpt4o'] },
+  'gpt-4o-mini':{ maxTokens: 16384,  temperature: 0.7, matches: ['gpt-4o-mini','gpt4o-mini'] },
+};
+
+function getModelConfig(model) {
+  const lcModel = model.toLowerCase();
+  let modelKey = 'gpt-4o'; // default
+  let bestLen = 0;
+  
+  Object.entries(MODEL_CONFIGS).forEach(([key, cfg]) => {
+    for (const m of cfg.matches) {
+      if (lcModel.includes(m) && m.length > bestLen) {
+        modelKey = key;
+        bestLen = m.length;
+      }
+    }
+  });
+  
+  return MODEL_CONFIGS[modelKey] || MODEL_CONFIGS['gpt-4o'];
+}
+
 /**
  * Store the user’s API key
  */
@@ -166,48 +191,34 @@ function processO1Messages(messages) {
 function buildChatRequestBody(payload, defaultModel = "gpt-4") {
   const modelToUse = payload.model || defaultModel;
   const isO1Family = modelToUse.startsWith("o1") || modelToUse.includes("o1-mini");
+  const modelConfig = getModelConfig(modelToUse);
 
   const body = {
     model: modelToUse,
-    messages: isO1Family ? processO1Messages(payload.messages || []) : (payload.messages || [])
+    messages: isO1Family ? processO1Messages(payload.messages || []) : (payload.messages || []),
+    temperature: payload.temperature !== undefined ? payload.temperature : modelConfig.temperature,
   };
 
   // Handle max_tokens
-  const userMaxTokens = payload.max_tokens !== undefined ? payload.max_tokens : 256;
-  const userMaxCompTokens = payload.max_completion_tokens !== undefined
-    ? payload.max_completion_tokens
-    : userMaxTokens; // fallback
+  if (payload.max_tokens !== undefined) {
+    body[isO1Family ? 'max_completion_tokens' : 'max_tokens'] = Math.min(payload.max_tokens, modelConfig.maxTokens);
+  } else {
+    body[isO1Family ? 'max_completion_tokens' : 'max_tokens'] = modelConfig.maxTokens;
+  }
+
+  // Copy other fields from payload
+  if (payload.top_p !== undefined) body.top_p = payload.top_p;
+  if (payload.presence_penalty !== undefined) body.presence_penalty = payload.presence_penalty;
+  if (payload.frequency_penalty !== undefined) body.frequency_penalty = payload.frequency_penalty;
+  if (payload.stop) body.stop = payload.stop;
+  if (payload.logit_bias !== undefined) body.logit_bias = payload.logit_bias;
+  if (payload.logprobs !== undefined) body.logprobs = payload.logprobs;
+  if (payload.top_logprobs !== undefined) body.top_logprobs = payload.top_logprobs;
+  if (payload.n !== undefined) body.n = payload.n;
+  if (payload.stream !== undefined) body.stream = payload.stream;
 
   if (isO1Family) {
-    body.max_completion_tokens = userMaxCompTokens;
-
-    // Copy user-provided fields that we'll later preprocess
-    if (payload.temperature !== undefined) body.temperature = payload.temperature;
-    if (payload.top_p !== undefined) body.top_p = payload.top_p;
-    if (payload.presence_penalty !== undefined) body.presence_penalty = payload.presence_penalty;
-    if (payload.frequency_penalty !== undefined) body.frequency_penalty = payload.frequency_penalty;
-    if (payload.logit_bias !== undefined) body.logit_bias = payload.logit_bias;
-    if (payload.logprobs !== undefined) body.logprobs = payload.logprobs;
-    if (payload.top_logprobs !== undefined) body.top_logprobs = payload.top_logprobs;
-    if (payload.n !== undefined) body.n = payload.n;
-    if (payload.stream !== undefined) body.stream = payload.stream;
-    if (payload.stop) body.stop = payload.stop;
-
-    // Then do the forced O1 preprocessing
     preprocessForO1(body);
-  } else {
-    // GPT-3.5, GPT-4 style
-    body.max_tokens = userMaxTokens;
-    if (payload.temperature !== undefined) body.temperature = payload.temperature;
-    if (payload.top_p !== undefined) body.top_p = payload.top_p;
-    if (payload.presence_penalty !== undefined) body.presence_penalty = payload.presence_penalty;
-    if (payload.frequency_penalty !== undefined) body.frequency_penalty = payload.frequency_penalty;
-    if (payload.stop) body.stop = payload.stop;
-    if (payload.logit_bias !== undefined) body.logit_bias = payload.logit_bias;
-    if (payload.logprobs !== undefined) body.logprobs = payload.logprobs;
-    if (payload.top_logprobs !== undefined) body.top_logprobs = payload.top_logprobs;
-    if (payload.n !== undefined) body.n = payload.n;
-    if (payload.stream !== undefined) body.stream = payload.stream;
   }
 
   // Add logging for o1 models

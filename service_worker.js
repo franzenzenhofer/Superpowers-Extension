@@ -132,13 +132,18 @@ function logSW(msg, level = DEBUG.LEVELS.INFO, extra = {}) {
       console.warn(logMsg, extra);
       break;
     default:
-      // console.log(logMsg, extra); // Comment out general logging
+      // Only gather memory usage if debug level is DEBUG
+      if (level === DEBUG.LEVELS.DEBUG && performance.memory) {
+        console.log(`[SW][Memory] UsedJSHeapSize: ${
+          Math.round(performance.memory.usedJSHeapSize / 1024 / 1024)
+        }MB`);
+      }
       break;
   }
 
   // Keep error history trimmed
-  if (DEBUG.state.errors.length > 100) {
-    DEBUG.state.errors = DEBUG.state.errors.slice(-100);
+  if (DEBUG.state.errors.length > 50) {
+    DEBUG.state.errors = DEBUG.state.errors.slice(-50);
   }
 }
 
@@ -443,4 +448,4 @@ setInterval(() => {
       total: Math.round(performance.memory.totalJSHeapSize / 1024 / 1024) + 'MB'
     } : 'N/A'
   });
-}, 30000);
+}, 60000);

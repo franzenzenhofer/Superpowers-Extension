@@ -30,6 +30,17 @@ import { storage_extension } from './plugins/storage/extension.js';  // Add this
  * - If one fails, we catch that error, log a BIG WARNING, and continue with the rest.
  * - We store each plugin’s status in a Map, including any error message.
  */
+async function installPlugin(extension, pluginContext, registerPlugin) {
+  try {
+    await extension.install(pluginContext);
+    registerPlugin(extension, true);
+  } catch (err) {
+    // Truncate error message to reduce memory usage
+    const truncatedMsg = (err.message || String(err)).slice(0, 120);
+    registerPlugin(extension, false, { message: truncatedMsg });
+  }
+}
+
 export async function initializePluginManager() {
   /*
   console.log("[plugin_manager] Starting initialization via ES module...");
@@ -86,16 +97,10 @@ export async function initializePluginManager() {
     storage_extension  // Add this to the plugin list
   ];
 
-  // Install each plugin with status tracking
-  for (const extension of pluginList) {
-    try {
-      await extension.install(pluginContext);
-      registerPlugin(extension, true);
-    } catch (err) {
-      registerPlugin(extension, false, err);
-      // Do NOT throw, so we continue loading others
-    }
-  }
+  // Install each plugin in parallel
+  await Promise.all(pluginList.map(ext =>
+    installPlugin(ext, pluginContext, registerPlugin)
+  ));
 
   /*
   console.log("[plugin_manager] All plugin installs attempted. Some may have failed; see warnings above if any.");
