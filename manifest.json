@@ -39,7 +39,9 @@
         "plugins/*.js",
         "pages/credentials_manager.html",
         "pages/credentials_manager.js",
-        "scripts/credentials_helpers.js"
+        "scripts/credentials_helpers.js",
+        "pages/welcome.html",
+        "pages/welcome.js"
       ],
       "matches": ["<all_urls>"]
     }

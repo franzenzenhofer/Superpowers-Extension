@@ -428,10 +428,14 @@ chrome.runtime.onInstalled.addListener((details) => {
     reason: details.reason,
     previousVersion: details.previousVersion
   });
-});
 
-chrome.runtime.onStartup.addListener(() => {
-  logSW("Extension startup (browser launched)", DEBUG.LEVELS.INFO);
+  if (details.reason === "install" || details.reason === "update") {
+    // Only open the welcome page - user can click to open side panel
+    chrome.tabs.create({
+      url: chrome.runtime.getURL("pages/welcome.html"),
+      active: true
+    });
+  }
 });
 
 // ----------------------------------------------------------------------------

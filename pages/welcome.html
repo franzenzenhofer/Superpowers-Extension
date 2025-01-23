@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Welcome to Superpowers</title>
+  <style>
+    :root {
+      --main-bg: #f9f9f9;
+      --primary-color: #0033A0;
+      --text-color: #333;
+    }
+    body {
+      background: var(--main-bg);
+      margin: 0; 
+      font-family: sans-serif; 
+      color: var(--text-color);
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+    header {
+      background: var(--primary-color);
+      color: #fff;
+      padding: 1rem;
+    }
+    h1 {
+      margin: 0; 
+      font-size: 1.5rem;
+    }
+    main {
+      flex: 1 1 auto; 
+      padding: 1rem;
+    }
+    .content {
+      max-width: 800px; 
+      margin: 0 auto;
+      background: #fff;
+      border-radius: 6px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+      padding: 1rem 2rem;
+    }
+    .content h2 {
+      margin-top: 0;
+      color: var(--primary-color);
+    }
+    .highlight {
+      background: #fffae1;
+      border-left: 4px solid #ffdb00;
+      padding: 0.5rem;
+      margin: 1rem 0;
+    }
+    a {
+      color: var(--primary-color);
+      text-decoration: none;
+    }
+    footer {
+      text-align: center;
+      padding: 0.5rem;
+      background: #eee;
+      font-size: 0.85rem;
+      color: #666;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Welcome to <em>Superpowers</em>!</h1>
+  </header>
+
+  <main>
+    <div class="content">
+      <h2>Your In-Page "Superpowers" Are Now Active</h2>
+      <p>
+        This extension grants you advanced capabilities—like cross-domain fetches, environment variable management, AI interactions, and more—directly 
+        in your normal web pages. Our code is <strong>100% AI-created</strong> and was originally coded by <strong>Franz Enzenhofer</strong> (2025).
+      </p>
+
+      <p class="highlight">
+        <strong>Tip:</strong> For best results, set your <code>OPENAI_API_KEY</code> environment variable 
+        or credentials. Without it, some AI features may be limited.
+        <br><br>
+        <button id="openSidePanel" style="padding: 8px 16px; background: var(--primary-color); color: white; border: none; border-radius: 4px; cursor: pointer;">
+          Open Side Panel
+        </button>
+      </p>
+
+      <p>
+        Not sure where to get an <code>OPENAI_API_KEY</code>?  
+        <a href="https://chatgpt.com?q=where%20can%20I%20get%20an%20OPENAI_API_KEY" target="_blank" rel="noopener noreferrer">
+          Click here to learn more
+        </a>.
+      </p>
+
+      <h2>What Can It Do?</h2>
+      <ul>
+        <li>Auto-fetch data from anywhere (<strong>superfetch</strong>)</li>
+        <li>Manage and store environment variables (<strong>superenv</strong>)</li>
+        <li>Chat or orchestrate AI with integrated OpenAI calls (<strong>superopenai</strong>)</li>
+        <li>Take screenshots (<strong>superscreenshot</strong>)</li>
+        <li>And more!</li>
+      </ul>
+
+      <p>
+        If you have further questions or want to see demos, open the extension's side panel or 
+        <a href="https://chatgpt.com?q=How%20do%20I%20use%20Superpowers%20extension" target="_blank" rel="noopener noreferrer">
+          ask ChatGPT
+        </a>.
+      </p>
+    </div>
+  </main>
+
+  <footer>
+    <p>Extension version: <strong>4.3</strong> | <em>Happy hacking!</em></p>
+  </footer>
+  <script src="welcome.js"></script>
+</body>
+</html>
