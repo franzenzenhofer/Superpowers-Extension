@@ -7,9 +7,27 @@
     window.Superpowers = {};
   }
 
+  let enabled = false;
   const webrequestEventListeners = {};
 
+  function turnOn() {
+    enabled = true;
+    chrome.runtime.sendMessage({
+      type: "SUPER_WEBREQUEST_CONTROL",
+      action: "turnOn"
+    });
+  }
+
+  function turnOff() {
+    enabled = false;
+    chrome.runtime.sendMessage({
+      type: "SUPER_WEBREQUEST_CONTROL",
+      action: "turnOff"
+    });
+  }
+
   window.addEventListener("message", (event) => {
+    if (!enabled) return;
     if (!event.data || event.data.direction !== "from-content-script") return;
     
     if (event.data.type === "SUPER_WEBREQUEST_EVENT") {
@@ -26,6 +44,9 @@
   });
 
   function callMethod(methodName, ...args) {
+    if (!enabled) {
+      return Promise.reject(new Error("Superwebrequest is not enabled"));
+    }
     return new Promise((resolve, reject) => {
       const requestId = Math.random().toString(36).slice(2);
 
@@ -67,9 +88,9 @@
       .filter(fn => fn !== callback);
   }
 
-  const webrequestProxy = new Proxy({ on, off }, {
+  const webrequestProxy = new Proxy({ on, off, turnOn, turnOff }, {
     get: (target, prop) => {
-      if (prop === "on" || prop === "off") {
+      if (prop in target) {
         return target[prop];
       }
       return (...args) => callMethod(prop, ...args);

@@ -3,6 +3,8 @@ export const superconsoleintercept_extension = {
 
   install(context) {
     const PLUGIN_EVENT_TYPE = "SUPER_CONSOLE_EVENT";
+    const CONTROL_EVENT_TYPE = "SUPER_CONSOLE_CONTROL";
+    let enabled = false;
 
     if (context.debug) {
       console.log("[superconsoleintercept_extension] Installing console interceptor in SW...");
@@ -10,50 +12,86 @@ export const superconsoleintercept_extension = {
 
     // Store original console methods in SW context
     const originalConsole = { ...console };
+    let overriddenMethods = {};
 
-    // Override SW console methods
-    ["log", "info", "warn", "error"].forEach((method) => {
-      console[method] = (...args) => {
-        // Call original
-        originalConsole[method](...args);
+    function setupConsoleOverrides() {
+      ["log", "info", "warn", "error"].forEach((method) => {
+        overriddenMethods[method] = (...args) => {
+          // Call original
+          originalConsole[method](...args);
 
-        // Broadcast to all tabs
-        broadcastConsoleEvent(method, args);
-      };
-    });
+          // Only broadcast if enabled
+          if (enabled) {
+            broadcastConsoleEvent(method, args);
+          }
+        };
+        console[method] = overriddenMethods[method];
+      });
+    }
 
-    // Listen for console events from content scripts
+    function restoreConsole() {
+      ["log", "info", "warn", "error"].forEach((method) => {
+        console[method] = originalConsole[method];
+      });
+    }
+
+    // Listen for console events and control messages
     chrome.runtime.onMessage.addListener((message, sender) => {
-      if (message.type !== PLUGIN_EVENT_TYPE) return;
-      
-      // Broadcast to all other tabs
-      broadcastConsoleEvent(message.level, message.args, sender.tab?.id);
+      if (message.type === CONTROL_EVENT_TYPE) {
+        if (message.action === 'turnOn') {
+          enabled = true;
+          setupConsoleOverrides();
+        } else if (message.action === 'turnOff') {
+          enabled = false;
+          restoreConsole();
+        }
+        return;
+      }
+
+      if (message.type === PLUGIN_EVENT_TYPE && enabled) {
+        broadcastConsoleEvent(message.level, message.args, sender.tab?.id);
+      }
     });
 
     /**
      * Broadcast console event to all open tabs except excludeTabId
      */
-    function broadcastConsoleEvent(level, args, excludeTabId = null) {
-      chrome.tabs.query({}, (tabs) => {
+    async function broadcastConsoleEvent(level, args, excludeTabId = null) {
+      try {
+        const tabs = await chrome.tabs.query({
+          // Only target active tabs that can run content scripts
+          active: true,
+          status: "complete",
+          url: ["http://*/*", "https://*/*"]
+        });
+
         for (const tab of tabs) {
-          // tab.id can be -1 or undefined for some special pages
-          if (typeof tab.id === "number" && tab.id >= 0 && tab.id !== excludeTabId) {
-            // Use the callback form to catch errors from tabs that
-            // do not have a listening content script.
-            chrome.tabs.sendMessage(tab.id, {
-              type: PLUGIN_EVENT_TYPE,
-              level,
-              args
-            }, () => {
-              // If there's an error, just ignore it to avoid spamming logs.
-              if (chrome.runtime.lastError) {
-                // Optionally log it if you want to see it in SW:
-                // originalConsole.warn("Could not send message to tab", tab.id, chrome.runtime.lastError.message);
+          if (typeof tab.id === "number" && 
+              tab.id >= 0 && 
+              tab.id !== excludeTabId &&
+              !tab.url.startsWith("chrome://")) {
+            
+            try {
+              await chrome.tabs.sendMessage(tab.id, {
+                type: PLUGIN_EVENT_TYPE,
+                level,
+                args
+              });
+            } catch (err) {
+              // Silently ignore connection errors
+              if (!err.message.includes('Could not establish connection') &&
+                  !err.message.includes('message port closed')) {
+                originalConsole.debug(`[superconsoleintercept] Tab ${tab.id} error:`, err.message);
               }
-            });
+            }
           }
         }
-      });
+      } catch (err) {
+        originalConsole.debug("[superconsoleintercept] Broadcast error:", err);
+      }
     }
+
+    // Start in disabled state
+    restoreConsole();
   }
 };

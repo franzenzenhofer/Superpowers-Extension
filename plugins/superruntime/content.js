@@ -1,9 +1,39 @@
 // plugins/superruntime/content.js
 (function() {
+  let enabled = false;
+
+  // Handle control messages
+  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message.type === "SUPER_RUNTIME_CONTROL") {
+      enabled = message.action === "turnOn";
+      sendResponse({ success: true });
+      return true;
+    }
+
+    if (!enabled) {
+      sendResponse({ success: false });
+      return true;
+    }
+
+    if (message.type === "SUPER_RUNTIME_EVENT") {
+      window.postMessage({
+        direction: "from-content-script",
+        type: "SUPER_RUNTIME_EVENT",
+        eventName: message.eventName,
+        args: message.args
+      }, "*");
+      sendResponse({ success: true });
+      return true;
+    }
+    
+    return false;
+  });
+
   // Remove initial loaded message
 
   // Relay messages from the page => background
   window.addEventListener("message", (ev) => {
+    if (!enabled) return;
     if (!ev.data || ev.data.direction !== "from-page") return;
     if (ev.data.type !== "SUPER_RUNTIME_CALL") return;
 
@@ -41,17 +71,5 @@
         }, "*");
       }
     );
-  });
-
-  // Add event listener for runtime events from service worker
-  chrome.runtime.onMessage.addListener((message, sender) => {
-    if (message.type === "SUPER_RUNTIME_EVENT") {
-      window.postMessage({
-        direction: "from-content-script",
-        type: "SUPER_RUNTIME_EVENT",
-        eventName: message.eventName,
-        args: message.args
-      }, "*");
-    }
   });
 })();

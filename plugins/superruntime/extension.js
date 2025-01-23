@@ -3,11 +3,27 @@ export const superruntime_extension = {
   name: "superruntime_extension",
 
   install(context) {
-    // Remove all debug logging
+    let enabled = false;
+    const eventListeners = new Map();
+    
+    // Start disabled and clean
+    removeEventListeners();
+    restoreConsole();
 
     // Handle method calls
     chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-      if (request.type !== "SUPER_RUNTIME_CALL") return false;
+      if (request.type === "SUPER_RUNTIME_CONTROL") {
+        if (request.action === "turnOn") {
+          enabled = true;
+          setupEventListeners();
+        } else if (request.action === "turnOff") {
+          enabled = false;
+          removeEventListeners();
+        }
+        return;
+      }
+
+      if (!enabled || request.type !== "SUPER_RUNTIME_CALL") return false;
 
       const { requestId, methodName, args } = request;
 
@@ -18,27 +34,44 @@ export const superruntime_extension = {
       return true;
     });
 
-    // Setup runtime event listeners
-    const runtimeEvents = [
-      'onStartup',
-      'onInstalled',
-      'onSuspend',
-      'onSuspendCanceled',
-      'onUpdateAvailable',
-      'onBrowserUpdateAvailable',
-      'onConnect',
-      'onConnectExternal',
-      'onMessage',
-      'onMessageExternal'
-    ];
+    function setupEventListeners() {
+      const runtimeEvents = [
+        'onStartup',
+        'onInstalled',
+        'onSuspend',
+        'onSuspendCanceled',
+        'onUpdateAvailable',
+        'onBrowserUpdateAvailable',
+        'onConnect',
+        'onConnectExternal',
+        'onMessage',
+        'onMessageExternal'
+      ];
 
-    runtimeEvents.forEach(evtName => {
-      const evtObject = chrome.runtime[evtName];
-      if (!evtObject || !evtObject.addListener) return;
-      evtObject.addListener((...args) => {
-        broadcastRuntimeEvent(evtName, args);
+      runtimeEvents.forEach(evtName => {
+        const listener = (...args) => broadcastRuntimeEvent(evtName, args);
+        eventListeners.set(evtName, listener);
+        
+        const evtObject = chrome.runtime[evtName];
+        if (evtObject?.addListener) {
+          evtObject.addListener(listener);
+        }
       });
-    });
+    }
+
+    function removeEventListeners() {
+      eventListeners.forEach((listener, evtName) => {
+        const evtObject = chrome.runtime[evtName];
+        if (evtObject?.removeListener) {
+          evtObject.removeListener(listener);
+        }
+      });
+      eventListeners.clear();
+    }
+
+    // Start completely disabled
+    enabled = false;
+    removeEventListeners();
   }
 };
 
@@ -81,16 +114,49 @@ function callChromeRuntime(methodName, args) {
   });
 }
 
-function broadcastRuntimeEvent(eventName, eventArgs) {
-  chrome.tabs.query({}, (allTabs) => {
-    allTabs.forEach((t) => {
-      if (t.id >= 0) {
-        chrome.tabs.sendMessage(t.id, {
-          type: "SUPER_RUNTIME_EVENT",
-          eventName,
-          args: eventArgs,
-        });
-      }
+async function broadcastRuntimeEvent(eventName, eventArgs) {
+  if (!enabled) return; // Extra safety check
+  
+  try {
+    const tabs = await chrome.tabs.query({
+      status: "complete",
+      url: ["http://*/*", "https://*/*"]
     });
-  });
+
+    for (const tab of tabs) {
+      // Skip tabs that can't receive messages
+      if (!tab.id || tab.id < 0 || !tab.url || 
+          tab.url.startsWith('chrome://') || 
+          tab.url.startsWith('chrome-extension://')) {
+        continue;
+      }
+
+      try {
+        // Add timeout to avoid hanging
+        const response = await Promise.race([
+          chrome.tabs.sendMessage(tab.id, {
+            type: "SUPER_RUNTIME_EVENT",
+            eventName,
+            args: eventArgs
+          }),
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Timeout')), 1000)
+          )
+        ]);
+
+        if (!response?.success) {
+          console.debug(`[superruntime] Tab ${tab.id} failed to handle message`);
+        }
+      } catch (err) {
+        // Only log unexpected errors
+        if (!err.message.includes('Could not establish connection') &&
+            !err.message.includes('message port closed') &&
+            !err.message.includes('Timeout')) {
+          console.debug(`[superruntime] Tab ${tab.id} error:`, err.message);
+        }
+      }
+    }
+  } catch (err) {
+    console.debug("[superruntime] Broadcast error:", err);
+  }
 }
