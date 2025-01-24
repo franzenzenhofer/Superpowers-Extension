@@ -1,52 +1,54 @@
 // ga.js
 // -------------------------------------------------------------------------
-// Provides internal logic for Google Analytics Data API usage, with robust checks.
+// Provides internal logic for the Google Analytics Admin (v1beta) and Data (v1beta) APIs.
+// We no longer attempt /v1/accounts or /v1/properties, etc. Instead, we use /v1beta properly,
+// matching the official discovery docs. Also, listing properties requires a filter parameter.
+//
+// - Admin endpoints => https://analyticsadmin.googleapis.com/v1beta/...
+// - Data endpoints  => https://analyticsdata.googleapis.com/v1beta/...
 // -------------------------------------------------------------------------
 
-import { 
-  ensureCredentialsLoaded, 
+import {
+  ensureCredentialsLoaded,
   maybeRefreshToken,
   getToken,
-  getClientSecret,
   setToken,
   setClientSecret
 } from "./auth.js";
 
-// GA Data API base
-const GA_API_BASE = "https://analyticsdata.googleapis.com/v1beta";
+/**
+ * GA Data API base URL (v1beta).
+ */
+const GA_DATA_API_BASE = "https://analyticsdata.googleapis.com/v1beta";
 
-// Keep lastLoginStatus in this file
+/**
+ * GA Admin API base URL (v1beta).
+ */
+const GA_ADMIN_API_BASE = "https://analyticsadmin.googleapis.com/v1beta";
+
+// Tracks if we've confirmed valid credentials
 let _lastLoginStatus = false;
 
 /**
- * Helper: asserts that a given parameter is a non-empty string.
- */
-function assertNonEmptyString(value, paramName) {
-  if (typeof value !== "string" || !value.trim()) {
-    throw new Error(`[ga] ${paramName}: missing or invalid string`);
-  }
-}
-
-/**
- * Single wrapper for GA endpoints. Retries once on 401/403 (refresh).
+ * Helper for GA Data API calls (v1beta).
+ * Retries once if 401/403.
  */
 async function gaFetch(path, options = {}) {
   // Possibly refresh token first
   await maybeRefreshToken();
 
-  // Retrieve the current token from auth.js
-  const token = getToken();
-  const tokenString = token?.access_token || token?.token;
-  if (!tokenString) {
-    console.error("[gaFetch] No valid access token found. Possibly not logged in?");
-    throw new Error("[ga] Missing or invalid token.");
+  const token = getToken()?.access_token || getToken()?.token;
+  if (!token) {
+    throw new Error("[ga] Missing or invalid token. Not logged in?");
   }
 
-  const isAbsoluteUrl = path.startsWith("http");
-  const finalUrl = isAbsoluteUrl ? path : (GA_API_BASE + path);
-  const method = options.method || "POST"; // GA Data API typically uses POST for queries
+  // Build final URL from base
+  const isAbsolute = path.startsWith("http");
+  const finalUrl = isAbsolute ? path : GA_DATA_API_BASE + path;
+
+  const method = options.method || "POST"; // typical for data requests
   const headers = {
-    Authorization: `Bearer ${tokenString}`,
+    Authorization: `Bearer ${token}`,
     "Content-Type": "application/json",
     ...(options.headers || {})
   };
@@ -56,86 +58,129 @@ async function gaFetch(path, options = {}) {
     body = JSON.stringify(body);
   }
 
-  // console.debug(`[gaFetch] Request => ${method} ${finalUrl}`, { headers, body });
-
+  // Initial request
   let resp;
   try {
     resp = await fetch(finalUrl, { method, headers, body });
-  } catch (networkErr) {
-    console.error("[gaFetch] Network/connection error:", networkErr);
-    throw new Error("[ga] Failed to reach GA endpoint (network error).");
+  } catch (err) {
+    throw new Error("[ga] Could not reach GA Data endpoint (network error).");
   }
 
+  // Possibly refresh on 401/403
   if (resp.status === 401 || resp.status === 403) {
-    console.warn(`[gaFetch] Got ${resp.status}, attempting a token refresh...`);
     await maybeRefreshToken();
-
-    const freshToken = getToken()?.access_token || getToken()?.token;
-    if (!freshToken) {
-      throw new Error("[gaFetch] No valid token even after refresh attempt.");
+    const fresh = getToken()?.access_token || getToken()?.token;
+    if (!fresh) {
+      throw new Error("[ga] No valid token even after refresh attempt.");
     }
-
-    const retryHeaders = { ...headers, Authorization: `Bearer ${freshToken}` };
-
-    let resp2;
+    const retryHeaders = { ...headers, Authorization: `Bearer ${fresh}` };
     try {
-      resp2 = await fetch(finalUrl, { method, headers: retryHeaders, body });
-    } catch (networkErr) {
-      console.error("[gaFetch] Network error on retry:", networkErr);
-      throw new Error("[ga] Failed again after refresh (network error).");
+      resp = await fetch(finalUrl, { method, headers: retryHeaders, body });
+    } catch (err2) {
+      throw new Error("[ga] Data fetch failed again after refresh.");
     }
-
-    if (!resp2.ok) {
-      const errorTxt = await resp2.text().catch(() => "");
-      throw new Error(`[ga] GA API Error (2nd try) ${resp2.status}: ${errorTxt}`);
-    }
-
-    // console.debug("[gaFetch] Retried fetch success.");
-    try {
-      return await resp2.json();
-    } catch (parseErr) {
-      console.error("[gaFetch] JSON parse error (2nd try):", parseErr);
-      throw new Error("[ga] Could not parse GA response (2nd try).");
+    if (!resp.ok) {
+      const txt2 = await resp.text().catch(() => "");
+      throw new Error(`[ga] GA Data API Error (2nd try) ${resp.status}: ${txt2}`);
     }
   }
 
   if (!resp.ok) {
-    const errorTxt = await resp.text().catch(() => "");
-    throw new Error(`[ga] GA API Error ${resp.status}: ${errorTxt}`);
+    const txt = await resp.text().catch(() => "");
+    throw new Error(`[ga] GA Data API Error ${resp.status}: ${txt}`);
   }
 
-  let data;
   try {
-    data = await resp.json();
+    return await resp.json();
   } catch (parseErr) {
-    console.error("[gaFetch] JSON parse error:", parseErr);
-    throw new Error("[ga] Could not parse GA response.");
+    throw new Error("[ga] Could not parse GA Data API JSON.");
   }
-
-  // console.debug("[gaFetch] Response OK:", data);
-  return data;
 }
 
 /**
- * Public login/test
+ * Helper for GA Admin API calls (v1beta).
+ * Retries once if 401/403.
  */
+async function gaAdminFetch(path, options = {}) {
+  await maybeRefreshToken();
+
+  const token = getToken()?.access_token || getToken()?.token;
+  if (!token) {
+    throw new Error("[gaAdmin] Missing or invalid token. Not logged in?");
+  }
+
+  const isAbsolute = path.startsWith("http");
+  const finalUrl = isAbsolute ? path : GA_ADMIN_API_BASE + path;
+
+  const method = options.method || "GET";
+  const headers = {
+    Authorization: `Bearer ${token}`,
+    "Content-Type": "application/json",
+    ...(options.headers || {})
+  };
+
+  let body = options.body;
+  if (body && typeof body !== "string") {
+    body = JSON.stringify(body);
+  }
+
+  // Initial request
+  let resp;
+  try {
+    resp = await fetch(finalUrl, { method, headers, body });
+  } catch (err) {
+    throw new Error("[gaAdmin] Could not reach Admin API endpoint.");
+  }
+
+  // Possibly refresh once
+  if (resp.status === 401 || resp.status === 403) {
+    await maybeRefreshToken();
+    const fresh = getToken()?.access_token || getToken()?.token;
+    if (!fresh) {
+      throw new Error("[gaAdmin] Token refresh also failed. Not logged in?");
+    }
+    const retryHeaders = { ...headers, Authorization: `Bearer ${fresh}` };
+    try {
+      resp = await fetch(finalUrl, { method, headers: retryHeaders, body });
+    } catch (err2) {
+      throw new Error("[gaAdmin] Admin fetch failed after refresh.");
+    }
+    if (!resp.ok) {
+      const txt2 = await resp.text().catch(() => "");
+      throw new Error(`[gaAdmin] Admin API Error (2nd try) ${resp.status}: ${txt2}`);
+    }
+  }
+
+  if (!resp.ok) {
+    const txt = await resp.text().catch(() => "");
+    throw new Error(`[gaAdmin] Admin API Error ${resp.status}: ${txt}`);
+  }
+
+  try {
+    return await resp.json();
+  } catch (err) {
+    throw new Error("[gaAdmin] Could not parse Admin API JSON.");
+  }
+}
+
+// -----------------------------------------------------------------------
+// Public: login => verifies token by calling listAccounts on Admin API
+// -----------------------------------------------------------------------
 export async function login(customCreds = {}) {
   try {
-    // reset credentials
+    // reset
     setClientSecret(null);
     setToken(null);
 
     await ensureCredentialsLoaded(customCreds);
-    // Quick test => just call /v1beta/properties:runReport on a dummy property?
-    // Or simply trust that the token is valid. We'll do a minimal call:
-    // For example, we can do a getMetadata on property=0 (common metadata).
-    await getMetadata("properties/0/metadata");
+
+    // Minimal check => call Admin API to confirm token => /v1beta/accounts
+    await listAccounts();
 
     _lastLoginStatus = true;
-    return { success: true, message: "[ga] GA login verified!" };
+    return { success: true, message: "[ga] GA login verified via v1beta admin API!" };
   } catch (err) {
     _lastLoginStatus = false;
-    console.error('[ga/debug] Login failed:', err);
     throw new Error(`[ga.login] ${err.message}`);
   }
 }
@@ -144,99 +189,147 @@ export function getLoginStatus() {
   return _lastLoginStatus;
 }
 
+/**
+ * test => just calls login() with no arguments
+ */
 export async function test() {
   return login({});
 }
 
 // -----------------------------------------------------------------------
-// GA Data API calls
+// GA ADMIN API calls (v1beta)
 // -----------------------------------------------------------------------
 
 /**
- * propertyName example: "properties/1234"
- * body => schema of RunReportRequest, see GA docs 
+ * Lists all accounts the user can access: GET /v1beta/accounts
+ */
+export async function listAccounts() {
+  return gaAdminFetch("/accounts", { method: "GET" });
+}
+
+/**
+ * Lists all accountSummaries: GET /v1beta/accountSummaries
+ */
+export async function listAccountSummaries() {
+  return gaAdminFetch("/accountSummaries", { method: "GET" });
+}
+
+/**
+ * Lists properties for the specified account. 
+ * GA Admin v1beta does not allow `/accounts/{id}/properties`.
+ * Instead, we do GET /v1beta/properties?filter=parent:accounts/{id}
+ */
+export async function listProperties(accountId, pageSize, pageToken) {
+  if (!accountId) {
+    throw new Error("[ga] listProperties: missing accountId param");
+  }
+  // filter=parent:accounts/XXXX
+  const parts = [];
+  parts.push("filter=parent:accounts/" + encodeURIComponent(accountId));
+  if (pageSize) parts.push(`pageSize=${pageSize}`);
+  if (pageToken) parts.push(`pageToken=${encodeURIComponent(pageToken)}`);
+
+  let qs = parts.length ? ("?" + parts.join("&")) : "";
+  const path = "/properties" + qs; // => /v1beta/properties?filter=parent:accounts/1234
+  return gaAdminFetch(path, { method: "GET" });
+}
+
+// -----------------------------------------------------------------------
+// GA DATA API calls (v1beta)
+// -----------------------------------------------------------------------
+
+/**
+ * runReport => POST /v1beta/properties/{property}:runReport
  */
 export async function runReport(propertyName, body) {
-  assertNonEmptyString(propertyName, "propertyName");
-  // The GA Data API expects URL pattern: /v1beta/{+property}:runReport
-  const path = `/${propertyName}:runReport`;
+  if (!propertyName) {
+    throw new Error("[ga] runReport: missing propertyName");
+  }
+  const path = `/${propertyName}:runReport`;  // e.g. /properties/1234:runReport
   return gaFetch(path, { method: "POST", body });
 }
 
+/**
+ * runPivotReport => POST /v1beta/properties/{property}:runPivotReport
+ */
 export async function runPivotReport(propertyName, body) {
-  assertNonEmptyString(propertyName, "propertyName");
+  if (!propertyName) throw new Error("[ga] runPivotReport: missing propertyName");
   const path = `/${propertyName}:runPivotReport`;
   return gaFetch(path, { method: "POST", body });
 }
 
+/**
+ * batchRunReports => POST /v1beta/properties/{property}:batchRunReports
+ */
 export async function batchRunReports(propertyName, body) {
-  // For batch run, URL is: /v1beta/{+property}:batchRunReports
-  // The request body is BatchRunReportsRequest
-  assertNonEmptyString(propertyName, "propertyName");
+  if (!propertyName) throw new Error("[ga] batchRunReports: missing propertyName");
   const path = `/${propertyName}:batchRunReports`;
   return gaFetch(path, { method: "POST", body });
 }
 
+/**
+ * batchRunPivotReports => POST /v1beta/properties/{property}:batchRunPivotReports
+ */
 export async function batchRunPivotReports(propertyName, body) {
-  assertNonEmptyString(propertyName, "propertyName");
+  if (!propertyName) throw new Error("[ga] batchRunPivotReports: missing propertyName");
   const path = `/${propertyName}:batchRunPivotReports`;
   return gaFetch(path, { method: "POST", body });
 }
 
+/**
+ * runRealtimeReport => POST /v1beta/properties/{property}:runRealtimeReport
+ */
 export async function runRealtimeReport(propertyName, body) {
-  assertNonEmptyString(propertyName, "propertyName");
+  if (!propertyName) throw new Error("[ga] runRealtimeReport: missing propertyName");
   const path = `/${propertyName}:runRealtimeReport`;
   return gaFetch(path, { method: "POST", body });
 }
 
 /**
- * getMetadata - for property or "properties/0"
+ * getMetadata => GET /v1beta/properties/{property}/metadata
  */
 export async function getMetadata(name) {
-  assertNonEmptyString(name, "name");
-  const path = `/${name}`;
+  if (!name) {
+    throw new Error("[ga] getMetadata: missing name param");
+  }
+  // e.g. name="properties/0" => /properties/0/metadata
+  const path = `/${name}/metadata`;
   return gaFetch(path, { method: "GET" });
 }
 
 /**
- * checkCompatibility
+ * checkCompatibility => POST /v1beta/properties/{property}:checkCompatibility
  */
 export async function checkCompatibility(propertyName, body) {
-  assertNonEmptyString(propertyName, "propertyName");
+  if (!propertyName) throw new Error("[ga] checkCompatibility: missing propertyName");
   const path = `/${propertyName}:checkCompatibility`;
   return gaFetch(path, { method: "POST", body });
 }
 
 // -----------------------------------------------------------------------
-// Audience Exports (examples from API specification, if you want them):
+// Audience Exports (v1beta) - for completeness if your code uses them
 // -----------------------------------------------------------------------
 export async function createAudienceExport(parent, audienceExportBody) {
-  // parent = "properties/1234"
-  // POST v1beta/{+parent}/audienceExports
-  assertNonEmptyString(parent, "parent");
+  if (!parent) throw new Error("[ga] createAudienceExport: missing parent");
+  // POST /v1beta/{parent}/audienceExports
   const path = `/${parent}/audienceExports`;
   return gaFetch(path, { method: "POST", body: audienceExportBody });
 }
 
 export async function getAudienceExport(name) {
-  // name = "properties/1234/audienceExports/5678"
-  assertNonEmptyString(name, "name");
+  if (!name) throw new Error("[ga] getAudienceExport: missing name");
   const path = `/${name}`;
   return gaFetch(path, { method: "GET" });
 }
 
 export async function queryAudienceExport(name, queryBody) {
-  // POST v1beta/{+name}:query
-  // name = "properties/1234/audienceExports/5678"
-  assertNonEmptyString(name, "name");
+  if (!name) throw new Error("[ga] queryAudienceExport: missing name");
   const path = `/${name}:query`;
   return gaFetch(path, { method: "POST", body: queryBody });
 }
 
 export async function listAudienceExports(parent, pageSize, pageToken) {
-  // GET v1beta/{+parent}/audienceExports
-  // parent = "properties/1234"
-  assertNonEmptyString(parent, "parent");
+  if (!parent) throw new Error("[ga] listAudienceExports: missing parent");
   let url = `/${parent}/audienceExports`;
   const params = [];
   if (pageSize) params.push(`pageSize=${pageSize}`);

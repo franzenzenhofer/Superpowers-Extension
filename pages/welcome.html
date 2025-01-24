@@ -2,17 +2,20 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="script-src 'self'">
   <title>Welcome to Superpowers</title>
   <style>
     :root {
       --main-bg: #f9f9f9;
       --primary-color: #0033A0;
       --text-color: #333;
+      --highlight-bg: #fffae1;
+      --highlight-border: #ffdb00;
     }
     body {
       background: var(--main-bg);
-      margin: 0; 
-      font-family: sans-serif; 
+      margin: 0;
+      font-family: sans-serif;
       color: var(--text-color);
       display: flex;
       flex-direction: column;
@@ -24,19 +27,19 @@
       padding: 1rem;
     }
     h1 {
-      margin: 0; 
+      margin: 0;
       font-size: 1.5rem;
     }
     main {
-      flex: 1 1 auto; 
+      flex: 1 1 auto;
       padding: 1rem;
     }
     .content {
-      max-width: 800px; 
+      max-width: 800px;
       margin: 0 auto;
       background: #fff;
       border-radius: 6px;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
       padding: 1rem 2rem;
     }
     .content h2 {
@@ -44,10 +47,25 @@
       color: var(--primary-color);
     }
     .highlight {
-      background: #fffae1;
-      border-left: 4px solid #ffdb00;
+      background: var(--highlight-bg);
+      border-left: 4px solid var(--highlight-border);
       padding: 0.5rem;
       margin: 1rem 0;
+    }
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      margin: 1rem 0;
+    }
+    .actions button {
+      cursor: pointer;
+      padding: 8px 16px;
+      background: var(--primary-color);
+      color: white;
+      border: none;
+      border-radius: 4px;
+      font-size: 0.95rem;
     }
     a {
       color: var(--primary-color);
@@ -60,6 +78,16 @@
       font-size: 0.85rem;
       color: #666;
     }
+    ul {
+      list-style: disc inside;
+      margin-left: 1rem;
+    }
+    .api-key-notice {
+      background: #e8f4ff;
+      border-left: 4px solid #0033A0;
+      padding: 1rem;
+      margin: 1rem 0;
+    }
   </style>
 </head>
 <body>
@@ -69,48 +97,78 @@
 
   <main>
     <div class="content">
-      <h2>Your In-Page "Superpowers" Are Now Active</h2>
+      <h2>Unlock the Power of Your Browser</h2>
       <p>
-        This extension grants you advanced capabilities—like cross-domain fetches, environment variable management, AI interactions, and more—directly 
-        in your normal web pages. Our code is <strong>100% AI-created</strong> and was originally coded by <strong>Franz Enzenhofer</strong> (2025).
+        <strong>Superpowers</strong> is a robust Chrome extension that gives any web page
+        extraordinary new capabilities. You can fetch data cross-domain, manage environment variables,
+        run advanced console logs, talk to AI via integrated OpenAI calls, and more—all without
+        leaving your usual workflow!
       </p>
-
-      <p class="highlight">
-        <strong>Tip:</strong> For best results, set your <code>OPENAI_API_KEY</code> environment variable 
-        or credentials. Without it, some AI features may be limited.
-        <br><br>
-        <button id="openSidePanel" style="padding: 8px 16px; background: var(--primary-color); color: white; border: none; border-radius: 4px; cursor: pointer;">
-          Open Side Panel
-        </button>
-      </p>
-
       <p>
-        Not sure where to get an <code>OPENAI_API_KEY</code>?  
-        <a href="https://chatgpt.com?q=where%20can%20I%20get%20an%20OPENAI_API_KEY" target="_blank" rel="noopener noreferrer">
-          Click here to learn more
-        </a>.
+        Whether you want to <strong>call Google APIs</strong>, <strong>interact with GPT-based models</strong>,
+        handle <strong>multiple environment sets</strong>, or just <strong>take screenshots</strong> of pages,
+        <em>Superpowers</em> is here for you.
       </p>
 
-      <h2>What Can It Do?</h2>
+      <div class="api-key-notice">
+        <h3>🔑 Important: OpenAI API Key Required</h3>
+        <p>
+          To use AI features, you'll need to set up your <code>OPENAI_API_KEY</code> in the Sidepanel.
+        </p>
+        <p>
+          Not sure where to get an <code>OPENAI_API_KEY</code>?  
+          <a href="https://chatgpt.com?q=where%20can%20I%20get%20an%20OPENAI_API_KEY" target="_blank" rel="noopener noreferrer">
+            Click here to learn more
+          </a>
+        </p>
+      </div>
+
+      <h2>Why Is It Cool?</h2>
       <ul>
-        <li>Auto-fetch data from anywhere (<strong>superfetch</strong>)</li>
-        <li>Manage and store environment variables (<strong>superenv</strong>)</li>
-        <li>Chat or orchestrate AI with integrated OpenAI calls (<strong>superopenai</strong>)</li>
-        <li>Take screenshots (<strong>superscreenshot</strong>)</li>
-        <li>And more!</li>
+        <li><strong>Cross-domain fetches</strong>: Dare to fetch from anywhere. No more same-origin headaches!
+
+        </li>
+        <li><strong>AI Chat & Tools</strong>: Use <code>Superpowers.OpenAI</code> to interact with GPT or generate images.
+  
+        </li>
+        <li><strong>Credentials Manager</strong>: Securely store OAuth keys and tokens (e.g., for Google Analytics, GSC).
+     
+        </li>
+        <li><strong>Environment Variables</strong>: Quickly set and retrieve env vars in the browser.
+ 
+        </li>
+        <li><strong>In-Page Scripting</strong>: Your page now has <em>super</em> hooks for debugging, console intercepts, and more!
+
+        </li>
       </ul>
 
-      <p>
-        If you have further questions or want to see demos, open the extension's side panel or 
-        <a href="https://chatgpt.com?q=How%20do%20I%20use%20Superpowers%20extension" target="_blank" rel="noopener noreferrer">
-          ask ChatGPT
-        </a>.
+      <p class="highlight">
+        <strong>Getting Started:</strong><br>
+        1) <strong>Open the Side Panel</strong> or the Credentials Manager to configure API keys and tokens.<br>
+        2) Insert <code>&lt;meta name="superpowers" content="enabled" /&gt;</code> in your page.<br>
+        3) Now your page can call <code>window.Superpowers</code> methods directly (e.g. <code>Superpowers.fetch</code>).
       </p>
+
+      <h2>Setup Your API Keys</h2>
+      <p>
+        Some plugin features—like AI or Google APIs—require credentials. 
+        To add or configure these:
+      </p>
+      <div class="actions">
+        <button id="openSidePanel">Open Side Panel</button>
+        <button id="openCredsManager">Open Credentials Manager</button>
+      </div>
+      <p>
+        Once you save your credentials, <strong>Superpowers</strong> automatically injects them into your pages, 
+        so you can call <code>Superpowers.Ga</code> or <code>Superpowers.Gsc</code> with real authenticated requests.
+      </p>
+
+
     </div>
   </main>
 
   <footer>
-    <p>Extension version: <strong>4.3</strong> | <em>Happy hacking!</em></p>
+    <p>Extension version: <strong>4.3</strong> | <em>Elevate your web experience.</em></p>
   </footer>
   <script src="welcome.js"></script>
 </body>

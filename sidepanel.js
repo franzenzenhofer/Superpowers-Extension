@@ -1,37 +1,89 @@
 // sidepanel.js
 // Minimal logic to read/write environment variables in chrome.storage,
-// displayed in side panel, plus a debug message listener.
+// displayed in side panel, plus a debug message listener, with improvements.
 
-// Initialize when DOM is ready
-document.addEventListener("DOMContentLoaded", init);
+//////////////////////////////
+// [IMPROVEMENT #4] Cache repeated DOM lookups
+//////////////////////////////
+const envContainerEl = document.getElementById("envContainer");
+const debugOutputEl = document.getElementById("debugOutput");
+const toastEl = document.getElementById("toast");
 
+// We'll keep a max debug log lines
+// [IMPROVEMENT #1] Limit debug logs to 100 lines
+const MAX_DEBUG_LINES = 100;
+
+//////////////////////////////
+// Helper: showToast
+//////////////////////////////
 function showToast(message) {
-    const toast = document.getElementById("toast");
-    toast.textContent = message;
-    toast.classList.add("show");
-    setTimeout(() => toast.classList.remove("show"), 3000);
+    // [IMPROVEMENT #7] We remove an existing .show if present to avoid overlap
+    toastEl.classList.remove("show");
+    toastEl.textContent = message;
+
+    // Force reflow so the next add('show') triggers properly
+    // [Edge case] but helps avoid double toggles
+    void toastEl.offsetWidth;
+
+    toastEl.classList.add("show");
+    setTimeout(() => toastEl.classList.remove("show"), 3000);
 }
 
-function debugLog(message, data = null) {
-    const debugOut = document.getElementById("debugOutput");
+//////////////////////////////
+// Helper: debugLog
+//////////////////////////////
+function debugLog(message, data = null, level = "info") {
     const timestamp = new Date().toLocaleTimeString();
-    const logMsg = `[${timestamp}] ${message}`;
+    const logMsg = `[${timestamp}][${level}] ${message}`;
     
     console.log(logMsg, data || '');
-    
+
+    // Insert in debug UI
+    if (!debugOutputEl) return;
+
     const logEntry = document.createElement('div');
     logEntry.textContent = logMsg + (data ? ` ${JSON.stringify(data, null, 2)}` : '');
-    
-    debugOut.insertBefore(logEntry, debugOut.firstChild);
-    debugOut.scrollTop = 0;
+
+    debugOutputEl.insertBefore(logEntry, debugOutputEl.firstChild);
+
+    // [IMPROVEMENT #1] Limit debug lines
+    if (debugOutputEl.children.length > MAX_DEBUG_LINES) {
+        debugOutputEl.removeChild(debugOutputEl.lastChild);
+    }
+    // [IMPROVEMENT #8] If needed, we can scroll to top
+    debugOutputEl.scrollTop = 0;
 }
 
+//////////////////////////////
+// Helper: safeAddEventListener
+//////////////////////////////
+function safeAddEventListener(elementId, event, handler) {
+    const element = document.getElementById(elementId);
+    if (element) {
+        element.addEventListener(event, handler);
+    } else {
+        debugLog(`Element ${elementId} not found`, null, "warn");
+    }
+}
+
+//////////////////////////////
+// onMessage debug handling
+//////////////////////////////
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    if (request.type === "SIDEPANEL_LOG") {
+        debugLog(request.message);
+        sendResponse({ success: true });
+    }
+});
+
+//////////////////////////////
+// init
+//////////////////////////////
 function init() {
     try {
         debugLog("Sidepanel initializing...");
         loadEnvVars();
-        
-        // Add event listeners with error handling
+
         safeAddEventListener("addRowBtn", "click", addRow);
         safeAddEventListener("saveBtn", "click", saveEnvVars);
         safeAddEventListener("refreshEnvBtn", "click", refreshEnvTest);
@@ -40,69 +92,107 @@ function init() {
             window.location.href = chrome.runtime.getURL('pages/credentials_manager.html');
         });
 
-        // Setup event delegation for the variables container
-        const container = document.getElementById("envContainer");
-        container.addEventListener('click', handleVariableActions);
-
-        // Listen for debug logs
-        chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-            if (request.type === "SIDEPANEL_LOG") {
-                debugLog(request.message);
-                sendResponse({ success: true });
-            }
-        });
+        // Container for row actions
+        envContainerEl.addEventListener('click', handleVariableActions);
 
         updatePluginsList();
 
         // Initialize tooltips
         document.querySelectorAll('.action-button').forEach(btn => {
             btn.addEventListener('mouseenter', (e) => {
-                const text = e.target.textContent;
-                showToast(text);
+                showToast(e.target.textContent);
             });
         });
+
+        // [ADDED] Copy Superpowers Instructions for ChatGPT button
+        const copyBtn = document.getElementById("copyInstructionsBtn");
+        if (copyBtn) {
+            copyBtn.addEventListener("click", async () => {
+                try {
+                    // Fetch the README-LLM.md text from extension
+                    const readmeUrl = chrome.runtime.getURL("README-LLM.md");
+                    const resp = await fetch(readmeUrl);
+                    const text = await resp.text();
+
+                    await navigator.clipboard.writeText(text);
+                    showToast("Superpowers instructions copied to clipboard!");
+                    debugLog("Copied Superpowers instructions to clipboard");
+                } catch (err) {
+                    console.error("Error copying instructions:", err);
+                    showToast("Failed to copy instructions");
+                }
+            });
+        }
+        
     } catch (error) {
         console.error("Initialization error:", error);
-        debugLog("Initialization error:", error);
+        debugLog("Initialization error:", error, "error");
     }
 }
 
-// Helper function for safer event listener addition
-function safeAddEventListener(elementId, event, handler) {
-    const element = document.getElementById(elementId);
-    if (element) {
-        element.addEventListener(event, handler);
-    } else {
-        console.warn(`Element ${elementId} not found`);
-    }
-}
+document.addEventListener("DOMContentLoaded", init);
 
+//////////////////////////////
+// loadEnvVars
+//////////////////////////////
 function loadEnvVars() {
-  debugLog("Loading environment variables");
-  chrome.storage.local.get(["superEnvVars"], (result) => {
-    if (chrome.runtime.lastError) {
-      debugLog("Error loading vars:", chrome.runtime.lastError);
-      return;
-    }
-    
-    // For backward compatibility, handle both old and new format
-    const vars = result.superEnvVars || {};
-    const envVars = typeof vars === 'object' && !Array.isArray(vars) ? 
-                   (vars.default || vars) : {};
-    
-    debugLog("Loaded variables:", envVars);
-    renderRows(envVars);
-  });
+    debugLog("Loading environment variables");
+    chrome.storage.local.get(["superEnvVars"], (result) => {
+        if (chrome.runtime.lastError) {
+            debugLog("Error loading vars:", chrome.runtime.lastError, "error");
+            return;
+        }
+        
+        const vars = result.superEnvVars || {};
+        const envVars = (typeof vars === 'object' && !Array.isArray(vars))
+            ? (vars.default || vars)
+            : {};
+
+        debugLog("Loaded variables:", envVars, "info");
+        renderRows(envVars);
+    });
 }
+
+//////////////////////////////
+// renderRows
+//////////////////////////////
+// [IMPROVEMENT #2] Throttle or batch if huge updates (simple approach)
+let renderRowsScheduled = false;
+let lastEnvVarsData = null;
 
 function renderRows(envVars) {
-  const container = document.getElementById("envContainer");
-  container.innerHTML = "";
-  Object.entries(envVars).forEach(([k, v]) => {
-    container.appendChild(createRow(k, v));
-  });
+    // [IMPROVEMENT #3] Change detection:
+    const envVarsStr = JSON.stringify(envVars);
+    if (envVarsStr === lastEnvVarsData) {
+        // No changes => skip re-render
+        debugLog("No env var changes, skipping re-render.", null, "debug");
+        return;
+    }
+    lastEnvVarsData = envVarsStr;
+
+    if (!renderRowsScheduled) {
+        renderRowsScheduled = true;
+        requestAnimationFrame(() => {
+            doRenderRows(envVars);
+            renderRowsScheduled = false;
+        });
+    }
 }
 
+function doRenderRows(envVars) {
+    debugLog("Rendering rows now...", envVars, "debug");
+    envContainerEl.innerHTML = "";
+
+    // [IMPROVEMENT #19] We can sort by key if desired
+    const keys = Object.keys(envVars).sort();
+    for (const k of keys) {
+        envContainerEl.appendChild(createRow(k, envVars[k]));
+    }
+}
+
+//////////////////////////////
+// createRow
+//////////////////////////////
 function createRow(keyVal = "", valVal = "", descVal = "") {
     const row = document.createElement("div");
     row.className = "variable-card";
@@ -113,11 +203,12 @@ function createRow(keyVal = "", valVal = "", descVal = "") {
         </div>
         <div class="input-group">
             <label>Value</label>
-            <input type="text" class="super-input" placeholder="VALUE" value="${valVal}">
+            <input type="password" class="super-input" placeholder="VALUE" value="${valVal}">
         </div>
         <div class="input-group">
             <label>Description</label>
             <input type="text" class="super-input" placeholder="Optional description" value="${descVal}">
+            <!-- [IMPROVEMENT #16] Could use <textarea> if multi-line is needed -->
         </div>
         <div class="variable-actions">
             <div class="action-row">
@@ -127,47 +218,49 @@ function createRow(keyVal = "", valVal = "", descVal = "") {
             <button class="action-button save">💾 Save</button>
         </div>
     `;
-
-    // Initialize value field as password type
-    const valueInput = row.querySelector('.input-group:nth-child(2) input');
-    if (valueInput) {
-        valueInput.type = 'password';
-    }
-
     return row;
 }
 
+//////////////////////////////
+// addRow
+//////////////////////////////
 function addRow() {
-    const container = document.getElementById("envContainer");
     const newRow = createRow();
-    if (container.firstChild) {
-        container.insertBefore(newRow, container.firstChild);
+    if (envContainerEl.firstChild) {
+        envContainerEl.insertBefore(newRow, envContainerEl.firstChild);
     } else {
-        container.appendChild(newRow);
+        envContainerEl.appendChild(newRow);
     }
 }
 
-// Improved save field functionality
+//////////////////////////////
+// saveField
+//////////////////////////////
 async function saveField(button) {
-    try {
-        const card = button.closest('.variable-card');
-        if (!card) throw new Error('Cannot find variable card');
-        
-        // Show saving state
-        const originalText = button.textContent;
-        button.textContent = '💫 Saving...';
-        button.disabled = true;
-        
-        const inputs = card.querySelectorAll('input');
-        const key = inputs[0]?.value?.trim();
-        const value = inputs[1]?.value;
-        const description = inputs[2]?.value?.trim();
-        
-        if (!key) {
-            showToast('Please enter a key name');
-            return;
-        }
+    const card = button.closest('.variable-card');
+    if (!card) {
+        debugLog('Cannot find variable card', null, "error");
+        showToast('Error: No variable card found');
+        return;
+    }
 
+    const originalText = button.textContent;
+    button.textContent = '💫 Saving...';
+    button.disabled = true;
+
+    const inputs = card.querySelectorAll('input');
+    const key = inputs[0]?.value?.trim();
+    const value = inputs[1]?.value;
+    const description = inputs[2]?.value?.trim();
+
+    if (!key) {
+        showToast('Please enter a key name');
+        button.textContent = originalText;
+        button.disabled = false;
+        return;
+    }
+
+    try {
         await new Promise((resolve, reject) => {
             chrome.storage.local.get(['superEnvVars'], (result) => {
                 if (chrome.runtime.lastError) {
@@ -176,14 +269,14 @@ async function saveField(button) {
                 }
 
                 const vars = result.superEnvVars || { default: {} };
+                if (!vars.default) vars.default = {};
+
                 vars.default[key] = value;
-                
-                // Save description if provided
                 if (description) {
                     if (!vars.descriptions) vars.descriptions = {};
                     vars.descriptions[key] = description;
                 }
-                
+
                 chrome.storage.local.set({ superEnvVars: vars }, () => {
                     if (chrome.runtime.lastError) {
                         reject(chrome.runtime.lastError);
@@ -194,7 +287,6 @@ async function saveField(button) {
             });
         });
 
-        // Success animation
         button.textContent = '✅ Saved!';
         setTimeout(() => {
             button.textContent = originalText;
@@ -202,11 +294,13 @@ async function saveField(button) {
         }, 1000);
 
         showToast(`Saved: ${key}`);
-        debugLog(`Saved field: ${key} = ${value}${description ? ` (${description})` : ''}`);
+        debugLog(`Saved field: ${key} = ${value}`, { description }, "info");
+        // Reload to reflect changes
+        loadEnvVars();
     } catch (error) {
         console.error("Error saving field:", error);
         showToast('Error saving field');
-        debugLog("Error saving field:", error);
+        debugLog("Error saving field:", error, "error");
         button.textContent = '❌ Error';
         setTimeout(() => {
             button.textContent = originalText;
@@ -215,176 +309,182 @@ async function saveField(button) {
     }
 }
 
+//////////////////////////////
+// saveEnvVars
+//////////////////////////////
 function saveEnvVars() {
-  const container = document.getElementById("envContainer");
-  const rows = container.querySelectorAll(".variable-card");
-  const newEnv = {};
-  
-  rows.forEach((row) => {
-    const inputs = row.querySelectorAll("input");
-    const k = inputs[0].value.trim();
-    const v = inputs[1].value;
-    if (k) newEnv[k] = v;
-  });
+    const rows = envContainerEl.querySelectorAll(".variable-card");
+    const newEnv = {};
 
-  debugLog("Saving variables:", newEnv);
-
-  // For backward compatibility, save in both formats
-  chrome.storage.local.set({ 
-    superEnvVars: {
-      default: newEnv
-    }
-  }, () => {
-    if (chrome.runtime.lastError) {
-      debugLog("Error saving:", chrome.runtime.lastError);
-      alert("Error saving variables!");
-      return;
-    }
-    debugLog("Variables saved successfully");
-    alert("Variables saved!");
-    checkSavedEnvVars(newEnv);
-  });
-}
-
-// New helper: verify and log debug output
-function checkSavedEnvVars(expectedEnv) {
-  debugLog(`Verifying saved environment variables...`);
-  
-  chrome.storage.local.get(["superEnvVars"], (data) => {
-    if (chrome.runtime.lastError) {
-      debugLog("Error verifying saved vars:", chrome.runtime.lastError);
-      return;
-    }
-
-    const vars = data.superEnvVars || {};
-    const actual = typeof vars === 'object' && !Array.isArray(vars) ? 
-                   (vars.default || vars) : {};
-    
-    const expectedStr = JSON.stringify(expectedEnv, null, 2);
-    const actualStr = JSON.stringify(actual, null, 2);
-    
-    const matches = expectedStr === actualStr;
-    
-    debugLog(`Verification ${matches ? 'SUCCESS' : 'FAILED'}`, {
-      expected: expectedEnv,
-      actual: actual
+    rows.forEach((row) => {
+        const inputs = row.querySelectorAll("input");
+        const k = inputs[0].value.trim();
+        const v = inputs[1].value;
+        if (k) newEnv[k] = v;
     });
-  });
+
+    debugLog("Saving variables:", newEnv);
+
+    chrome.storage.local.set({
+        superEnvVars: { default: newEnv }
+    }, () => {
+        if (chrome.runtime.lastError) {
+            debugLog("Error saving:", chrome.runtime.lastError, "error");
+            alert("Error saving variables!");
+            return;
+        }
+        debugLog("Variables saved successfully", null, "info");
+        alert("Variables saved!");
+        checkSavedEnvVars(newEnv);
+        // reload
+        loadEnvVars();
+    });
 }
 
-// Add new function for test panel
+//////////////////////////////
+// checkSavedEnvVars
+//////////////////////////////
+function checkSavedEnvVars(expectedEnv) {
+    debugLog(`Verifying saved environment variables...`, null, "debug");
+    chrome.storage.local.get(["superEnvVars"], (data) => {
+        if (chrome.runtime.lastError) {
+            debugLog("Error verifying saved vars:", chrome.runtime.lastError, "error");
+            return;
+        }
+
+        const vars = data.superEnvVars || {};
+        const actual = (typeof vars === 'object' && !Array.isArray(vars)) 
+            ? (vars.default || vars)
+            : {};
+
+        const expectedStr = JSON.stringify(expectedEnv, null, 2);
+        const actualStr = JSON.stringify(actual, null, 2);
+
+        const matches = (expectedStr === actualStr);
+        debugLog(`Verification ${matches ? 'SUCCESS' : 'FAILED'}`, { expectedEnv, actual }, matches ? "info" : "warn");
+    });
+}
+
+//////////////////////////////
+// refreshEnvTest
+//////////////////////////////
 function refreshEnvTest() {
-  debugLog("Refreshing environment variables test panel...");
-  
-  chrome.storage.local.get(["superEnvVars"], (result) => {
-    if (chrome.runtime.lastError) {
-      debugLog("Error loading vars for test:", chrome.runtime.lastError);
-      return;
-    }
-    
-    const testOutput = document.getElementById("envTestOutput");
-    const vars = result.superEnvVars || {};
-    
-    // Format the output nicely
-    let output = "Current Environment Variables:\n";
-    output += "===========================\n\n";
-    
-    if (typeof vars === 'object') {
-      // Handle both old and new formats
-      const defaultVars = vars.default || vars;
-      
-      if (Object.keys(defaultVars).length === 0) {
-        output += "No environment variables set.\n";
-      } else {
-        Object.entries(defaultVars).forEach(([key, value]) => {
-          output += `${key} = ${value}\n`;
-        });
-      }
-      
-      // If we have other named environments, show them too
-      const otherEnvs = Object.keys(vars).filter(k => k !== 'default');
-      if (otherEnvs.length > 0) {
-        output += "\nNamed Environments:\n";
-        output += "===================\n\n";
-        otherEnvs.forEach(envName => {
-          output += `[${envName}]:\n`;
-          Object.entries(vars[envName]).forEach(([key, value]) => {
-            output += `  ${key} = ${value}\n`;
-          });
-          output += "\n";
-        });
-      }
-    }
-    
-    output += "\nLast updated: " + new Date().toISOString();
-    testOutput.textContent = output;
-    
-    debugLog("Test panel refreshed");
-  });
+    debugLog("Refreshing environment variables test panel...", null, "info");
+    chrome.storage.local.get(["superEnvVars"], (result) => {
+        if (chrome.runtime.lastError) {
+            debugLog("Error loading vars for test:", chrome.runtime.lastError, "error");
+            return;
+        }
+
+        const testOutput = document.getElementById("envTestOutput");
+        if (!testOutput) {
+            debugLog("No #envTestOutput found, skipping test display", null, "warn");
+            return;
+        }
+
+        const vars = result.superEnvVars || {};
+        let output = "Current Environment Variables:\n";
+        output += "===========================\n\n";
+
+        if (typeof vars === 'object') {
+            const defaultVars = vars.default || {};
+            if (Object.keys(defaultVars).length === 0) {
+                output += "No environment variables set.\n";
+            } else {
+                for (const [key, value] of Object.entries(defaultVars)) {
+                    output += `${key} = ${value}\n`;
+                }
+            }
+
+            const otherEnvs = Object.keys(vars).filter(k => k !== 'default');
+            if (otherEnvs.length > 0) {
+                output += "\nNamed Environments:\n";
+                output += "===================\n\n";
+                for (const envName of otherEnvs) {
+                    output += `[${envName}]:\n`;
+                    for (const [key, value] of Object.entries(vars[envName])) {
+                        output += `  ${key} = ${value}\n`;
+                    }
+                    output += "\n";
+                }
+            }
+        }
+        
+        output += "\nLast updated: " + new Date().toISOString();
+        testOutput.textContent = output;
+
+        debugLog("Test panel refreshed", null, "info");
+    });
 }
 
-// In sidepanel.js, add:
+//////////////////////////////
+// updatePluginsList
+//////////////////////////////
 async function updatePluginsList() {
-  const pluginsDiv = document.getElementById('superpowers-plugins');
-  if (!pluginsDiv) return;
-  
-  try {
-    const response = await chrome.runtime.sendMessage({ type: "GET_ACTIVE_PLUGINS" });
-    if (response?.plugins) {
-      pluginsDiv.innerHTML = `
-        <strong>Active Plugins:</strong><br>
-        ${response.plugins.map(p => `- ${p.name}`).join('<br>')}
-      `;
+    const pluginsDiv = document.getElementById('superpowers-plugins');
+    if (!pluginsDiv) return;
+
+    try {
+        const response = await chrome.runtime.sendMessage({ type: "GET_ACTIVE_PLUGINS" });
+        if (response?.plugins) {
+            pluginsDiv.innerHTML = `
+                <strong>Active Plugins:</strong><br>
+                ${response.plugins.map(p => `- ${p.name}`).join('<br>')}
+            `;
+        }
+    } catch (err) {
+        debugLog('Failed to get plugins list:', err, "warn");
     }
-  } catch (err) {
-    console.warn('Failed to get plugins list:', err);
-  }
 }
 
+//////////////////////////////
+// toggleSecret
+//////////////////////////////
 function toggleSecret(button) {
     try {
         const card = button.closest('.variable-card');
         const valueInput = card.querySelector('.input-group:nth-child(2) input');
         if (valueInput) {
-            valueInput.type = valueInput.type === 'password' ? 'text' : 'password';
-            button.textContent = valueInput.type === 'password' ? '👁️ Show' : '👁️ Hide';
+            valueInput.type = (valueInput.type === 'password') ? 'text' : 'password';
+            button.textContent = (valueInput.type === 'password') ? '👁️ Show' : '👁️ Hide';
         }
     } catch (error) {
-        console.error('Toggle error:', error);
+        debugLog('Toggle error:', error, "error");
         showToast('Error toggling field visibility');
     }
 }
 
+//////////////////////////////
+// removeRow
+//////////////////////////////
 function removeRow(button) {
     try {
         const card = button.closest('.variable-card');
         if (!card) return;
 
-        // Animate removal
         card.style.opacity = '0';
         card.style.transform = 'translateX(100px)';
-        
         setTimeout(() => {
             card.remove();
             // If no variables left, add an empty one
-            const container = document.getElementById('envContainer');
-            if (!container.children.length) {
+            if (!envContainerEl.children.length) {
                 addRow();
             }
             showToast('Variable removed');
         }, 200);
     } catch (error) {
-        console.error('Remove error:', error);
+        debugLog('Remove error:', error, "error");
         showToast('Error removing variable');
     }
 }
 
-// Improved debug clear functionality
+//////////////////////////////
+// clearDebug
+//////////////////////////////
 function clearDebug() {
     try {
-        const debugOut = document.getElementById("debugOutput");
-        if (debugOut) {
-            debugOut.textContent = '';
+        if (debugOutputEl) {
+            debugOutputEl.textContent = '';
             showToast('Debug output cleared');
         }
     } catch (error) {
@@ -392,13 +492,14 @@ function clearDebug() {
     }
 }
 
-// Add new event delegation handler
+//////////////////////////////
+// handleVariableActions
+//////////////////////////////
 function handleVariableActions(event) {
     const target = event.target;
     if (!target.classList.contains('action-button')) return;
 
     const button = target;
-    
     if (button.classList.contains('toggle')) {
         toggleSecret(button);
     } else if (button.classList.contains('delete')) {
@@ -407,4 +508,3 @@ function handleVariableActions(event) {
         saveField(button);
     }
 }
-

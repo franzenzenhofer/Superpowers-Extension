@@ -8,7 +8,6 @@ export const superruntime_extension = {
     
     // Start disabled and clean
     removeEventListeners();
-    restoreConsole();
 
     // Handle method calls
     chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {

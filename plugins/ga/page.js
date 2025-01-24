@@ -84,6 +84,13 @@
     getLoginStatus: methodWrapper('getLoginStatus'),
     test: methodWrapper('test'),
 
+
+    // Admin new calls
+    listAccounts: methodWrapper("listAccounts"),
+    listAccountSummaries: methodWrapper("listAccountSummaries"),
+    listProperties: methodWrapper("listProperties"),
+
+
     // GA core
     runReport: methodWrapper('runReport'),
     runPivotReport: methodWrapper('runPivotReport'),

@@ -5,44 +5,109 @@ export const superwebrequest_extension = {
   name: "superwebrequest_extension",
 
   install(context) {
-    // if (context.debug) {
-    //   console.log("[superwebrequest_extension] Installing superwebrequest in SW...");
-    // }
+    let enabled = false;
+    const eventListeners = new Map();
 
-    // 1) Listen for "SUPER_WEBREQUEST_CALL" messages from content.js => page.js
     chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-      if (request.type !== "SUPER_WEBREQUEST_CALL") return false;
+      if (request.type === "SUPER_WEBREQUEST_CONTROL") {
+        if (request.action === "turnOn") {
+          enabled = true;
+          setupEventListeners();
+        } else if (request.action === "turnOff") {
+          enabled = false;
+          removeEventListeners();
+        }
+        sendResponse({ success: true });
+        return true;
+      }
+
+      if (!enabled || request.type !== "SUPER_WEBREQUEST_CALL") return false;
 
       const { requestId, methodName, args } = request;
-      // console.log(`[superwebrequest_extension] method=${methodName}, requestId=${requestId}`);
-
       callChromeWebRequest(methodName, args)
         .then(result => sendResponse({ success: true, result }))
         .catch(err => sendResponse({ success: false, error: err.message || String(err) }));
 
-      return true; // indicates async response
+      return true;
     });
 
-    // Setup webRequest event listeners
-    const webRequestEvents = [
-      'onBeforeRequest',
-      'onBeforeSendHeaders',
-      'onSendHeaders',
-      'onHeadersReceived',
-      'onAuthRequired',
-      'onResponseStarted',
-      'onBeforeRedirect',
-      'onCompleted',
-      'onErrorOccurred'
-    ];
+    function setupEventListeners() {
+      const webRequestEvents = [
+        'onBeforeRequest',
+        'onBeforeSendHeaders',
+        'onSendHeaders',
+        'onHeadersReceived',
+        'onAuthRequired',
+        'onResponseStarted',
+        'onBeforeRedirect',
+        'onCompleted',
+        'onErrorOccurred'
+      ];
 
-    webRequestEvents.forEach(evtName => {
-      const evtObject = chrome.webRequest[evtName];
-      if (!evtObject || !evtObject.addListener) return;
-      evtObject.addListener((...args) => {
-        broadcastWebRequestEvent(evtName, args);
-      }, { urls: ["<all_urls>"] });
-    });
+      webRequestEvents.forEach(evtName => {
+        const listener = (...args) => {
+          if (enabled) broadcastWebRequestEvent(evtName, args);
+        };
+        eventListeners.set(evtName, listener);
+        
+        const evtObject = chrome.webRequest[evtName];
+        if (evtObject?.addListener) {
+          evtObject.addListener(listener, { urls: ["<all_urls>"] });
+        }
+      });
+    }
+
+    function removeEventListeners() {
+      eventListeners.forEach((listener, evtName) => {
+        const evtObject = chrome.webRequest[evtName];
+        if (evtObject?.removeListener) {
+          evtObject.removeListener(listener);
+        }
+      });
+      eventListeners.clear();
+    }
+
+    async function broadcastWebRequestEvent(eventName, eventArgs) {
+      if (!enabled) return;
+      
+      try {
+        const tabs = await chrome.tabs.query({
+          status: "complete",
+          url: ["http://*/*", "https://*/*"]
+        });
+
+        for (const tab of tabs) {
+          if (!tab.id || tab.id < 0 || !tab.url || 
+              tab.url.startsWith('chrome://') || 
+              tab.url.startsWith('chrome-extension://')) {
+            continue;
+          }
+
+          try {
+            await Promise.race([
+              chrome.tabs.sendMessage(tab.id, {
+                type: "SUPER_WEBREQUEST_EVENT",
+                eventName,
+                args: eventArgs
+              }),
+              new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 1000))
+            ]);
+          } catch (err) {
+            if (!err.message.includes('Could not establish connection') &&
+                !err.message.includes('message port closed') &&
+                !err.message.includes('Timeout')) {
+              console.debug(`[superwebrequest] Tab ${tab.id} error:`, err.message);
+            }
+          }
+        }
+      } catch (err) {
+        console.debug("[superwebrequest] Broadcast error:", err);
+      }
+    }
+
+    // Start completely disabled
+    enabled = false;
+    removeEventListeners();
   }
 };
 
@@ -83,19 +148,5 @@ function callChromeWebRequest(methodName, args = []) {
         reject(cbErr);
       }
     }
-  });
-}
-
-function broadcastWebRequestEvent(eventName, eventArgs) {
-  chrome.tabs.query({}, (allTabs) => {
-    allTabs.forEach((t) => {
-      if (t.id >= 0) {
-        chrome.tabs.sendMessage(t.id, {
-          type: "SUPER_WEBREQUEST_EVENT",
-          eventName,
-          args: eventArgs,
-        });
-      }
-    });
   });
 }

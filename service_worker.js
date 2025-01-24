@@ -324,22 +324,23 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 });
 
 async function exchangeOAuthToken(data) {
-    const resp = await fetch('https://oauth2.googleapis.com/token', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/x-www-form-urlencoded'
-        },
-        body: new URLSearchParams(data)
-    });
+  const resp = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded'
+    },
+    body: new URLSearchParams(data)
+  });
 
-    const result = await resp.json();
-    
-    if (!resp.ok) {
-        throw new Error(result.error_description || result.error || 'Token exchange failed');
-    }
+  const result = await resp.json();
+  
+  if (!resp.ok) {
+    throw new Error(result.error_description || result.error || 'Token exchange failed');
+  }
 
-    return result;
+  return result;
 }
+
 
 // ----------------------------------------------------------------------------
 // 3) Our main initialization function
@@ -429,6 +430,16 @@ chrome.runtime.onInstalled.addListener((details) => {
     previousVersion: details.previousVersion
   });
 
+  try {
+    chrome.contextMenus.create({
+      id: "paste-superpowers-instructions",
+      title: "Paste Superpowers Instructions",
+      contexts: ["editable"]
+    });
+  } catch (err) {
+    console.warn("[service_worker] Could not create context menu:", err);
+  }
+
   if (details.reason === "install" || details.reason === "update") {
     // Only open the welcome page - user can click to open side panel
     chrome.tabs.create({
@@ -453,3 +464,41 @@ setInterval(() => {
     } : 'N/A'
   });
 }, 60000);
+
+
+chrome.contextMenus.onClicked.addListener(async (info, tab) => {
+  if (info.menuItemId === "paste-superpowers-instructions") {
+    try {
+      // Load the README-LLM.md content from extension
+      const readmeUrl = chrome.runtime.getURL("README-LLM.md");
+      const resp = await fetch(readmeUrl);
+      const text = await resp.text();
+
+      // Insert the readme text at the caret in the current editable
+      await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        func: (content) => {
+          const active = document.activeElement;
+          if (active && active.isContentEditable) {
+            document.execCommand("insertText", false, content);
+          } else if (active && (active.tagName === "TEXTAREA" || active.tagName === "INPUT")) {
+            const start = active.selectionStart;
+            const end = active.selectionEnd;
+            const original = active.value;
+            active.value = original.slice(0, start) + content + original.slice(end);
+            // Move caret after inserted text
+            const newPos = start + content.length;
+            active.selectionStart = newPos;
+            active.selectionEnd = newPos;
+          } else {
+            alert("Please click into a text box or editable area before using 'Paste Superpowers Instructions'.");
+          }
+        },
+        args: [text]
+      });
+    } catch (err) {
+      console.error("Failed to paste instructions:", err);
+    }
+  }
+});
+

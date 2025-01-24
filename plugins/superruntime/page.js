@@ -4,9 +4,27 @@
     window.Superpowers = {};
   }
 
+  let enabled = false;
   const runtimeEventListeners = {};
 
+  function turnOn() {
+    enabled = true;
+    chrome.runtime.sendMessage({
+      type: "SUPER_RUNTIME_CONTROL",
+      action: "turnOn"
+    });
+  }
+
+  function turnOff() {
+    enabled = false;
+    chrome.runtime.sendMessage({
+      type: "SUPER_RUNTIME_CONTROL",
+      action: "turnOff"
+    });
+  }
+
   window.addEventListener("message", (event) => {
+    if (!enabled) return;
     if (!event.data || event.data.direction !== "from-content-script") return;
     
     if (event.data.type === "SUPER_RUNTIME_EVENT") {
@@ -23,6 +41,9 @@
   });
 
   function callMethod(methodName, ...args) {
+    if (!enabled) {
+      return Promise.reject(new Error("Superruntime is not enabled"));
+    }
     return new Promise((resolve, reject) => {
       const requestId = Math.random().toString(36).slice(2);
 
@@ -63,9 +84,9 @@
       .filter(fn => fn !== callback);
   }
 
-  const runtimeProxy = new Proxy({ on, off }, {
+  const runtimeProxy = new Proxy({ on, off, turnOn, turnOff }, {
     get: (target, prop) => {
-      if (prop === "on" || prop === "off") {
+      if (prop === "on" || prop === "off" || prop === "turnOn" || prop === "turnOff") {
         return target[prop];
       }
       return (...args) => callMethod(prop, ...args);

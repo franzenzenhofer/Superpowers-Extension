@@ -1,6 +1,6 @@
 // plugins/ga/extension.js
-// Service worker bridging for GA.
-// Listens for messages from content scripts => calls ga.js => responds.
+// Service worker bridging for GA plugin.
+// Relays messages from content => calls ga.js => responds to content => page.
 
 import {
   login,
@@ -16,7 +16,10 @@ import {
   createAudienceExport,
   getAudienceExport,
   queryAudienceExport,
-  listAudienceExports
+  listAudienceExports,
+  listAccounts,
+  listAccountSummaries,
+  listProperties
 } from "./ga.js";
 
 export const ga_extension = {
@@ -43,6 +46,18 @@ export const ga_extension = {
           promise = test();
           break;
 
+        // GA Admin
+        case "listAccounts":
+          promise = listAccounts(...args);
+          break;
+        case "listAccountSummaries":
+          promise = listAccountSummaries(...args);
+          break;
+        case "listProperties":
+          promise = listProperties(...args);
+          break;
+
+        // GA Data
         case "runReport":
           promise = runReport(...args);
           break;
@@ -80,22 +95,19 @@ export const ga_extension = {
           break;
 
         default:
-          promise = Promise.reject(
-            new Error(`[ga_extension] Unknown method: ${methodName}`)
-          );
+          promise = Promise.reject(new Error(`[ga_extension] Unknown method: ${methodName}`));
       }
 
-      if (promise) {
-        promise
-          .then((result) => {
-            sendResponse({ success: true, result });
-          })
-          .catch((error) => {
-            console.error("[ga_extension] error =>", error);
-            sendResponse({ success: false, error: error.message });
-          });
-      }
-      return true;
+      promise
+        .then((result) => {
+          sendResponse({ success: true, result });
+        })
+        .catch((err) => {
+          console.error("[ga_extension] error =>", err);
+          sendResponse({ success: false, error: err.message });
+        });
+
+      return true; // keep sendResponse channel open
     });
   }
 };
