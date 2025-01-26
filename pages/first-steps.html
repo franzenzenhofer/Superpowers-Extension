@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>🦸 Superpowers Extension — Your Heroic Setup Guide</title>
+  <style>
+    /* Minimal "Superman-style" color palette: red, blue, yellow. */
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: sans-serif;
+      background: #f5f5f5;
+      color: #333;
+      line-height: 1.5;
+    }
+    main {
+      max-width: 850px;
+      margin: 2rem auto;
+      background: #fff;
+      padding: 2rem 2.5rem;
+      border: 4px solid #0033A0; /* Superman Blue */
+      border-radius: 6px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+    }
+    h1, h2, h3 {
+      margin-top: 1em;
+      margin-bottom: 0.5em;
+      font-weight: bold;
+      color: #0033A0; /* Superman Blue headings */
+    }
+    p, li {
+      margin: 0.8em 0;
+      color: #444;
+    }
+    a {
+      color: #E32636; /* A vibrant red link. */
+      text-decoration: none;
+    }
+    a:hover {
+      text-decoration: underline;
+    }
+    code {
+      background: #fffad7; /* light yellow background */
+      padding: 2px 4px;
+      border-radius: 4px;
+      font-size: 0.95em;
+      color: #333;
+    }
+    .highlight {
+      background: #fffde2;
+      border-left: 6px solid #ffed00; /* bright yellow accent */
+      padding: 1rem;
+      margin: 1.25rem 0;
+    }
+    .emoji-title {
+      font-size: 1.25em;
+      color: #E32636; /* red, stands out */
+    }
+    .step-list {
+      list-style: none;
+      padding-left: 0;
+    }
+    .step-list li {
+      margin: 0.7em 0;
+      padding-left: 1.8em;
+      position: relative;
+    }
+    .step-list li::before {
+      content: "🦸"; /* super hero emoji for bullet points */
+      position: absolute;
+      left: 0;
+      top: 0.15em;
+    }
+    .mini-box {
+      background: #fafafa;
+      border: 2px dashed #ccc;
+      border-radius: 4px;
+      padding: 0.6em;
+      margin: 1em 0;
+    }
+    .gpt-link {
+      background: #eee;
+      padding: 0.3em 0.6em;
+      border-radius: 4px;
+      color: #444;
+    }
+  </style>
+</head>
+<body>
+<main>
+  
+  <h1>🦸 Superpowers Extension: Heroic Setup Guide</h1>
+  <p style="text-align: right;">
+    <a href="welcome.html">← Back to Welcome</a>
+  </p>
+  <p>
+    Congratulations! You’re about to use <strong>Superpowers</strong>, a Chrome extension that 
+    grants magical powers to your local HTML pages—cross-domain fetches, storing environment 
+    variables, <em>AI calls</em> with GPT-4o, capturing screenshots, Google Auth flows, 
+    and more. Follow these steps to become a true web hero!
+  </p>
+  
+  <hr>
+
+  <!-- 1) AI Key FIRST! -->
+  <h2 class="emoji-title">1) Critical First Step: Your AI Key 🦸‍♂️</h2>
+  <p>
+    To access GPT-4o or any OpenAI features, you need your <code>OPENAI_API_KEY</code>. 
+    Here’s how to add it to Superpowers:
+  </p>
+  <ul class="step-list">
+    <li>
+      <strong>Get Your API Key from OpenAI</strong>  
+      <br>
+      - Sign in at <a href="https://platform.openai.com/account/api-keys" target="_blank">
+        platform.openai.com
+      </a>  
+      <br>
+      - Copy your secret key.
+    </li>
+    <li>
+      <strong>Open Superpowers’ Side Panel</strong>  
+      <br>
+      - Click the extension’s icon in Chrome.  
+      - Make sure you are on a page with 
+        <code>&lt;meta name="superpowers" content="enabled"&gt;</code>.
+    </li>
+    <li>
+      <strong>Go to Environment Variable Manager:</strong>  
+      <br>
+      Create a new variable:  
+      <br>
+      <code>Key = OPENAI_API_KEY</code>,  
+      <code>Value = (your actual key)</code>.
+    </li>
+    <li>
+      <strong>Test GPT-4o calls!</strong>  
+      <br>
+      For example:  
+      <br>
+      <code>await Superpowers.OpenAI.chatCompletion({ model: "gpt-4o", messages: [ ... ] })</code>
+    </li>
+  </ul>
+  <div class="highlight">
+    If you’re new to creating an OpenAI key for a desktop or local app, see 
+    <a class="gpt-link" href="https://chat.openai.com/?model=gpt-4&prompt=How%20to%20get%20OpenAI%20API%20key%20for%20a%20Desktop%20app" target="_blank">
+      GPT: Desktop App Key
+    </a> 
+    for more details.
+  </div>
+
+  <hr>
+
+  <!-- 2) Installing in Chrome Dev Mode -->
+  <h2 class="emoji-title">2) Installing Superpowers in Chrome 🦸‍♀️</h2>
+  <p>Next, install the extension in “unpacked” developer mode:</p>
+  <ul class="step-list">
+    <li>
+      <strong>Clone or Download</strong><br>
+      <code>git clone https://github.com/franzenzenhofer/Superpowers-Extension.git</code>
+    </li>
+    <li>
+      <strong>Go to <code>chrome://extensions</code></strong> in your Chrome.  
+      <br>Enable <em>Developer Mode</em> (top right).
+    </li>
+    <li>
+      <strong>Select “Load unpacked”</strong> and pick the 
+      <code>Superpowers-Extension</code> folder.
+    </li>
+    <li>
+      Done! A “Superpowers” icon should now appear in your Chrome toolbar.
+    </li>
+  </ul>
+
+  <hr>
+
+  <!-- 3) Basic Usage & Env Vars -->
+  <h2 class="emoji-title">3) Basic Usage & Environment Variables 🦸</h2>
+  <p>
+    With <strong>Environment Variable Manager</strong> in the side panel, you can store 
+    any key-value pair (like <code>OPENAI_API_KEY</code>, <code>ENV_MODE</code>, etc.). Then in your local HTML:
+  </p>
+  <div class="mini-box">
+    <code>&lt;meta name="superpowers" content="enabled"&gt;</code> (in the <code>&lt;head&gt;</code>).
+    <br><br>
+    <code>
+    (async () =&gt; {<br>
+    &nbsp;&nbsp;await new Promise(r =&gt; setTimeout(r, 300)); // wait for injection<br>
+    &nbsp;&nbsp;const vars = await Superpowers.getEnvVars();<br>
+    &nbsp;&nbsp;console.log("My env:", vars);<br>
+    })();
+    </code>
+  </div>
+
+  <hr>
+
+  <!-- 4) Google Auth (Desktop OAuth) -->
+  <h2 class="emoji-title">4) Google Auth for Search Console &amp; Analytics 🦸</h2>
+  <p>
+    If you want to call <code>Superpowers.Gsc</code> or <code>Superpowers.Ga</code> from a local page,
+    you need to store your <em>client_secret</em> (Desktop style) and generate a <em>token</em>.
+  </p>
+  <ul class="step-list">
+    <li>
+      <strong>Create Desktop OAuth Credentials</strong>  
+      <br>
+      In <a href="https://console.cloud.google.com/apis/credentials" target="_blank">
+        Google Cloud Console
+      </a>, pick <em>Desktop app</em> and download <code>client_secret_...json</code>.
+    </li>
+    <li>
+      <strong>Go to “Credentials Manager”</strong> in the extension:  
+      <br>
+      <em>(You can click “Credentials” in the side panel or open 
+      <code>credentials_manager.html</code> in the extension.)</em>
+    </li>
+    <li>
+      <strong>Drop your <code>client_secret</code></strong> file or add it manually.  
+      <br>It’ll help you get a <code>token.json</code> via an OAuth tab prompt.
+    </li>
+    <li>
+      <strong>Now you can do:</strong>  
+      <br>
+      <code>await Superpowers.Gsc.listSites()</code><br>
+      <code>await Superpowers.Ga.listAccounts()</code>
+    </li>
+  </ul>
+  <div class="highlight">
+    For detailed steps to create a Desktop App OAuth, see 
+    <a class="gpt-link" href="https://chat.openai.com/?model=gpt-4&prompt=How%20to%20create%20OAuth%20credentials%20for%20a%20Desktop%20app" target="_blank">
+      GPT: Desktop OAuth
+    </a>.
+  </div>
+
+  <hr>
+
+  <!-- 5) Cross-Domain Fetch and local HTML -->
+  <h2 class="emoji-title">5) Cross-Domain Fetch from Local HTML 🦸‍♂️</h2>
+  <p>
+    Typically, a local <code>file:///</code> page can’t fetch external domains. 
+    <code>Superpowers.fetch()</code> breaks that barrier:
+  </p>
+  <div class="mini-box">
+    <code>
+      const resp = await Superpowers.fetch("https://anydomain.com/api");<br>
+      if (resp.ok) {<br>
+      &nbsp;&nbsp;const data = await resp.json();<br>
+      &nbsp;&nbsp;console.log("Received data:", data);<br>
+      }
+    </code>
+  </div>
+  
+  <hr>
+
+  <!-- 6) Opening Tabs & HTML Extraction -->
+  <h2 class="emoji-title">6) Opening Tabs & Extracting Rendered HTML 🦸‍♀️</h2>
+  <p>
+    Superpowers can open a new tab or window, let it <em>fully load</em>, and
+    retrieve the final HTML or text:
+  </p>
+  <div class="mini-box">
+    <code>
+    const result = await Superpowers.Urlget.getRenderedPage("https://example.com",{ waitForEvent:"load" });<br>
+    console.log("Full HTML:", result.html);
+    </code>
+  </div>
+  <p>
+    This is a game changer for scraping or automation tasks purely client-side.
+  </p>
+
+  <hr>
+
+  <!-- 7) Capturing Screenshots -->
+  <h2 class="emoji-title">7) Capturing Screenshots 🦸‍♂️</h2>
+  <p>
+    Take snapshots of either the visible area or a full-page view. Perfect for 
+    dynamic screenshots in local workflows:
+  </p>
+  <div class="mini-box">
+    <code>
+    const screenshotDataUrl = await Superpowers.screenshot({<br>
+    &nbsp;&nbsp;url: "https://example.com",<br>
+    &nbsp;&nbsp;captureMode: "full",<br>
+    &nbsp;&nbsp;format: "png"<br>
+    });<br>
+    // Do something with the data URL...
+    </code>
+  </div>
+
+  <hr>
+
+  <!-- 8) GPT-4o usage examples -->
+  <h2 class="emoji-title">8) Superpowers + GPT-4o: Doing More with AI 🦸</h2>
+  <p>
+    Once your <code>OPENAI_API_KEY</code> is set, you can:
+  </p>
+  <ul class="step-list">
+    <li>
+      <strong>Chat Completions</strong>: 
+      <code>Superpowers.OpenAI.chatCompletion({ model:"gpt-4o", messages: [...] })</code>
+    </li>
+    <li>
+      <strong>Image Generation</strong>: 
+      <code>Superpowers.OpenAI.imageGeneration({ prompt:"...", size:"1024x1024" })</code>
+    </li>
+    <li>
+      <strong>Embeddings, Audio, etc.</strong> 
+      <br>
+      All typical OpenAI endpoints are bridged by <code>Superpowers.OpenAI</code>.
+    </li>
+  </ul>
+  <p>
+    For advanced GPT tips, 
+    <a class="gpt-link" href="https://chat.openai.com/?model=gpt-4&prompt=Advanced%20GPT-4%20API%20prompting%20techniques" target="_blank">
+      GPT-4 Prompting
+    </a>.
+  </p>
+
+  <hr>
+
+  <!-- 9) Summarize steps -->
+  <h2 class="emoji-title">9) Summary of Steps 🦸</h2>
+  <p>
+    Your hero's journey in short:
+  </p>
+  <ol class="step-list">
+    <li>Obtain <code>OPENAI_API_KEY</code>, set it in side panel env manager.</li>
+    <li>Install extension in <em>developer mode</em> from GitHub.</li>
+    <li>Add <em>Desktop OAuth client</em> if you want Google GSC/GA calls.  Drop it in <em>Credentials Manager</em>, get token.</li>
+    <li>Insert <code>&lt;meta name="superpowers" content="enabled"&gt;</code> into any local HTML’s <code>&lt;head&gt;</code>.</li>
+    <li>Use <code>window.Superpowers</code> to do cross-domain fetch, AI calls, screenshot, etc.</li>
+  </ol>
+
+  <hr>
+
+  <p style="text-align:center; font-size:1.1em;">
+    <strong>🦸 You now have Superpowers! 🦸</strong>
+    <br>
+    Need more help?  
+    <a href="https://github.com/franzenzenhofer/Superpowers-Extension" target="_blank">Visit the GitHub Repo</a> or 
+    ask <a class="gpt-link" href="https://chat.openai.com/?model=gpt-4&prompt=I%20need%20help%20using%20Superpowers%20Chrome%20extension" target="_blank">
+      GPT
+    </a>.
+  </p>
+</main>
+</body>
+</html>
