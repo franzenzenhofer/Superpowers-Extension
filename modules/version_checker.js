@@ -1,3 +1,5 @@
+console.debug("[Version Checker] Module loading...");
+
 const VERSION_CONFIG = {
   GITHUB_VERSION_URL: "https://raw.githubusercontent.com/franzenzenhofer/Superpowers-Extension/main/manifest.json",
   GITHUB_REPO_URL: "https://github.com/franzenzenhofer/Superpowers-Extension",
@@ -8,7 +10,11 @@ const VERSION_CONFIG = {
  * Checks the current version against the GitHub version
  */
 export async function checkVersion() {
-  if (VERSION_CONFIG.hasCheckedVersion) return;
+  console.debug("[Version Check] Starting regular version check...");
+  if (VERSION_CONFIG.hasCheckedVersion) {
+    console.debug("[Version Check] Already checked this session, skipping");
+    return;
+  }
   VERSION_CONFIG.hasCheckedVersion = true;
   
   try {
@@ -16,12 +22,14 @@ export async function checkVersion() {
     const remoteManifest = await response.json();
     const currentVersion = chrome.runtime.getManifest().version;
 
+    console.debug(`[Version Check] Current: ${currentVersion}, Latest: ${remoteManifest.version}`);
+
     if (remoteManifest.version > currentVersion) {
-      // Notify sidepanel about update
+      console.debug("[Version Check] Update available, notifying user");
       notifyUpdate(currentVersion, remoteManifest.version);
-      
-      // Open GitHub on first detection
       chrome.tabs.create({ url: VERSION_CONFIG.GITHUB_REPO_URL });
+    } else {
+      console.debug("[Version Check] Version is current");
     }
   } catch (err) {
     console.debug("[Version Check] Failed:", err);
@@ -33,14 +41,19 @@ export async function checkVersion() {
  * Only notifies if update is available
  */
 export async function checkVersionQuiet() {
+  console.debug("[Version Check] Starting quiet version check...");
   try {
     const response = await fetch(VERSION_CONFIG.GITHUB_VERSION_URL);
     const remoteManifest = await response.json();
     const currentVersion = chrome.runtime.getManifest().version;
 
+    console.debug(`[Version Check] Quiet check - Current: ${currentVersion}, Latest: ${remoteManifest.version}`);
+
     if (remoteManifest.version > currentVersion) {
-      // Only notify if newer version exists
+      console.debug("[Version Check] Update available (quiet mode)");
       notifyUpdate(currentVersion, remoteManifest.version);
+    } else {
+      console.debug("[Version Check] Version is current (quiet mode)");
     }
   } catch (err) {
     console.debug("[Version Check] Silent check failed:", err);
@@ -51,18 +64,24 @@ export async function checkVersionQuiet() {
  * Checks version and notifies sidepanel if update exists
  */
 export async function checkVersionSidepanel() {
+  console.debug("[Version Check] Starting sidepanel version check...");
   try {
     const response = await fetch(VERSION_CONFIG.GITHUB_VERSION_URL);
     const remoteManifest = await response.json();
     const currentVersion = chrome.runtime.getManifest().version;
 
+    console.debug(`[Version Check] Sidepanel check - Current: ${currentVersion}, Latest: ${remoteManifest.version}`);
+
     if (remoteManifest.version > currentVersion) {
+      console.debug("[Version Check] Update available, notifying sidepanel");
       chrome.runtime.sendMessage({
         type: "SIDEPANEL_VERSION_UPDATE",
         currentVersion,
         latestVersion: remoteManifest.version,
         updateUrl: VERSION_CONFIG.GITHUB_REPO_URL
       });
+    } else {
+      console.debug("[Version Check] Version is current (sidepanel check)");
     }
   } catch (err) {
     console.debug("[Version Check] Sidepanel check failed:", err);
@@ -84,13 +103,21 @@ function notifyUpdate(currentVersion, latestVersion) {
 /**
  * Sets up version checking listeners
  */
-export function initializeVersionChecker() {
+export async function initializeVersionChecker() {
+  console.debug("[Version Checker] Initializing...");
+  
+  // Perform immediate first check
+  await checkVersion().catch(err => console.debug("[Version Check] Initial check failed:", err));
+  
   // Check on startup
-  chrome.runtime.onStartup.addListener(checkVersion);
+  chrome.runtime.onStartup.addListener(() => {
+    console.debug("[Version Checker] Startup check triggered");
+    checkVersion();
+  });
   
   // Check on install/update
   chrome.runtime.onInstalled.addListener((details) => {
-    console.log('[Version Checker] Extension event:', details.reason);
+    console.debug('[Version Checker] Extension event:', details.reason);
     checkVersion();
   });
 
@@ -102,4 +129,7 @@ export function initializeVersionChecker() {
       return false;
     }
   });
+
+  console.debug("[Version Checker] Initialization complete");
+  return true;
 }

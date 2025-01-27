@@ -1,8 +1,10 @@
-// service_worker.js (ES module under MV3)
+// Add debug logging for module loading at the very top
+console.debug("[SW] Loading service worker modules...");
 
-// 1) Import your plugin manager at the top
 import { initializePluginManager } from './plugin_manager.js';
-import { initializeVersionChecker } from './modules/version_checker.js';
+import { initializeVersionChecker, checkVersionSidepanel } from './modules/version_checker.js';
+
+console.debug("[SW] Modules imported successfully");
 
 // Keep original references
 const _origRuntimeSendMessage = chrome.runtime.sendMessage.bind(chrome.runtime);
@@ -591,10 +593,18 @@ function setupSidePanelBehavior() {
 (async () => {
   try {
     logSW("Immediate top-level initialization starting...", DEBUG.LEVELS.INFO);
+    console.debug("[SW] Starting initialization sequence");
+    
     await initialize();
-    initializeVersionChecker();  // Add version checker initialization            
-    setupSidePanelBehavior();      
+    console.debug("[SW] Plugin manager initialized");
+    
+    await initializeVersionChecker();  // Make sure to await this
+    console.debug("[SW] Version checker initialized");
+    
+    setupSidePanelBehavior();
+    console.debug("[SW] Sidepanel behavior setup complete");
   } catch (error) {
+    console.error("[SW] Initialization error:", error);
     logSW("Immediate initialization error", DEBUG.LEVELS.ERROR, { error });
   }
 })();
