@@ -368,8 +368,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         // If we're enabling it, also open it
         if (PANEL_STATE.isOpen && chrome.sidePanel?.open) {
           chrome.sidePanel.open({ windowId: sender.tab.windowId });
-          // Add unobtrusive version check when opening panel
-          checkVersionSidepanel().catch(err => console.debug("[Version Check] Silent error:", err));
+          // Add direct version check call here
+          console.debug("[SW] Checking version on sidepanel open");
+          checkVersionSidepanel();  // Direct call without catch
         }
         sendResponse({ success: true, isOpen: PANEL_STATE.isOpen });
       });
