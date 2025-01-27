@@ -164,9 +164,7 @@ function injectSuperpowersUI() {
 }
 
 async function initSuperpowersCS() {
-  /*
   extensionDebugLog("content_script.js => init start...", "info");
-  */
 
   // 1) Check if page wants superpowers
   if (!pageHasSuperpowersMeta()) {
@@ -177,6 +175,8 @@ async function initSuperpowersCS() {
   // 2) Ping the SW to ensure it's alive/initialized
   try {
     await ensureSWLoaded();
+    // Add version check here
+    await chrome.runtime.sendMessage({ type: "CHECK_VERSION_QUIET" });
   } catch (err) {
     extensionDebugLog(`SW ping failed. Cannot proceed => ${err.message}`, "error");
     return; // Without a successful ping, we skip loading plugins

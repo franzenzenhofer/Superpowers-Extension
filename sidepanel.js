@@ -175,6 +175,10 @@ function showUpdateNotice(versionInfo) {
 function init() {
     try {
         debugLog("Sidepanel initializing...");
+        
+        // Add version check at start of init
+        chrome.runtime.sendMessage({ type: "CHECK_VERSION_QUIET" });
+        
         loadEnvVars();
 
         safeAddEventListener("addRowBtn", "click", addRow);
