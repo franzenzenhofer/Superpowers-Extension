@@ -2,6 +2,7 @@
 
 // 1) Import your plugin manager at the top
 import { initializePluginManager } from './plugin_manager.js';
+import { initializeVersionChecker } from './modules/version_checker.js';
 
 // Keep original references
 const _origRuntimeSendMessage = chrome.runtime.sendMessage.bind(chrome.runtime);
@@ -588,7 +589,8 @@ function setupSidePanelBehavior() {
 (async () => {
   try {
     logSW("Immediate top-level initialization starting...", DEBUG.LEVELS.INFO);
-    await initialize();            
+    await initialize();
+    initializeVersionChecker();  // Add version checker initialization            
     setupSidePanelBehavior();      
   } catch (error) {
     logSW("Immediate initialization error", DEBUG.LEVELS.ERROR, { error });
