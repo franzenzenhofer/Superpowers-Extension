@@ -130,6 +130,28 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     }
 });
 
+// Add version check listener
+chrome.runtime.onMessage.addListener((message) => {
+  if (message.type === "VERSION_CHECK" && message.latestVersion) {
+    showUpdateNotice(message);
+  }
+});
+
+function showUpdateNotice(versionInfo) {
+  const updateNotice = document.createElement('div');
+  updateNotice.className = 'update-notice';
+  updateNotice.innerHTML = `
+    <div style="background:#fff3cd;color:#856404;padding:8px;margin:8px;border-radius:4px;border:1px solid #ffeeba;">
+      Update Available: v${versionInfo.latestVersion} 
+      <a href="${versionInfo.updateUrl}" target="_blank" style="color:#533f03;text-decoration:underline;">
+        Update Now
+      </a>
+    </div>
+  `;
+  
+  document.body.insertBefore(updateNotice, document.body.firstChild);
+}
+
 //////////////////////////////
 // init
 //////////////////////////////
