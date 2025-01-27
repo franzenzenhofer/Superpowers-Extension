@@ -6,6 +6,11 @@ const VERSION_CONFIG = {
   hasCheckedVersion: false
 };
 
+// Add cache breaker function
+function getCacheBreakerUrl(url) {
+  return `${url}?cb=${Date.now()}-${Math.random().toString(36).substring(7)}`;
+}
+
 /**
  * Checks the current version against the GitHub version
  */
@@ -18,7 +23,9 @@ export async function checkVersion() {
   VERSION_CONFIG.hasCheckedVersion = true;
   
   try {
-    const response = await fetch(VERSION_CONFIG.GITHUB_VERSION_URL);
+    const versionUrl = getCacheBreakerUrl(VERSION_CONFIG.GITHUB_VERSION_URL);
+    console.debug("[Version Check] Checking URL:", versionUrl);
+    const response = await fetch(versionUrl);
     const remoteManifest = await response.json();
     const currentVersion = chrome.runtime.getManifest().version;
 
@@ -43,7 +50,9 @@ export async function checkVersion() {
 export async function checkVersionQuiet() {
   console.debug("[Version Check] Starting quiet version check...");
   try {
-    const response = await fetch(VERSION_CONFIG.GITHUB_VERSION_URL);
+    const versionUrl = getCacheBreakerUrl(VERSION_CONFIG.GITHUB_VERSION_URL);
+    console.debug("[Version Check] Checking URL:", versionUrl);
+    const response = await fetch(versionUrl);
     const remoteManifest = await response.json();
     const currentVersion = chrome.runtime.getManifest().version;
 
@@ -66,7 +75,9 @@ export async function checkVersionQuiet() {
 export async function checkVersionSidepanel() {
   console.debug("[Version Check] Starting sidepanel version check...");
   try {
-    const response = await fetch(VERSION_CONFIG.GITHUB_VERSION_URL);
+    const versionUrl = getCacheBreakerUrl(VERSION_CONFIG.GITHUB_VERSION_URL);
+    console.debug("[Version Check] Checking URL:", versionUrl);
+    const response = await fetch(versionUrl);
     const remoteManifest = await response.json();
     const currentVersion = chrome.runtime.getManifest().version;
 
