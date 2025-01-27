@@ -1,6 +1,6 @@
 // plugins/superenv/content.js
-// content-script context. 
-// Listen for SUPERENV_GET_VARS / SUPERENV_SET_VARS messages -> call chrome.runtime.
+// content-script context.
+// Listen for SUPERENV_GET_VARS / SUPERENV_SET_VARS / SUPERENV_PROPOSE_VARS messages -> call chrome.runtime.
 
 (function(){
     // Memory management constants
@@ -10,17 +10,16 @@
 
     console.log("[superenv/content.js] loaded in content-script context");
 
-    // Enhanced cache with size checking
     let envVarsCache = null;
     let lastFetchTime = 0;
-    const CACHE_TTL = 1000; // 1 second cache TTL
+    const CACHE_TTL = 1000; // 1 second
 
-    // Memory-efficient queue
+    // Internal queue to batch requests
     const messageQueue = {
         items: [],
         push(item) {
             if (this.items.length >= MAX_QUEUE_LENGTH) {
-                this.items.shift(); // Remove oldest
+                this.items.shift();
             }
             this.items.push(item);
         },
@@ -35,45 +34,49 @@
     let isProcessingQueue = false;
     let frameRequest = null;
 
-    // Fast event type check
+    // We'll accept these events from the page:
+    // 1) SUPERENV_GET_VARS
+    // 2) SUPERENV_SET_VARS (deprecated)
+    // 3) SUPERENV_PROPOSE_VARS
     const VALID_TYPES = {
         SUPERENV_GET_VARS: 1,
-        SUPERENV_SET_VARS: 1
+        SUPERENV_SET_VARS: 1,
+        SUPERENV_PROPOSE_VARS: 1
     };
 
-    // Cleanup function
+    /**
+     * Periodically clear old cache and flush the queue if idle.
+     */
     function performCleanup() {
         // Clear stale cache
         if (lastFetchTime && (Date.now() - lastFetchTime > CACHE_TTL * 2)) {
             envVarsCache = null;
         }
-
         // Clear queue if not processing
         if (!isProcessingQueue) {
             messageQueue.clear();
         }
-
         // Check cache size
         if (envVarsCache && JSON.stringify(envVarsCache).length > MAX_CACHE_SIZE) {
             envVarsCache = null;
         }
-
         if (frameRequest) {
             cancelAnimationFrame(frameRequest);
             frameRequest = null;
         }
     }
 
-    // Set up periodic cleanup
     const cleanupInterval = setInterval(performCleanup, CLEANUP_INTERVAL);
 
-    // Clean up on unload
+    // Clean up on window unload
     window.addEventListener('unload', () => {
         clearInterval(cleanupInterval);
         performCleanup();
     }, { once: true });
 
-    // Modified processMessageQueue with memory checks
+    /**
+     * Main queue processor that handles up to 10 requests from the queue at once.
+     */
     async function processMessageQueue() {
         if (messageQueue.length === 0) {
             isProcessingQueue = false;
@@ -81,115 +84,138 @@
         }
 
         isProcessingQueue = true;
-
-        // Process in smaller chunks
         const chunk = messageQueue.items.splice(0, 10);
+
+        // We'll store requests by type => Map<requestId, { event, resolve }>
         const getVarsRequests = new Map();
         const setVarsRequests = new Map();
-        
-        // Group similar requests
-        chunk.forEach(({event, resolve}) => {
-            const type = event.data?.type;
-            if (type === 'SUPERENV_GET_VARS') {
-                getVarsRequests.set(event.data.requestId, {event, resolve});
-            } else if (type === 'SUPERENV_SET_VARS') {
-                setVarsRequests.set(event.data.requestId, {event, resolve});
-            }
-        });
+        const proposeVarsRequests = new Map();
 
         try {
-            // Process GET requests with size check
+            // Categorize each item from the chunk
+            chunk.forEach(({ event, resolve }) => {
+                const type = event.data?.type;
+                switch (type) {
+                    case 'SUPERENV_GET_VARS':
+                        getVarsRequests.set(event.data.requestId, { event, resolve });
+                        break;
+                    case 'SUPERENV_SET_VARS':
+                        setVarsRequests.set(event.data.requestId, { event, resolve });
+                        break;
+                    case 'SUPERENV_PROPOSE_VARS':
+                        proposeVarsRequests.set(event.data.requestId, { event, resolve });
+                        break;
+                    default:
+                        // ignore
+                        break;
+                }
+            });
+
+            // Handle GET_VARS
             if (getVarsRequests.size > 0) {
                 const vars = await getEnvVars();
-                if (JSON.stringify(vars).length <= MAX_CACHE_SIZE) {
-                    getVarsRequests.forEach(({event, resolve}) => {
-                        resolve({
-                            direction: "from-content-script",
-                            type: "SUPERENV_GET_VARS_RESPONSE",
-                            requestId: event.data.requestId,
-                            success: true,
-                            result: vars
-                        });
-                    });
-                }
-            }
-
-            // Process SET requests (take only the latest one)
-            if (setVarsRequests.size > 0) {
-                const lastSetRequest = Array.from(setVarsRequests.values()).pop();
-                const response = await new Promise(resolve => {
-                    chrome.runtime.sendMessage({
-                        type: "SET_ENV_VARS",
-                        envVars: lastSetRequest.event.data.vars
-                    }, (resp) => {
-                        if (resp?.success) {
-                            envVarsCache = lastSetRequest.event.data.vars;
-                            lastFetchTime = Date.now();
-                        }
-                        resolve(resp);
+                getVarsRequests.forEach(({ event, resolve }) => {
+                    resolve({
+                        direction: "from-content-script",
+                        type: "SUPERENV_GET_VARS_RESPONSE",
+                        requestId: event.data.requestId,
+                        success: true,
+                        result: vars
                     });
                 });
+            }
 
-                // Respond to all SET requests with the final state
-                setVarsRequests.forEach(({event, resolve}) => {
+            // Handle SET_VARS (deprecated)
+            if (setVarsRequests.size > 0) {
+                setVarsRequests.forEach(({ event, resolve }) => {
                     resolve({
                         direction: "from-content-script",
                         type: "SUPERENV_SET_VARS_RESPONSE",
                         requestId: event.data.requestId,
-                        success: !!(response?.success),
-                        result: response || {}
+                        success: false,
+                        result: { error: "Deprecated setEnvVars, no action" }
                     });
                 });
             }
+
+            // Handle proposeVars
+            if (proposeVarsRequests.size > 0) {
+                for (const [rqId, { event, resolve }] of proposeVarsRequests) {
+                    const { name, description } = event.data.payload || {};
+                    try {
+                        const result = await proposeEnvVarInExtension(name, description);
+                        resolve({
+                            direction: "from-content-script",
+                            type: "SUPERENV_PROPOSE_VARS_RESPONSE",
+                            requestId: rqId,
+                            success: true,
+                            result
+                        });
+                    } catch (err) {
+                        resolve({
+                            direction: "from-content-script",
+                            type: "SUPERENV_PROPOSE_VARS_RESPONSE",
+                            requestId: rqId,
+                            success: false,
+                            error: err.message || String(err)
+                        });
+                    }
+                }
+            }
+
         } catch (error) {
             console.error('[superenv] Queue processing error:', error);
-        }
-
-        // Clear processed messages
-        messageQueue.clear();
-        
-        // Schedule next batch if needed
-        if (messageQueue.length > 0) {
-            frameRequest = requestAnimationFrame(() => processMessageQueue());
-        } else {
-            isProcessingQueue = false;
+            // Reject all pending requests in the chunk
+            [...getVarsRequests.values(), ...setVarsRequests.values(), ...proposeVarsRequests.values()]
+                .forEach(({ event, resolve }) => {
+                    resolve({
+                        direction: "from-content-script",
+                        type: `${event.data.type}_RESPONSE`,
+                        requestId: event.data.requestId,
+                        success: false,
+                        error: "Internal queue processing error"
+                    });
+                });
+        } finally {
+            // Always clean up, regardless of success or failure
+            messageQueue.items = messageQueue.items.filter(item => !chunk.includes(item));
+            
+            // Schedule next batch if there are more items
+            if (messageQueue.length > 0) {
+                frameRequest = requestAnimationFrame(() => processMessageQueue());
+            } else {
+                isProcessingQueue = false;
+            }
         }
     }
 
-    // Enhanced event listener with memory checks
-    const messageHandler = (event) => {
-        // Fast fail checks
-        if (!event.data?.direction === "from-page") return;
-        if (!VALID_TYPES[event.data.type]) return;
-
-        // Check message size
-        if (JSON.stringify(event.data).length > MAX_CACHE_SIZE) {
-            console.warn('[superenv] Message too large, skipping');
-            return;
-        }
-
-        // Queue the message
-        new Promise(resolve => {
-            messageQueue.push({event, resolve});
-            
-            if (!isProcessingQueue) {
-                if (frameRequest) cancelAnimationFrame(frameRequest);
-                frameRequest = requestAnimationFrame(() => processMessageQueue());
-            }
-        }).then(response => {
-            window.postMessage(response, "*");
+    /**
+     * Helper to propose a var by calling the extension with type="PROPOSE_ENV_VARS"
+     */
+    async function proposeEnvVarInExtension(name, description) {
+        return new Promise((resolve, reject) => {
+            chrome.runtime.sendMessage({
+                type: "PROPOSE_ENV_VARS",
+                name,
+                description
+            }, (resp) => {
+                if (chrome.runtime.lastError) {
+                    return reject(new Error(chrome.runtime.lastError.message));
+                }
+                if (!resp || !resp.success) {
+                    return reject(new Error(resp?.error || "Unknown error in proposeVars"));
+                }
+                resolve(resp);
+            });
         });
-    };
+    }
 
-    // Optimized event listener
-    window.addEventListener("message", messageHandler);
-
-    // Enhanced getEnvVars with memory protection
+    /**
+     * Returns the default environment from local cache if fresh, else from extension storage
+     */
     async function getEnvVars() {
         const now = Date.now();
-        if (envVarsCache && 
-            (now - lastFetchTime) < CACHE_TTL && 
-            JSON.stringify(envVarsCache).length <= MAX_CACHE_SIZE) {
+        if (envVarsCache && (now - lastFetchTime) < CACHE_TTL && JSON.stringify(envVarsCache).length <= MAX_CACHE_SIZE) {
             return envVarsCache;
         }
 
@@ -201,48 +227,32 @@
             });
         });
     }
-})();
 
-// plugins/superdebug/content.js
-(function() {
-    const DEBUG = {
-        log: (msg) => console.log(`[superdebug/content.js] ${msg}`)
+    /**
+     * Handler for incoming postMessage from the page
+     */
+    const messageHandler = (event) => {
+        if (!event.data || event.data.direction !== "from-page") return;
+        if (!VALID_TYPES[event.data.type]) return;
+
+        // If the message is huge, skip
+        if (JSON.stringify(event.data).length > MAX_CACHE_SIZE) {
+            console.warn('[superenv] Message too large, skipping');
+            return;
+        }
+
+        // Wrap the response in a promise
+        new Promise(resolve => {
+            messageQueue.push({ event, resolve });
+            if (!isProcessingQueue) {
+                if (frameRequest) cancelAnimationFrame(frameRequest);
+                frameRequest = requestAnimationFrame(() => processMessageQueue());
+            }
+        }).then(response => {
+            window.postMessage(response, "*");
+        });
     };
 
-    // Send debug message to service worker and wait for acknowledgment
-    async function sendDebugMessage(message, level, source) {
-        return new Promise((resolve) => {
-            chrome.runtime.sendMessage({
-                type: "SUPERDEBUG_LOG",
-                message,
-                level,
-                source,
-                timestamp: new Date().toISOString()
-            }, (response) => {
-                if (chrome.runtime.lastError) {
-                    DEBUG.log(`runtime.lastError: ${JSON.stringify(chrome.runtime.lastError)}`);
-                    // Still resolve since the message was logged locally
-                    resolve();
-                    return;
-                }
-                resolve(response);
-            });
-        });
-    }
+    window.addEventListener("message", messageHandler);
 
-    // Listen for debug messages from page
-    window.addEventListener("message", async (event) => {
-        if (!event.data || event.data.direction !== "from-page") return;
-        if (event.data.type !== "SUPERDEBUG_LOG") return;
-
-        const { message, level, source } = event.data;
-        
-        // Log locally first
-        DEBUG.log(`Debug message: ${message} (${level})`);
-        
-        // Send to service worker and wait for acknowledgment
-        await sendDebugMessage(message, level, source);
-    });
-
-    DEBUG.log("Debug listener initialized");
 })();

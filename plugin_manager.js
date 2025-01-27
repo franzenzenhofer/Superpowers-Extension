@@ -23,6 +23,7 @@ import { gsc_extension } from './plugins/gsc/extension.js';
 import { superconsoleintercept_extension } from './plugins/superconsoleintercept/extension.js';
 import { ga_extension } from './plugins/ga/extension.js';
 import { storage_extension } from './plugins/storage/extension.js';  // Add this import
+import { superreadme_extension } from './plugins/superreadme/extension.js';
 
 
 /**
@@ -94,7 +95,8 @@ export async function initializePluginManager() {
     superconsoleintercept_extension,
     gsc_extension,
     ga_extension,
-    storage_extension  // Add this to the plugin list
+    storage_extension,  // Add this to the plugin list
+    superreadme_extension
   ];
 
   // Install each plugin in parallel

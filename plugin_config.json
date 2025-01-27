@@ -119,6 +119,12 @@
       "extensionPath": "plugins/storage/extension.js",
       "contentScript": "plugins/storage/content.js",
       "pageScript": "plugins/storage/page.js"
+    },
+    {
+      "name": "superreadme",
+      "extensionPath": "plugins/superreadme/extension.js",
+      "contentScript": "plugins/superreadme/content.js",
+      "pageScript": "plugins/superreadme/page.js"
     }
   ]
 }

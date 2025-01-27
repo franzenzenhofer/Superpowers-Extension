@@ -5,177 +5,230 @@
   <meta http-equiv="Content-Security-Policy" content="script-src 'self'">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Welcome to Superpowers</title>
+  <link rel="stylesheet" href="../styles/superpowers.css">
   <style>
-    /* Root Theme Variables */
-    :root {
-      --main-bg: #f9f9f9;
-      --primary-color: #0033A0;
-      --text-color: #333;
-      --highlight-bg: #fffae1;
-      --highlight-border: #ffdb00;
-      --heading-color: #0033A0;
-      --accent-color: #E32636; 
-      --box-bg: #ffffff;
-      --box-border: rgba(0,0,0,0.1);
-      --box-shadow: rgba(0,0,0,0.15);
-      --transition-fast: 0.2s ease-in-out;
-      --button-padding: 0.75rem 1.25rem;
-      --button-radius: 4px;
-    }
-
-    /* Light/dark mode improvements if user prefers dark scheme */
-    @media (prefers-color-scheme: dark) {
-      :root {
-        --main-bg: #1a1a1a;
-        --text-color: #ddd;
-        --box-bg: #2a2a2a;
-        --box-border: rgba(255,255,255,0.15);
-        --box-shadow: rgba(0,0,0,0.35);
-        --heading-color: #6699ff;
-        --accent-color: #ff6666;
-      }
-    }
-
-    * {
-      box-sizing: border-box;
-    }
-
-    body {
-      margin: 0;
-      font-family: system-ui, -apple-system, sans-serif;
-      background: var(--main-bg);
-      color: var(--text-color);
-      line-height: 1.5;
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-    }
-
-    header {
-      background: var(--primary-color);
-      color: #fff;
-      padding: 1rem;
-      text-align: center;
-    }
-    header h1 {
-      margin: 0;
-      font-size: 2rem;
-      font-weight: 700;
-    }
-    header h1 em {
-      font-style: normal;
-      color: var(--accent-color);
-    }
-
+    /* Welcome page specific overrides */
     main {
       max-width: 860px;
-      margin: 2rem auto;
-      background: var(--box-bg);
+      margin: 3rem auto;  /* increased from 2rem */
+      background: var(--panel-bg);
       padding: 2rem 2.5rem;
-      border-radius: 6px;
-      border: 1px solid var(--box-border);
-      box-shadow: 0 2px 6px var(--box-shadow);
+      border-radius: var(--border-radius);
+      border: 1px solid var(--border-strong);
       flex: 1;
     }
 
-    h2, h3 {
-      color: var(--heading-color);
-      margin-bottom: 0.5rem;
-      margin-top: 2rem;
-      font-weight: 600;
+    h2 {
+      margin-top: 3.5rem;  /* increased spacing before headlines */
+      margin-bottom: 1.5rem;  /* increased spacing after headlines */
     }
+
     h2:first-of-type {
-      margin-top: 1rem;
-    }
-    p, li {
-      margin-bottom: 0.8rem;
-    }
-    a {
-      color: var(--primary-color);
-      text-decoration: none;
-      transition: color var(--transition-fast);
-    }
-    a:hover {
-      text-decoration: underline;
-      color: var(--accent-color);
-    }
-    code {
-      background: #fffad7;
-      padding: 2px 4px;
-      border-radius: 4px;
-      color: #333;
-    }
-
-    .highlight {
-      background: var(--highlight-bg);
-      border-left: 4px solid var(--highlight-border);
-      padding: 1rem;
-      margin: 1.25rem 0;
-    }
-
-    /* Button Bar */
-    .button-bar {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 1rem;
-      margin: 1.5rem 0;
-    }
-    .button-bar button {
-      cursor: pointer;
-      padding: var(--button-padding);
-      background: var(--primary-color);
-      color: #fff;
-      border: none;
-      border-radius: var(--button-radius);
-      font-size: 1rem;
-      transition: background var(--transition-fast), transform var(--transition-fast);
-    }
-    .button-bar button:hover {
-      background: var(--accent-color);
-      transform: scale(1.02);
-    }
-
-    /* "Callouts" for API key notice */
-    .api-key-notice {
-      background: #e8f4ff;
-      border-left: 4px solid var(--primary-color);
-      padding: 1rem;
-      margin: 1.5rem 0;
-      border-radius: var(--button-radius);
-    }
-    .api-key-notice h3 {
-      margin-top: 0;
-      color: var(--accent-color);
-      font-weight: 600;
-    }
-
-    ul {
-      margin-left: 1.25rem;
-      list-style: disc;
+      margin-top: 2rem;  /* keep first heading closer to content */
     }
 
     .mini-box {
-      background: #fafafa;
-      border: 2px dashed #ccc;
-      border-radius: 4px;
+      background: var(--bg-primary);
+      border: 2px dashed var(--border-subtle);
+      border-radius: var(--border-radius);
       padding: 0.6em 1em;
-      margin: 1em 0;
+      margin: 1.5em 0;  /* increased from 1em */
       overflow-x: auto;
     }
 
-    /* Footer at the bottom */
-    footer {
-      text-align: center;
-      padding: 0.5rem;
-      background: #eee;
-      font-size: 0.85rem;
-      color: #666;
+    p {
+      margin-bottom: 1.2rem;  /* increased paragraph spacing */
+      line-height: 1.6;  /* improved line height for better readability */
     }
-    @media (prefers-color-scheme: dark) {
-      footer {
-        background: #333;
-        color: #aaa;
-      }
+
+    ul, ol {
+      margin: 1.5rem 0;  /* increased list spacing */
+      padding-left: 2rem;  /* increased list indent */
+    }
+
+    li {
+      margin-bottom: 0.8rem;  /* increased spacing between list items */
+    }
+
+    .api-key-notice {
+      background: var(--bg-elevated);
+      border-left: 4px solid var(--super-yellow);
+      padding: 1.5rem;  /* increased internal padding */
+      margin: 2.5rem 0;  /* increased notice spacing */
+      border-radius: var(--border-radius);
+    }
+
+    .highlight {
+      background: var(--bg-elevated);
+      border-left: 4px solid var(--super-yellow);
+      padding: 1.5rem;  /* increased internal padding */
+      margin: 2.5rem 0;  /* increased highlight box spacing */
+      border-radius: var(--border-radius);
+    }
+
+    header {
+      background: var(--bg-elevated);
+      padding: var(--space-4);
+      text-align: center;
+    }
+
+    header h1 {
+      color: var(--super-yellow);
+      margin: 0;
+      font-size: 2rem;
+      text-shadow: var(--border-glow);
+    }
+
+    .button-bar {
+      margin: 2.5rem 0;  /* increased button bar spacing */
+      display: flex;
+      gap: var(--space-3);
+      flex-wrap: wrap;
+    }
+
+    footer {
+      margin-top: 3rem;  /* increased footer spacing */
+      padding: 1rem;  /* increased footer padding */
+    }
+
+    /* Enhanced link styles */
+    a {
+      color: var(--super-yellow);
+      text-decoration: none;
+      position: relative;
+      transition: all 0.2s ease;
+      border-bottom: 1px dotted var(--super-yellow);
+      padding-bottom: 1px;
+    }
+
+    a:hover {
+      color: var(--white-pure);
+      border-bottom: 1px solid var(--white-pure);
+    }
+
+    a:active {
+      color: var(--super-yellow-light);
+      border-bottom-color: var(--super-yellow-light);
+      transform: translateY(1px);
+    }
+
+    a:visited {
+      color: var(--super-blue-300);
+      border-bottom-color: var(--super-blue-300);
+    }
+
+    a:visited:hover {
+      color: var(--super-yellow);
+      border-bottom-color: var(--super-yellow);
+    }
+
+    /* Special styling for code links */
+    code a {
+      border-bottom: none;
+      padding: 0.2em 0.4em;
+      background: var(--super-blue-700);
+      border-radius: var(--border-radius);
+    }
+
+    code a:hover {
+      background: var(--super-blue-500);
+    }
+
+    /* Exception for footer links */
+    footer a {
+      border-bottom: none;
+      color: var(--text-muted);
+    }
+
+    footer a:hover {
+      color: var(--super-yellow);
+    }
+
+    /* Enhanced button styles */
+    .button-bar button,
+    .super-action-button {
+      background: var(--super-yellow);
+      color: var (--super-blue-900);
+      border: none;
+      padding: var(--space-3) var(--space-4);
+      border-radius: var(--border-radius);
+      font-weight: 600;
+      cursor: pointer;
+      font-size: 1rem;
+      transition: all var(--transition-fast);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      min-width: 200px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: var(--space-2);
+    }
+
+    .button-bar button:hover,
+    .super-action-button:hover {
+      background: var(--super-yellow-light);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px var(--super-yellow-glow);
+    }
+
+    /* Enhanced installation instructions */
+    .install-steps {
+      background: var(--bg-elevated);
+      padding: 2rem;
+      border-radius: var(--border-radius);
+      margin: 2rem 0;
+      font-size: 1.2rem;
+      line-height: 1.8;
+    }
+
+    .install-steps h3 {
+      color: var(--super-yellow);
+      font-size: 1.4rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .install-steps ol {
+      margin: 0;
+      padding-left: 2.5rem;
+    }
+
+    .install-steps li {
+      margin-bottom: 1.2rem;
+      padding-left: 0.5rem;
+    }
+
+    .install-steps code {
+      background: var(--bg-primary);
+      padding: 0.3em 0.5em;
+      border-radius: 4px;
+      font-size: 1.1rem;
+    }
+
+    .install-steps .button-bar {
+      margin-top: 2rem;
+    }
+
+    .chrome-url-box {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      background: var(--bg-primary);
+      padding: var(--space-3);
+      border-radius: var(--border-radius);
+      margin: 0.8rem 0;
+    }
+
+    .chrome-url-box code {
+      font-size: 1.1rem;
+      color: var(--super-yellow);
+    }
+
+    .hint-box {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      margin-top: 0.3rem;
+      font-style: italic;
     }
   </style>
 </head>
@@ -192,6 +245,15 @@
     in-page AI calls, screenshot captures, and more — all from your usual web page environment!
   </p>
 
+  <div class="button-bar">
+    <button id="quickOpenSidePanel" class="super-action-button">
+      🎛️ Open Side Panel
+    </button>
+    <button id="quickOpenCredsManager" class="super-action-button">
+      🔑 Open Credentials Manager
+    </button>
+  </div>
+
   <ul>
     <li><strong>Cross-domain fetches</strong>: no more same-origin headaches when testing local HTML files.</li>
     <li><strong>Environment Variables</strong>: securely store and retrieve API keys or config values.</li>
@@ -206,17 +268,42 @@
       If you want to use AI features (GPT-4o, DALL·E, etc.), 
       set your <code>OPENAI_API_KEY</code> in the environment variable manager. 
       For help obtaining one, see 
-      <a href="https://platform.openai.com/account/api-keys" target="_blank">OpenAI’s API Keys</a>.
+      <a href="https://chatgpt.com/?q=Where%20and%20how%20to%20get%20an%20OPENAI_API_KEY%20-%20Detailed%20Step%20by%20Step%20Instructions&hints=search&ref=ext" target="_blank">OpenAI’s API Keys</a>.
     </p>
   </div>
 
   <h2>1) Installing the Extension</h2>
-  <p>To install <em>Superpowers</em> in Chrome’s developer mode:</p>
-  <ul>
-    <li>Clone or download the <code>Superpowers-Extension</code> repository from GitHub.</li>
-    <li>Open <code>chrome://extensions</code>, enable <strong>Developer Mode</strong>.</li>
-    <li>Select <strong>“Load unpacked”</strong> and choose the local folder. Done!</li>
-  </ul>
+  <div class="install-steps">
+    <h3>📥 Installation Steps:</h3>
+    <ol>
+      <li>
+        Clone or download the <code>Superpowers-Extension</code> repository from GitHub
+        <div class="button-bar">
+          <a href="https://github.com/example/Superpowers-Extension" target="_blank" class="super-action-button">
+            📦 Download from GitHub
+          </a>
+        </div>
+      </li>
+      <li>
+        Open Chrome Extensions page:
+        <div class="chrome-url-box">
+          <code>chrome://extensions</code>
+          <button id="copyExtensionsUrl" class="btn-secondary">
+            📋 Copy URL
+          </button>
+        </div>
+        <div class="hint-box">
+          (Paste into Chrome's address bar)
+        </div>
+      </li>
+      <li>
+        Enable <strong>Developer Mode</strong> in the top right
+      </li>
+      <li>
+        Click <strong>"Load unpacked"</strong> and select the extension folder you downloaded
+      </li>
+    </ol>
+  </div>
 
   <h2>2) Basic Setup &amp; <code>&lt;meta&gt;</code> Tag</h2>
   <p>
@@ -329,8 +416,12 @@ console.log("Final HTML length:", rendered.html.length);
 
   <h2>Actions &amp; Next Steps</h2>
   <div class="button-bar">
-    <button id="openSidePanel">Open Side Panel</button>
-    <button id="openCredsManager">Open Credentials Manager</button>
+    <button id="openSidePanel" class="super-action-button">
+      🎛️ Open Side Panel
+    </button>
+    <button id="openCredsManager" class="super-action-button">
+      🔑 Open Credentials Manager
+    </button>
   </div>
 
   <p>

@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="superpowers" content="enabled"/>
+  <title>Superpowers README Viewer</title>
+  <style>
+    :root {
+      --primary: #4a6fa5;
+      --bg: #f5f7fa;
+      --text: #2d3748;
+      --border: #e2e8f0;
+    }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      line-height: 1.5;
+      margin: 0;
+      padding: 20px;
+      background: var(--bg);
+      color: var(--text);
+    }
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    h1 { color: var(--primary); }
+    .status {
+      padding: 10px;
+      margin: 10px 0;
+      border-radius: 4px;
+    }
+    .error { background: #fed7d7; color: #822727; }
+    .success { background: #c6f6d5; color: #276749; }
+    .btn {
+      background: var(--primary);
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .btn:hover { opacity: 0.9; }
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .btn.loading {
+      position: relative;
+      color: transparent;
+    }
+    .btn.loading::after {
+      content: '';
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 16px;
+      height: 16px;
+      margin: -8px;
+      border: 2px solid #fff;
+      border-right-color: transparent;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    .readme {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      margin: 20px 0;
+      white-space: pre-wrap;
+      font-family: monospace;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Superpowers README Viewer</h1>
+    <div id="status"></div>
+    <button id="loadLLM" class="btn">Load README-LLM.md</button>
+    <button id="loadMain" class="btn">Load README.md</button>
+    <div id="output" class="readme"></div>
+  </div>
+
+  <script>
+    // Wait for Superpowers to be available
+    function waitForSuperpowers() {
+      return new Promise(resolve => {
+        if (window.Superpowers) return resolve();
+        const check = setInterval(() => {
+          if (window.Superpowers) {
+            clearInterval(check);
+            resolve();
+          }
+        }, 100);
+      });
+    }
+
+    // Show status messages with optional timeout
+    function showStatus(message, type = 'success', timeout = 3000) {
+      const status = document.getElementById('status');
+      status.innerHTML = `<div class="status ${type}">${message}</div>`;
+      if (timeout) {
+        setTimeout(() => {
+          if (status.firstChild?.textContent === message) {
+            status.innerHTML = '';
+          }
+        }, timeout);
+      }
+    }
+
+    // Load README content
+    async function loadReadme(type) {
+      const button = document.getElementById(type === 'llm' ? 'loadLLM' : 'loadMain');
+      button.disabled = true;
+      button.classList.add('loading');
+      
+      try {
+        const method = type === 'llm' ? 'getLLMReadme' : 'getMainReadme';
+        const content = await window.Superpowers.readme[method]();
+        document.getElementById('output').textContent = content || '(empty file)';
+        showStatus(`Successfully loaded ${type === 'llm' ? 'README-LLM.md' : 'README.md'}`);
+      } catch (error) {
+        console.error('Failed to load README:', error);
+        document.getElementById('output').textContent = '';
+        showStatus(error.message || 'Failed to load README', 'error', 5000);
+      } finally {
+        button.disabled = false;
+        button.classList.remove('loading');
+      }
+    }
+
+    // Initialize
+    (async () => {
+      try {
+        await waitForSuperpowers();
+        
+        if (!window.Superpowers.readme) {
+          throw new Error('README plugin not available');
+        }
+        
+        showStatus('Superpowers README viewer ready!');
+        
+        // Add click handlers
+        document.getElementById('loadLLM').onclick = () => loadReadme('llm');
+        document.getElementById('loadMain').onclick = () => loadReadme('main');
+        
+      } catch (error) {
+        console.error('Initialization failed:', error);
+        showStatus('Failed to initialize README viewer: ' + (error.message || error), 'error', 0);
+        
+        // Disable buttons on error
+        document.getElementById('loadLLM').disabled = true;
+        document.getElementById('loadMain').disabled = true;
+      }
+    })();
+  </script>
+</body>
+</html>

@@ -3,11 +3,6 @@
 // 1) Import your plugin manager at the top
 import { initializePluginManager } from './plugin_manager.js';
 
-// Add at top of service_worker.js with other state
-const SIDEPANEL_STATE = {
-  isOpen: false
-};
-
 // Keep original references
 const _origRuntimeSendMessage = chrome.runtime.sendMessage.bind(chrome.runtime);
 const _origTabsSendMessage = chrome.tabs.sendMessage.bind(chrome.tabs);
@@ -115,35 +110,70 @@ const DEBUG = {
   }
 };
 
-function logSW(msg, level = DEBUG.LEVELS.INFO, extra = {}) {
-  const timestamp = new Date().toISOString();
-  const memory = performance.memory
-    ? `[Heap: ${Math.round(performance.memory.usedJSHeapSize / 1024 / 1024)}MB]`
-    : '';
-
-  const logMsg = `[SW][${timestamp}][${level}]${memory} ${msg}`;
+const LOG_SERVICE = {
+  logs: [],
+  maxLogs: 1000,
+  listeners: new Set(),
+  batchTimeout: null,
+  pendingBatch: [],
   
+  addLog(level, msg, extra = {}) {
+    const logEntry = {
+      timestamp: Date.now(),
+      level,
+      message: msg,
+      extra,
+      source: 'service_worker'
+    };
+    
+    this.logs.push(logEntry);
+    if (this.logs.length > this.maxLogs) {
+      this.logs = this.logs.slice(-this.maxLogs);
+    }
+    
+    this.pendingBatch.push(logEntry);
+    this.scheduleBatch();
+  },
+  
+  scheduleBatch() {
+    if (this.batchTimeout) return;
+    
+    this.batchTimeout = setTimeout(() => {
+      this.sendBatch();
+      this.batchTimeout = null;
+    }, 100); // 100ms batch window
+  },
+  
+  sendBatch() {
+    if (!this.pendingBatch.length) return;
+    
+    const batch = this.pendingBatch;
+    this.pendingBatch = [];
+    
+    chrome.tabs.query({}, tabs => {
+      tabs.forEach(tab => {
+        chrome.tabs.sendMessage(tab.id, {
+          type: "LOG_BATCH",
+          logs: batch
+        }).catch(() => {}); // Ignore disconnected tabs
+      });
+    });
+  }
+};
+
+function logSW(msg, level = DEBUG.LEVELS.INFO, extra = {}) {
+  LOG_SERVICE.addLog(level, msg, extra);
+  
+  // Keep console output for development
   switch (level) {
     case DEBUG.LEVELS.ERROR:
-      console.error(logMsg, extra);
-      DEBUG.state.errors.push({ timestamp, msg, extra });
+      console.error(msg, extra);
       break;
     case DEBUG.LEVELS.WARN:
-      console.warn(logMsg, extra);
+      console.warn(msg, extra);
       break;
     default:
-      // Only gather memory usage if debug level is DEBUG
-      if (level === DEBUG.LEVELS.DEBUG && performance.memory) {
-        console.log(`[SW][Memory] UsedJSHeapSize: ${
-          Math.round(performance.memory.usedJSHeapSize / 1024 / 1024)
-        }MB`);
-      }
-      break;
-  }
-
-  // Keep error history trimmed
-  if (DEBUG.state.errors.length > 50) {
-    DEBUG.state.errors = DEBUG.state.errors.slice(-50);
+      console.log(msg, extra);
   }
 }
 
@@ -164,8 +194,7 @@ function finishRequest(request, status = 'completed', error = null) {
   request.duration = request.endTime - request.startTime;
   if (error) request.error = error;
   DEBUG.state.activeRequests.delete(request);
-  logSW(
-    `Request ${request.id} ${status} in ${request.duration}ms`,
+  logSW(`Request ${request.id} ${status} in ${request.duration}ms`,  // Fixed string template literal
     error ? DEBUG.LEVELS.ERROR : DEBUG.LEVELS.INFO,
     { request, error }
   );
@@ -274,7 +303,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 chrome.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
   if (request.type === "OPEN_SIDEPANEL") {
     // Open sidepanel on the current tab
-    await chrome.sidePanel.setOptions({
+    chrome.sidePanel.setOptions({
       tabId: sender.tab.id,
       path: "sidepanel.html",
       enabled: true
@@ -285,7 +314,7 @@ chrome.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
 
   if (request.type === "CLOSE_SIDEPANEL") {
     // Close sidepanel for ALL tabs
-    await chrome.sidePanel.setOptions({
+    chrome.sidePanel.setOptions({
       enabled: false
     });
     sendResponse({ success: true });
@@ -322,6 +351,151 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return true; // Keep message channel open for async response
   }
 });
+
+
+// Replace all competing side panel handlers with this single one
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.type === "OPEN_SIDEPANEL") {
+    try {
+      // Toggle the panel by enabling/disabling it
+      chrome.sidePanel.setOptions({
+        enabled: !PANEL_STATE.isOpen
+      }).then(() => {
+        PANEL_STATE.isOpen = !PANEL_STATE.isOpen;
+        // If we're enabling it, also open it
+        if (PANEL_STATE.isOpen && chrome.sidePanel?.open) {
+          chrome.sidePanel.open({ windowId: sender.tab.windowId });
+        }
+        sendResponse({ success: true, isOpen: PANEL_STATE.isOpen });
+      });
+    } catch (err) {
+      console.error("[SW] Side panel error:", err);
+      sendResponse({ success: false, error: err.message });
+    }
+    return true; // Keep channel open for async
+  }
+
+  if (request.type === "OPEN_CREDENTIALS_MANAGER") {
+    try {
+      // Always enable the panel and set it to credentials manager
+      chrome.sidePanel.setOptions({
+        enabled: true,
+        path: 'pages/credentials_manager.html'
+      }).then(() => {
+        PANEL_STATE.isOpen = true;
+        if (chrome.sidePanel?.open) {
+          chrome.sidePanel.open({ windowId: sender.tab.windowId });
+        }
+        sendResponse({ success: true });
+      });
+    } catch (err) {
+      console.error("[SW] Credentials manager error:", err);
+      // Fallback to new tab if side panel fails
+      chrome.tabs.create({
+        url: chrome.runtime.getURL("pages/credentials_manager.html"),
+        active: true
+      });
+      sendResponse({ success: true, mode: "fallback" });
+    }
+    return true; // Keep channel open for async
+  }
+});
+
+// Consolidate the panel state tracking
+const PANEL_STATE = {
+  sidePanel: {
+    isOpen: false,
+    enabled: false
+  }
+};
+
+// Replace all conflicting side panel handlers with this single one
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.type === "OPEN_SIDEPANEL") {
+    try {
+      if (!PANEL_STATE.sidePanel.enabled) {
+        chrome.sidePanel.setOptions({
+          enabled: true
+        }).then(() => {
+          try {
+            if (chrome.sidePanel?.open) {
+              chrome.sidePanel.open({ windowId: sender.tab.windowId });
+            }
+            PANEL_STATE.sidePanel.enabled = true;
+            PANEL_STATE.sidePanel.isOpen = true;
+          } catch (openErr) {
+            if (openErr.message.includes("user gesture")) {
+              console.warn("[SW] sidePanel.open() user-gesture fallback");
+            } else {
+              throw openErr;
+            }
+          }
+        });
+      } else {
+        chrome.sidePanel.setOptions({
+          enabled: false
+        }).then(() => {
+          PANEL_STATE.sidePanel.enabled = false;
+          PANEL_STATE.sidePanel.isOpen = false;
+        });
+      }
+      sendResponse({ success: true });
+    } catch (err) {
+      console.error("[SW] Side panel error:", err);
+      sendResponse({ success: false, error: err.message });
+    }
+    return true;
+  }
+});
+
+// ADD or keep this async listener to open credentials_manager.html
+chrome.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
+  if (request.type === "OPEN_CREDENTIALS_MANAGER") {
+
+    
+    try {
+
+ 
+  
+
+      // 1) Attempt to open inside the side panel on modern Chrome
+      if (chrome.sidePanel?.setOptions) {
+        chrome.sidePanel.setOptions({
+          tabId: sender.tab.id,
+          path: "pages/credentials_manager.html",
+          enabled: true
+        });
+
+              // Make sure the side panel is actually open
+              if (chrome.sidePanel?.open) {
+                chrome.sidePanel.open({ windowId: sender.tab.windowId });
+              }
+        
+      
+                console.log("[SW] Credentials Manager opened in side panel");
+        sendResponse({ success: true, mode: "sidePanel" });
+      } else {
+        // 2) Fallback: open in a new tab
+        chrome.tabs.create({
+          url: chrome.runtime.getURL("pages/credentials_manager.html"),
+          active: true
+        });
+        console.log("[SW] Side panel not supported; opened credentials in new tab");
+        sendResponse({ success: true, mode: "fallbackTab" });
+      }
+    } catch (err) {
+      // 3) If side panel fails, also fallback to a new tab
+      console.warn("[SW] sidePanel.setOptions error, fallback to tab:", err);
+      chrome.tabs.create({
+        url: chrome.runtime.getURL("pages/credentials_manager.html"),
+        active: true
+      });
+      sendResponse({ success: true, mode: "errorFallbackTab" });
+    }
+    return true; // Keep response channel open for async
+  }
+});
+
 
 async function exchangeOAuthToken(data) {
   const resp = await fetch('https://oauth2.googleapis.com/token', {

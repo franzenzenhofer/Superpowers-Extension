@@ -13,6 +13,22 @@ const toastEl = document.getElementById("toast");
 // [IMPROVEMENT #1] Limit debug logs to 100 lines
 const MAX_DEBUG_LINES = 100;
 
+// Add these constants at the top with other constants
+const VIRTUAL_LIST_CONFIG = {
+  rowHeight: 150, // Approximate height of each row in pixels
+  bufferSize: 5,  // Extra rows to render above/below viewport
+  recyclePool: new Map(), // Reuse DOM elements
+  maxPoolSize: 50 // Maximum number of recycled elements to keep
+};
+
+// Add new state tracking for diffs
+let previousEnvState = null;
+const stateChangeTracker = {
+  added: new Set(),
+  modified: new Set(),
+  removed: new Set()
+};
+
 //////////////////////////////
 // Helper: showToast
 //////////////////////////////
@@ -32,26 +48,64 @@ function showToast(message) {
 //////////////////////////////
 // Helper: debugLog
 //////////////////////////////
+let logBuffer = [];
+let renderTimeout = null;
+
 function debugLog(message, data = null, level = "info") {
-    const timestamp = new Date().toLocaleTimeString();
-    const logMsg = `[${timestamp}][${level}] ${message}`;
-    
-    console.log(logMsg, data || '');
+  const logEntry = {
+    timestamp: Date.now(),
+    level,
+    message: data ? `${message} ${JSON.stringify(data)}` : message,
+    source: 'sidepanel'
+  };
+  handleLogEntry(logEntry);
 
-    // Insert in debug UI
-    if (!debugOutputEl) return;
+  // Still log to console for development
+  switch (level) {
+    case "error":
+      console.error(logEntry.message);
+      break;
+    case "warning":
+      console.warn(logEntry.message);
+      break;
+    default:
+      console.log(logEntry.message);
+  }
+}
 
-    const logEntry = document.createElement('div');
-    logEntry.textContent = logMsg + (data ? ` ${JSON.stringify(data, null, 2)}` : '');
+function handleLogEntry(entry) {
+  logBuffer.push(entry);
+  scheduleLogRender();
+}
 
-    debugOutputEl.insertBefore(logEntry, debugOutputEl.firstChild);
+function scheduleLogRender() {
+  if (renderTimeout) return;
+  renderTimeout = requestAnimationFrame(() => {
+    renderLogs();
+    renderTimeout = null;
+  });
+}
 
-    // [IMPROVEMENT #1] Limit debug lines
-    if (debugOutputEl.children.length > MAX_DEBUG_LINES) {
-        debugOutputEl.removeChild(debugOutputEl.lastChild);
-    }
-    // [IMPROVEMENT #8] If needed, we can scroll to top
-    debugOutputEl.scrollTop = 0;
+function renderLogs() {
+  if (!logBuffer.length || !debugOutputEl) return;
+
+  const fragment = document.createDocumentFragment();
+  
+  logBuffer.forEach(log => {
+    const entry = document.createElement('div');
+    entry.className = `log-entry ${log.level}`;
+    entry.textContent = `[${new Date(log.timestamp).toLocaleTimeString()}] ${log.message}`;
+    fragment.appendChild(entry);
+  });
+
+  debugOutputEl.insertBefore(fragment, debugOutputEl.firstChild);
+  
+  while (debugOutputEl.children.length > MAX_DEBUG_LINES) {
+    debugOutputEl.lastChild.remove();
+  }
+
+  logBuffer = [];
+  debugOutputEl.scrollTop = 0;
 }
 
 //////////////////////////////
@@ -156,37 +210,53 @@ function loadEnvVars() {
 //////////////////////////////
 // renderRows
 //////////////////////////////
-// [IMPROVEMENT #2] Throttle or batch if huge updates (simple approach)
 let renderRowsScheduled = false;
 let lastEnvVarsData = null;
 
 function renderRows(envVars) {
-    // [IMPROVEMENT #3] Change detection:
-    const envVarsStr = JSON.stringify(envVars);
-    if (envVarsStr === lastEnvVarsData) {
-        // No changes => skip re-render
-        debugLog("No env var changes, skipping re-render.", null, "debug");
+    if (!envContainerEl) {
+        debugLog("No envContainer element found!", null, "error");
         return;
     }
-    lastEnvVarsData = envVarsStr;
 
-    if (!renderRowsScheduled) {
-        renderRowsScheduled = true;
-        requestAnimationFrame(() => {
-            doRenderRows(envVars);
-            renderRowsScheduled = false;
+    // Load descriptions together with variables
+    chrome.storage.local.get(["superEnvVars"], (result) => {
+        const vars = result.superEnvVars || {};
+        const descriptions = vars.descriptions || {};
+
+        // Clear the container
+        envContainerEl.innerHTML = '<div class="rows-list"></div>';
+        const container = envContainerEl.querySelector('.rows-list');
+        
+        // Simple direct rendering, one row after another, now with descriptions
+        Object.entries(envVars).forEach(([key, value]) => {
+            const desc = descriptions[key] || "";
+            const row = createRow(key, value, desc);
+            container.appendChild(row);
         });
-    }
+    });
 }
 
-function doRenderRows(envVars) {
-    debugLog("Rendering rows now...", envVars, "debug");
-    envContainerEl.innerHTML = "";
+// Add diff calculation
+function calculateDiffs(oldState, newState) {
+    stateChangeTracker.added.clear();
+    stateChangeTracker.modified.clear();
+    stateChangeTracker.removed.clear();
 
-    // [IMPROVEMENT #19] We can sort by key if desired
-    const keys = Object.keys(envVars).sort();
-    for (const k of keys) {
-        envContainerEl.appendChild(createRow(k, envVars[k]));
+    // Find added and modified
+    for (const [key, value] of Object.entries(newState)) {
+        if (!(key in oldState)) {
+            stateChangeTracker.added.add(key);
+        } else if (oldState[key] !== value) {
+            stateChangeTracker.modified.add(key);
+        }
+    }
+
+    // Find removed
+    for (const key of Object.keys(oldState)) {
+        if (!(key in newState)) {
+            stateChangeTracker.removed.add(key);
+        }
     }
 }
 
@@ -196,7 +266,11 @@ function doRenderRows(envVars) {
 function createRow(keyVal = "", valVal = "", descVal = "") {
     const row = document.createElement("div");
     row.className = "variable-card";
+
+    // Add an anchor ID so we can jump to sidepanel.html#KEY
+    const anchorId = encodeURIComponent(keyVal);
     row.innerHTML = `
+        <a name="${anchorId}" id="${anchorId}"></a>
         <div class="input-group">
             <label>Key</label>
             <input type="text" class="super-input" placeholder="KEY" value="${keyVal}">
@@ -208,7 +282,6 @@ function createRow(keyVal = "", valVal = "", descVal = "") {
         <div class="input-group">
             <label>Description</label>
             <input type="text" class="super-input" placeholder="Optional description" value="${descVal}">
-            <!-- [IMPROVEMENT #16] Could use <textarea> if multi-line is needed -->
         </div>
         <div class="variable-actions">
             <div class="action-row">
@@ -272,9 +345,12 @@ async function saveField(button) {
                 if (!vars.default) vars.default = {};
 
                 vars.default[key] = value;
+
+                if (!vars.descriptions) vars.descriptions = {};
                 if (description) {
-                    if (!vars.descriptions) vars.descriptions = {};
                     vars.descriptions[key] = description;
+                } else {
+                    delete vars.descriptions[key];
                 }
 
                 chrome.storage.local.set({ superEnvVars: vars }, () => {
@@ -315,29 +391,56 @@ async function saveField(button) {
 function saveEnvVars() {
     const rows = envContainerEl.querySelectorAll(".variable-card");
     const newEnv = {};
+    const newDesc = {};
 
     rows.forEach((row) => {
         const inputs = row.querySelectorAll("input");
         const k = inputs[0].value.trim();
         const v = inputs[1].value;
-        if (k) newEnv[k] = v;
+        const d = inputs[2].value.trim();
+        if (k) {
+            newEnv[k] = v;
+            if (d) newDesc[k] = d;
+        }
     });
 
     debugLog("Saving variables:", newEnv);
 
-    chrome.storage.local.set({
-        superEnvVars: { default: newEnv }
-    }, () => {
+    chrome.storage.local.get(["superEnvVars"], (res) => {
         if (chrome.runtime.lastError) {
-            debugLog("Error saving:", chrome.runtime.lastError, "error");
-            alert("Error saving variables!");
+            debugLog("Error loading for saveAll:", chrome.runtime.lastError, "error");
+            alert("Error loading prior environment!");
             return;
         }
-        debugLog("Variables saved successfully", null, "info");
-        alert("Variables saved!");
-        checkSavedEnvVars(newEnv);
-        // reload
-        loadEnvVars();
+
+        const vars = res.superEnvVars || {};
+        if (!vars.default) vars.default = {};
+        if (!vars.descriptions) vars.descriptions = {};
+
+        // Overwrite default with newEnv
+        vars.default = newEnv;
+
+        // Overwrite or set descriptions
+        for (const k of Object.keys(vars.descriptions)) {
+            if (!newDesc[k]) {
+                delete vars.descriptions[k];
+            }
+        }
+        for (const k of Object.keys(newDesc)) {
+            vars.descriptions[k] = newDesc[k];
+        }
+
+        chrome.storage.local.set({ superEnvVars: vars }, () => {
+            if (chrome.runtime.lastError) {
+                debugLog("Error saving:", chrome.runtime.lastError, "error");
+                alert("Error saving variables!");
+                return;
+            }
+            debugLog("Variables saved successfully", null, "info");
+            alert("Variables saved!");
+            checkSavedEnvVars(newEnv);
+            loadEnvVars();
+        });
     });
 }
 
@@ -396,7 +499,7 @@ function refreshEnvTest() {
                 }
             }
 
-            const otherEnvs = Object.keys(vars).filter(k => k !== 'default');
+            const otherEnvs = Object.keys(vars).filter(k => k !== 'default' && k !== 'descriptions');
             if (otherEnvs.length > 0) {
                 output += "\nNamed Environments:\n";
                 output += "===================\n\n";
@@ -462,12 +565,19 @@ function removeRow(button) {
         const card = button.closest('.variable-card');
         if (!card) return;
 
+        // Get key before removal
+        const key = card.querySelector('input').value;
+
+        // Add to recycle pool if not too full
+        if (VIRTUAL_LIST_CONFIG.recyclePool.size < VIRTUAL_LIST_CONFIG.maxPoolSize) {
+            VIRTUAL_LIST_CONFIG.recyclePool.set(key, card.cloneNode(true));
+        }
+
         card.style.opacity = '0';
         card.style.transform = 'translateX(100px)';
         setTimeout(() => {
             card.remove();
-            // If no variables left, add an empty one
-            if (!envContainerEl.children.length) {
+            if (!envContainerEl.querySelector('.rows-container').children.length) {
                 addRow();
             }
             showToast('Variable removed');

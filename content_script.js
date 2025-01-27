@@ -8,28 +8,29 @@
 function extensionDebugLog(msg, level = "info") {
   const timestamp = new Date().toISOString();
   const url = window.location.href;
-  const fullMsg = `[Superpowers][${timestamp}][${url}] ${msg}`;
+  const logEntry = {
+    timestamp: Date.now(),
+    level,
+    message: `[Superpowers][${timestamp}][${url}] ${msg}`,
+    source: 'content_script'
+  };
 
-  switch (level) {
-    case "error":
-      console.error(fullMsg);
-      break;
-    case "warning":
-      console.warn(fullMsg);
-      break;
-    default:
-      // console.log(fullMsg);
-      break;
-  }
-
-  if (chrome.runtime?.sendMessage) {
-    chrome.runtime.sendMessage({
-      type: "SIDEPANEL_LOG",
-      message: fullMsg,
-      logType: level
-    });
-  }
+  // Still send individual logs to sidepanel
+  chrome.runtime.sendMessage({
+    type: "SIDEPANEL_LOG",
+    ...logEntry
+  }).catch(() => {}); // Ignore if sidepanel isn't ready
 }
+
+chrome.runtime.onMessage.addListener((message) => {
+  if (message.type === "LOG_BATCH") {
+    window.postMessage({
+      direction: "from-content-script",
+      type: "LOG_BATCH", 
+      logs: message.logs
+    }, "*");
+  }
+});
 
 function pageHasSuperpowersMeta() {
   // extensionDebugLog("Checking <meta name='superpowers' content='enabled'>...", "info");
