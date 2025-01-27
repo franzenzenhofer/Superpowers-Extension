@@ -137,6 +137,23 @@ chrome.runtime.onMessage.addListener((message) => {
   }
 });
 
+// Add version update listener
+chrome.runtime.onMessage.addListener((request) => {
+  if (request.type === "SIDEPANEL_VERSION_UPDATE") {
+    const header = document.querySelector('header');
+    if (header) {
+      const updateDiv = document.createElement('div');
+      updateDiv.className = 'version-update-notice';
+      updateDiv.innerHTML = `
+        <a href="${request.updateUrl}" target="_blank" style="display:block;padding:8px;background:#fff3cd;color:#856404;text-decoration:none;text-align:center;margin:8px 0;">
+          🆕 Update available: v${request.latestVersion} - Click to download
+        </a>
+      `;
+      header.appendChild(updateDiv);
+    }
+  }
+});
+
 function showUpdateNotice(versionInfo) {
   const updateNotice = document.createElement('div');
   updateNotice.className = 'update-notice';

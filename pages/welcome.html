@@ -151,7 +151,7 @@
       color: var (--super-blue-900);
       border: none;
       padding: var(--space-3) var(--space-4);
-      border-radius: var(--border-radius);
+      border-radius: var (--border-radius);
       font-weight: 600;
       cursor: pointer;
       font-size: 1rem;
@@ -170,6 +170,23 @@
       background: var(--super-yellow-light);
       transform: translateY(-2px);
       box-shadow: 0 4px 12px var(--super-yellow-glow);
+    }
+
+    /* Fix for button-style links */
+    .super-action-button[href] {
+      text-decoration: none;
+      color: var(--super-blue-900) !important;  /* Override the yellow link color */
+      border-bottom: none !important;  /* Remove the dotted underline */
+    }
+
+    .super-action-button[href]:hover {
+      color: var(--super-blue-900) !important;  /* Keep text dark on hover */
+      border-bottom: none !important;
+    }
+
+    .super-action-button[href]:visited {
+      color: var(--super-blue-900) !important;  /* Keep text dark for visited state */
+      border-bottom: none !important;
     }
 
     /* Enhanced installation instructions */
@@ -239,6 +256,14 @@
 </header>
 
 <main>
+  <!-- Add new editor button -->
+  <div class="button-bar" style="justify-content: center; margin: 0 0 2rem 0;">
+    <a href="https://editor.franzai.com/" 
+     class="super-action-button" style="font-size: 1.2em; padding: 1rem 2rem;">
+      🚀 Open Superpowers Editor
+    </a>
+  </div>
+
   <p>
     <strong>Superpowers</strong> is a robust Chrome extension that grants your local HTML pages
     extraordinary new capabilities, including cross-domain fetches, environment variables,
