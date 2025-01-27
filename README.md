@@ -1,4 +1,3 @@
-```markdown
 # Superpowers Chrome Extension
 
 **Superpowers** is a powerful Chrome Extension that grants your local HTML pages (or any website where you insert a special meta tag) the ability to:
@@ -11,6 +10,30 @@
 - ...and more!
 
 This repo hosts all the extension’s source files, including the background `service_worker.js`, UI pages in `pages/`, and shared styles in `styles/`.
+
+---
+
+## Installation (Chrome Dev Mode)
+
+### Quick Install
+1. **Download the Extension**:
+   - Visit [github.com/franzenzenhofer/Superpowers-Extension](https://github.com/franzenzenhofer/Superpowers-Extension)
+   - Click the green "Code" button
+   - Select "Download ZIP"
+   - Extract the ZIP file to a folder on your computer
+
+2. **Install in Chrome**:
+   - Open Chrome and go to `chrome://extensions`
+   - Enable "Developer Mode" (toggle in top-right)
+   - Click "Load unpacked"
+   - Select the extracted folder
+   - Done! You'll see the Superpowers icon in your Chrome toolbar
+
+### Alternative: Clone via Git
+```bash
+git clone https://github.com/franzenzenhofer/Superpowers-Extension.git
+```
+Then follow steps 2-5 from the Quick Install above.
 
 ---
 
@@ -47,27 +70,6 @@ This repo hosts all the extension’s source files, including the background `se
 
 6. **Side Panel UI**  
    The extension includes a side panel for quick environment variable management, toggling features, and a dedicated credentials manager.
-
----
-
-## Installation (Chrome Dev Mode)
-
-1. **Clone or Download** this repo:
-
-   ```bash
-   git clone https://github.com/YOUR-USERNAME/Superpowers-Extension.git
-   ```
-   (Or download the ZIP from GitHub and extract it.)
-
-2. **Open Chrome** and navigate to:
-   ```bash
-   chrome://extensions
-   ```
-3. **Enable “Developer Mode”** (usually at the top-right corner in the Extensions page).
-
-4. **Click “Load unpacked”** and select the folder where you cloned/extracted this repo (`Superpowers-Extension`).
-
-5. **Done!** You should now see the **Superpowers** icon in your Chrome toolbar.
 
 ---
 
