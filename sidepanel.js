@@ -589,7 +589,8 @@ async function updatePluginsList() {
 function toggleSecret(button) {
     try {
         const card = button.closest('.variable-card');
-        const valueInput = card.querySelector('.input-group:nth-child(2) input');
+        // Target specifically the value input with "VALUE" placeholder
+        const valueInput = card.querySelector('input[placeholder="VALUE"]');
         if (valueInput) {
             valueInput.type = (valueInput.type === 'password') ? 'text' : 'password';
             button.textContent = (valueInput.type === 'password') ? '👁️ Show' : '👁️ Hide';

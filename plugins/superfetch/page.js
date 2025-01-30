@@ -58,7 +58,15 @@
                         redirected: ev.data.redirected,
                         url: ev.data.url,
                         type: ev.data.type,
-                        headers: ev.data.headers,
+                        headers: {
+                            get: (name) => ev.data.headers[name.toLowerCase()],
+                            has: (name) => Object.hasOwn(ev.data.headers, name.toLowerCase()),
+                            // Minimal pass-through for common methods
+                            entries: () => Object.entries(ev.data.headers),
+                            forEach: (callback) => {
+                                Object.entries(ev.data.headers).forEach(([k,v]) => callback(v, k));
+                            }
+                        },
 
                         // Standard methods
                         text: () => Promise.resolve(ev.data.body),
