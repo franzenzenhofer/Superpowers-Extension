@@ -1,6 +1,6 @@
 {
   "name": "Superpowers by Franz Enzenhofer",
-  "version": "0.0.99",
+  "version": "0.1.001",
   "description": "A robust Chrome extension granting in-page superpowers (cross-domain fetch, env vars).",
   "manifest_version": 3,
 
