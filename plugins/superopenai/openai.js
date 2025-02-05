@@ -17,6 +17,7 @@ const MODEL_CONFIGS = {
   'o1-preview': { maxTokens: 32768,  temperature: 1,   matches: ['o1-preview'] },
   'gpt-4o':     { maxTokens: 16384,  temperature: 0.7, matches: ['gpt-4o','gpt4o'] },
   'gpt-4o-mini':{ maxTokens: 16384,  temperature: 0.7, matches: ['gpt-4o-mini','gpt4o-mini'] },
+  'o3-mini':    { maxTokens: 100000, temperature: 1,   matches: ['o3-mini','o3'] }
 };
 
 function getModelConfig(model) {
@@ -190,7 +191,12 @@ function processO1Messages(messages) {
  */
 function buildChatRequestBody(payload, defaultModel = "gpt-4") {
   const modelToUse = payload.model || defaultModel;
-  const isO1Family = modelToUse.startsWith("o1") || modelToUse.includes("o1-mini");
+  const isO1Family = (
+    modelToUse.startsWith("o1") ||
+    modelToUse.includes("o1-mini") ||
+    modelToUse.startsWith("o3") ||
+    modelToUse.includes("o3-mini")
+  );
   const modelConfig = getModelConfig(modelToUse);
 
   const body = {
