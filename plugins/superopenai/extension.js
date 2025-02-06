@@ -69,170 +69,196 @@ export const superopenai_extension = {
     });
 
     // 2) Listen for SUPEROPENAI_CALL messages
-// In plugins/superopenai/extension.js, find the main onMessage listener below
-// and replace it IN FULL with this version (no other changes needed):
+    chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+      if (request.type !== "SUPEROPENAI_CALL") return false;
+      const { requestId, payload } = request;
+      /*
+      console.log(`[superopenai_extension] #${requestId} => method: ${payload.method}`);
+      */
 
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  if (request.type !== "SUPEROPENAI_CALL") return false;
-
-  const { requestId, payload } = request;
-  // console.log(`[superopenai_extension] #${requestId} => method: ${payload.method}`);
-
-  let promise;
-
-  switch (payload.method) {
-    // For streaming:
-    case "chatCompletionStream":
-      promise = handleChatCompletionStream(payload, (partialChunk) => {
-        const port = streamingPorts.get(requestId);
-        if (!port) {
-          console.debug("[superopenai_extension] Port no longer connected, skipping chunk.");
-          return;
-        }
+      // Handle config or test first
+      if (payload.method === "setApiKey") {
         try {
-          port.postMessage({ type: "STREAM_CHUNK", requestId, chunk: partialChunk });
-        } catch (err) {
-          console.debug("[superopenai_extension] Disconnected port error:", err.message);
-          streamingPorts.delete(requestId);
+          setApiKey(payload.key);
+          sendResponse({ success: true, result: "API key set" });
+        } catch (error) {
+          sendResponse({ success: false, error: error.message });
         }
-      });
-      break;
+        return false;
+      }
 
-    // Non-streaming Chat:
-    case "chatCompletion":
-      promise = handleChatCompletion(payload);
-      break;
+      if (payload.method === "setOrganizationId") {
+        try {
+          setOrganizationId(payload.orgId);
+          sendResponse({ success: true, result: "Organization ID set" });
+        } catch (error) {
+          sendResponse({ success: false, error: error.message });
+        }
+        return false;
+      }
 
-    // Images:
-    case "imageGeneration":
-      promise = handleImageGeneration(payload);
-      break;
+      if (payload.method === "test") {
+        setTimeout(() => {
+          sendResponse({ success: true, result: "test success" });
+        }, 500);
+        return true; // async
+      }
 
-    // Etc. (structuredCompletion, functionCall, audio, embeddings, etc.):
-    case "structuredCompletion":
-      promise = handleStructuredCompletion(payload);
-      break;
-    case "functionCall":
-      promise = handleFunctionCall(payload);
-      break;
-    case "audioSpeech":
-      promise = handleAudioSpeech(payload);
-      break;
-    case "audioTranscription":
-      promise = handleAudioTranscription(payload);
-      break;
-    case "audioTranslation":
-      promise = handleAudioTranslation(payload);
-      break;
-    case "embeddings":
-      promise = handleEmbeddings(payload);
-      break;
+      let promise;
 
-    // Fine-tuning:
-    case "fineTuneCreate":
-      promise = handleFineTuneCreate(payload);
-      break;
-    case "fineTuneList":
-      promise = handleFineTuneList(payload);
-      break;
-    case "fineTuneRetrieve":
-      promise = handleFineTuneRetrieve(payload);
-      break;
-    case "fineTuneCancel":
-      promise = handleFineTuneCancel(payload);
-      break;
-    case "fineTuneListEvents":
-      promise = handleFineTuneListEvents(payload);
-      break;
-    case "fineTuneListCheckpoints":
-      promise = handleFineTuneListCheckpoints(payload);
-      break;
+      switch (payload.method) {
+        // For streaming:
+        case "chatCompletionStream":
+          promise = handleChatCompletionStream(payload, (partialChunk) => {
+            const port = streamingPorts.get(requestId);
+            if (!port) {
+              console.debug("[superopenai_extension] Port no longer connected, skipping chunk.");
+              return;
+            }
+            try {
+              port.postMessage({ type: "STREAM_CHUNK", requestId, chunk: partialChunk });
+            } catch (err) {
+              console.debug("[superopenai_extension] Disconnected port error:", err.message);
+              streamingPorts.delete(requestId);
+            }
+          });
+          break;
 
-    // Files:
-    case "fileUpload":
-      promise = handleFileUpload(payload);
-      break;
-    case "fileList":
-      promise = handleFileList(payload);
-      break;
-    case "fileRetrieve":
-      promise = handleFileRetrieve(payload);
-      break;
-    case "fileDelete":
-      promise = handleFileDelete(payload);
-      break;
-    case "fileContent":
-      promise = handleFileContent(payload);
-      break;
+        // Non-streaming Chat:
+        case "chatCompletion":
+          promise = handleChatCompletion(payload);
+          break;
 
-    // Models:
-    case "modelList":
-      promise = handleModelList(payload);
-      break;
-    case "modelRetrieve":
-      promise = handleModelRetrieve(payload);
-      break;
-    case "modelDelete":
-      promise = handleModelDelete(payload);
-      break;
+        // Images:
+        case "imageGeneration":
+          promise = handleImageGeneration(payload);
+          break;
 
-    // Batches:
-    case "batchCreate":
-      promise = handleBatchCreate(payload);
-      break;
-    case "batchRetrieve":
-      promise = handleBatchRetrieve(payload);
-      break;
-    case "batchCancel":
-      promise = handleBatchCancel(payload);
-      break;
-    case "batchList":
-      promise = handleBatchList(payload);
-      break;
+        // Etc. (structuredCompletion, functionCall, audio, embeddings, etc.):
+        case "structuredCompletion":
+          promise = handleStructuredCompletion(payload);
+          break;
+        case "functionCall":
+          promise = handleFunctionCall(payload);
+          break;
+        case "audioSpeech":
+          promise = handleAudioSpeech(payload);
+          break;
+        case "audioTranscription":
+          promise = handleAudioTranscription(payload);
+          break;
+        case "audioTranslation":
+          promise = handleAudioTranslation(payload);
+          break;
+        case "embeddings":
+          promise = handleEmbeddings(payload);
+          break;
 
-    // Default: unrecognized method
-    default:
-      promise = Promise.reject(new Error("Unknown method for superopenai: " + payload.method));
-  }
+        // Fine-tuning:
+        case "fineTuneCreate":
+          promise = handleFineTuneCreate(payload);
+          break;
+        case "fineTuneList":
+          promise = handleFineTuneList(payload);
+          break;
+        case "fineTuneRetrieve":
+          promise = handleFineTuneRetrieve(payload);
+          break;
+        case "fineTuneCancel":
+          promise = handleFineTuneCancel(payload);
+          break;
+        case "fineTuneListEvents":
+          promise = handleFineTuneListEvents(payload);
+          break;
+        case "fineTuneListCheckpoints":
+          promise = handleFineTuneListCheckpoints(payload);
+          break;
 
-  if (promise) {
-    promise
-      .then((result) => {
-        // [MINIMAL ADD] If it's "chatCompletion", attempt JSON parse once, then bracketed substring:
-        if (payload.method === "chatCompletion" && result?.choices?.[0]?.message?.content) {
-          const originalContent = result.choices[0].message.content;
-          try {
-            JSON.parse(originalContent); 
-            // Already valid JSON, do nothing
-          } catch (err1) {
-            // Attempt bracketed substring
-            const firstIdx = originalContent.indexOf("{");
-            const lastIdx = originalContent.lastIndexOf("}");
-            if (firstIdx !== -1 && lastIdx !== -1 && lastIdx > firstIdx) {
-              const sub = originalContent.substring(firstIdx, lastIdx + 1);
+        // Files:
+        case "fileUpload":
+          promise = handleFileUpload(payload);
+          break;
+        case "fileList":
+          promise = handleFileList(payload);
+          break;
+        case "fileRetrieve":
+          promise = handleFileRetrieve(payload);
+          break;
+        case "fileDelete":
+          promise = handleFileDelete(payload);
+          break;
+        case "fileContent":
+          promise = handleFileContent(payload);
+          break;
+
+        // Models:
+        case "modelList":
+          promise = handleModelList(payload);
+          break;
+        case "modelRetrieve":
+          promise = handleModelRetrieve(payload);
+          break;
+        case "modelDelete":
+          promise = handleModelDelete(payload);
+          break;
+
+        // Batches:
+        case "batchCreate":
+          promise = handleBatchCreate(payload);
+          break;
+        case "batchRetrieve":
+          promise = handleBatchRetrieve(payload);
+          break;
+        case "batchCancel":
+          promise = handleBatchCancel(payload);
+          break;
+        case "batchList":
+          promise = handleBatchList(payload);
+          break;
+
+        // Default: unrecognized method
+        default:
+          promise = Promise.reject(new Error("Unknown method for superopenai: " + payload.method));
+      }
+
+      if (promise) {
+        promise
+          .then((result) => {
+            // [MINIMAL ADD] If it's "chatCompletion", attempt JSON parse once, then bracketed substring:
+            if (payload.method === "chatCompletion" && result?.choices?.[0]?.message?.content) {
+              const originalContent = result.choices[0].message.content;
               try {
-                JSON.parse(sub);
-                // If success, replace original
-                result.choices[0].message.content = sub;
-              } catch (err2) {
-                // second parse also fails => keep original
+                JSON.parse(originalContent); 
+                // Already valid JSON, do nothing
+              } catch (err1) {
+                // Attempt bracketed substring
+                const firstIdx = originalContent.indexOf("{");
+                const lastIdx = originalContent.lastIndexOf("}");
+                if (firstIdx !== -1 && lastIdx !== -1 && lastIdx > firstIdx) {
+                  const sub = originalContent.substring(firstIdx, lastIdx + 1);
+                  try {
+                    JSON.parse(sub);
+                    // If success, replace original
+                    result.choices[0].message.content = sub;
+                  } catch (err2) {
+                    // second parse also fails => keep original
+                  }
+                }
               }
             }
-          }
-        }
 
-        sendResponse({ success: true, result });
-      })
-      .catch((error) => {
-        console.error(`[superopenai_extension] #${requestId} => error:`, error);
-        sendResponse({ success: false, error: error.message });
-      });
-    return true; // Indicate async callback
-  }
+            sendResponse({ success: true, result });
+          })
+          .catch((error) => {
+            console.error(`[superopenai_extension] #${requestId} => error:`, error);
+            sendResponse({ success: false, error: error.message });
+          });
+        return true; // Indicate async callback
+      }
 
-  // If we somehow get here
-  return true;
-});
+      // If we somehow get here
+      return true;
+    });
 
   }
 };
