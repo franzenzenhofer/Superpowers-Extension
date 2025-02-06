@@ -68,6 +68,16 @@ async function openaiFetch(path, options = {}) {
   }
 
   try {
+    // Log outgoing request payload
+    //first lots of emogsi so we see it
+    console.log("🤖 🔄 🌐 ⚡️ 📡"); // Visual separator for important API calls
+
+    console.log('[OpenAI] Outgoing request:', {
+      endpoint: path,
+      method: options.method || 'GET',
+      payload: options.body ? JSON.parse(options.body) : undefined
+    });
+
     const res = await fetch(url, {
       ...options,
       headers: {
@@ -189,48 +199,73 @@ function processO1Messages(messages) {
  * Build a chat request body that supports GPT-3.5/4
  * and also o1/o1-mini models with 'max_completion_tokens'.
  */
-function buildChatRequestBody(payload, defaultModel = "gpt-4") {
-  const modelToUse = payload.model || defaultModel;
+function buildChatRequestBody(payload, defaultModel = "gpt-4o") {
+  // Start with a clean body containing all direct fields from payload
+  const body = { ...payload };  // This ensures we keep ALL fields
+  
+  // Override only what we need to customize
+  body.model = payload.model || defaultModel;
+
+
+  //strip out method form the payuload
+  delete body.method;
+  
   const isO1Family = (
-    modelToUse.startsWith("o1") ||
-    modelToUse.includes("o1-mini") ||
-    modelToUse.startsWith("o3") ||
-    modelToUse.includes("o3-mini")
+    body.model.startsWith("o1") ||
+    body.model.includes("o1-mini") ||
+    body.model.startsWith("o3") ||
+    body.model.includes("o3-mini")
   );
-  const modelConfig = getModelConfig(modelToUse);
+  
+  const modelConfig = getModelConfig(body.model);
 
-  const body = {
-    model: modelToUse,
-    messages: isO1Family ? processO1Messages(payload.messages || []) : (payload.messages || []),
-    temperature: payload.temperature !== undefined ? payload.temperature : modelConfig.temperature,
-  };
-
-  // Handle max_tokens
-  if (payload.max_tokens !== undefined) {
-    body[isO1Family ? 'max_completion_tokens' : 'max_tokens'] = Math.min(payload.max_tokens, modelConfig.maxTokens);
-  } else {
-    body[isO1Family ? 'max_completion_tokens' : 'max_tokens'] = modelConfig.maxTokens;
+  // Messages handling
+  body.messages = isO1Family ? processO1Messages(payload.messages || []) : (payload.messages || []);
+  
+  // Temperature (only if not explicitly set)
+  if (body.temperature === undefined) {
+    body.temperature = modelConfig.temperature;
   }
 
-  // Copy other fields from payload
-  if (payload.top_p !== undefined) body.top_p = payload.top_p;
-  if (payload.presence_penalty !== undefined) body.presence_penalty = payload.presence_penalty;
-  if (payload.frequency_penalty !== undefined) body.frequency_penalty = payload.frequency_penalty;
-  if (payload.stop) body.stop = payload.stop;
-  if (payload.logit_bias !== undefined) body.logit_bias = payload.logit_bias;
-  if (payload.logprobs !== undefined) body.logprobs = payload.logprobs;
-  if (payload.top_logprobs !== undefined) body.top_logprobs = payload.top_logprobs;
-  if (payload.n !== undefined) body.n = payload.n;
-  if (payload.stream !== undefined) body.stream = payload.stream;
+  // FIX: Handle tokens differently for o1/o3 vs gpt-4 models
+  const maxTokens = body.max_tokens !== undefined ? 
+    Math.min(body.max_tokens, modelConfig.maxTokens) : 
+    modelConfig.maxTokens;
+
+  if (isO1Family) {
+    body.max_completion_tokens = maxTokens;
+    delete body.max_tokens;  // Remove max_tokens for o1/o3
+  } else {
+    body.max_tokens = maxTokens;
+    delete body.max_completion_tokens;  // Remove max_completion_tokens for gpt-4
+  }
+
+  // Ensure response_format is preserved exactly as provided
+  if (payload.response_format) {
+    body.response_format = payload.response_format;
+  } else if (payload.json_schema) {
+    body.response_format = {
+      type: "json_schema",
+      json_schema: {
+        name: payload.json_schema.name || "default_schema",
+        description: payload.json_schema.description,
+        strict: payload.json_schema.strict !== false,
+        schema: {
+          type: "object",
+          properties: payload.json_schema.properties || {},
+          required: payload.json_schema.required || Object.keys(payload.json_schema.properties || {}),
+          additionalProperties: false
+        }
+      }
+    };
+  }
 
   if (isO1Family) {
     preprocessForO1(body);
   }
 
-  // Add logging for o1 models
-  if (isO1Family) {
-    console.log('[o1] Final request payload:', JSON.stringify(body, null, 2));
-  }
+  // Debug log
+  console.log('🔍 Final Request Body:', JSON.stringify(body, null, 2));
 
   return body;
 }
@@ -239,12 +274,22 @@ function buildChatRequestBody(payload, defaultModel = "gpt-4") {
 // 1) Chat (non-streaming)
 // -----------------------------------------------------------------------
 export async function handleChatCompletion(payload) {
+  console.log("🎯 🎯 🎯 CHAT COMPLETION CALLED 🎯 🎯 🎯");
+  console.log("📩 INCOMING PAYLOAD:", JSON.stringify(payload, null, 2));
+  
   const path = "/chat/completions";
-  const requestBody = buildChatRequestBody(payload, "gpt-4");
+  const requestBody = buildChatRequestBody(payload, "gpt-4o");
+  
+  console.log("🔄 TRANSFORMED REQUEST:", JSON.stringify(requestBody, null, 2));
+  
   const result = await openaiFetch(path, {
     method: "POST",
     body: JSON.stringify(requestBody)
   });
+  
+  console.log("📤 FINAL RESULT:", JSON.stringify(result, null, 2));
+  console.log("🏁 🏁 🏁 CHAT COMPLETION FINISHED 🏁 🏁 🏁");
+  
   return result;
 }
 
@@ -259,10 +304,15 @@ export async function handleChatCompletion(payload) {
  * @returns {Promise<object>} final result when the stream ends
  */
 export async function handleChatCompletionStream(payload, onPartialChunk) {
+  console.log("🌊 🌊 🌊 CHAT COMPLETION STREAM CALLED 🌊 🌊 🌊");
+  console.log("📩 INCOMING STREAM PAYLOAD:", JSON.stringify(payload, null, 2));
+  
   const path = "/chat/completions";
-  const requestBody = buildChatRequestBody(payload, "gpt-4");
+  const requestBody = buildChatRequestBody(payload, "gpt-4o");
   // Force streaming
   requestBody.stream = true;
+
+  console.log("🔄 TRANSFORMED STREAM REQUEST:", JSON.stringify(requestBody, null, 2));
 
   // Prepare fetch
   if (!_apiKey) {
@@ -276,6 +326,14 @@ export async function handleChatCompletionStream(payload, onPartialChunk) {
   if (_organizationId) {
     headers["OpenAI-Organization"] = _organizationId;
   }
+
+  // Debug logging with emojis
+  console.log("🤖 🔄 🌐 ⚡️ 📡"); // Visual separator
+  console.log('[OpenAI] Outgoing request:', {
+    endpoint: path,
+    method: "POST",
+    payload: requestBody
+  });
 
   const res = await fetch(url, {
     method: "POST",
@@ -314,11 +372,12 @@ export async function handleChatCompletionStream(payload, onPartialChunk) {
           }
           try {
             const parsed = JSON.parse(jsonStr);
+            console.log("📦 STREAM CHUNK:", JSON.stringify(parsed, null, 2));
             if (onPartialChunk) {
               onPartialChunk(parsed);
             }
           } catch (err) {
-            console.warn("[handleChatCompletionStream] SSE parse error:", err, jsonStr);
+            console.warn("❌ [handleChatCompletionStream] SSE parse error:", err, jsonStr);
           }
         }
       }
@@ -352,14 +411,36 @@ export async function handleImageGeneration(payload) {
 export async function handleStructuredCompletion(payload) {
   const path = "/chat/completions";
   const requestBody = buildChatRequestBody(payload, "gpt-4o");
+  
+  // Handle response format with proper json_schema structure
   if (payload.responseFormat) {
     requestBody.response_format = payload.responseFormat;
+  } else if (payload.json_schema) {
+    // Support direct json_schema input for convenience
+    requestBody.response_format = {
+      type: "json_schema",
+      json_schema: {
+        name: payload.json_schema.name || "default_schema",
+        description: payload.json_schema.description,
+        strict: payload.json_schema.strict !== false, // default to true
+        schema: {
+          type: "object",
+          properties: payload.json_schema.properties || {},
+          required: payload.json_schema.required || Object.keys(payload.json_schema.properties || {}),
+          additionalProperties: false
+        }
+      }
+    };
   } else {
+    // Default to simple json_object if no schema provided
     requestBody.response_format = { type: "json_object" };
   }
+
+  // Force temperature=1 for more consistent creative output
   if (payload.temperature === undefined) {
-    requestBody.temperature = 0;
+    requestBody.temperature = 1;
   }
+
   return await openaiFetch(path, {
     method: "POST",
     body: JSON.stringify(requestBody)
