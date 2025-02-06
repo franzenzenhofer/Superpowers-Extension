@@ -1,27 +1,32 @@
 // sidepanel.js
-// Minimal logic to read/write environment variables in chrome.storage,
-// displayed in side panel, plus a debug message listener, with improvements.
-
-//////////////////////////////
-// [IMPROVEMENT #4] Cache repeated DOM lookups
-//////////////////////////////
+//
+// Minimal logic for reading/writing environment variables in chrome.storage,
+// displayed in a side panel, plus a debug message listener, with bug fixes:
+//   - Changing a variable’s "Key" now removes the old key from storage
+//   - Deleting a row removes it from storage immediately
+//   - Clear, straightforward row-based saving
+//
+// ***KISS / robust approach***
+//
+////////////////////////////////////////////////
+// DOM references
+////////////////////////////////////////////////
 const envContainerEl = document.getElementById("envContainer");
 const debugOutputEl = document.getElementById("debugOutput");
 const toastEl = document.getElementById("toast");
 
-// We'll keep a max debug log lines
-// [IMPROVEMENT #1] Limit debug logs to 100 lines
+// Limit debug logs
 const MAX_DEBUG_LINES = 100;
 
-// Add these constants at the top with other constants
+// We'll define some basic config
 const VIRTUAL_LIST_CONFIG = {
-  rowHeight: 150, // Approximate height of each row in pixels
-  bufferSize: 5,  // Extra rows to render above/below viewport
-  recyclePool: new Map(), // Reuse DOM elements
-  maxPoolSize: 50 // Maximum number of recycled elements to keep
+  rowHeight: 150,
+  bufferSize: 5,
+  recyclePool: new Map(),
+  maxPoolSize: 50
 };
 
-// Add new state tracking for diffs
+// Basic state trackers (optional for future diff calculations)
 let previousEnvState = null;
 const stateChangeTracker = {
   added: new Set(),
@@ -29,25 +34,22 @@ const stateChangeTracker = {
   removed: new Set()
 };
 
-//////////////////////////////
-// Helper: showToast
-//////////////////////////////
+////////////////////////////////////////////////
+// Toast utility
+////////////////////////////////////////////////
 function showToast(message) {
-    // [IMPROVEMENT #7] We remove an existing .show if present to avoid overlap
-    toastEl.classList.remove("show");
-    toastEl.textContent = message;
+  toastEl.classList.remove("show");
+  toastEl.textContent = message;
+  // Force a reflow so removing/adding class triggers properly
+  void toastEl.offsetWidth;
+  toastEl.classList.add("show");
 
-    // Force reflow so the next add('show') triggers properly
-    // [Edge case] but helps avoid double toggles
-    void toastEl.offsetWidth;
-
-    toastEl.classList.add("show");
-    setTimeout(() => toastEl.classList.remove("show"), 3000);
+  setTimeout(() => toastEl.classList.remove("show"), 3000);
 }
 
-//////////////////////////////
-// Helper: debugLog
-//////////////////////////////
+////////////////////////////////////////////////
+// Debug logging
+////////////////////////////////////////////////
 let logBuffer = [];
 let renderTimeout = null;
 
@@ -60,16 +62,18 @@ function debugLog(message, data = null, level = "info") {
   };
   handleLogEntry(logEntry);
 
-  // Still log to console for development
+  // Also log to console
   switch (level) {
     case "error":
       console.error(logEntry.message);
       break;
     case "warning":
+    case "warn":
       console.warn(logEntry.message);
       break;
     default:
       console.log(logEntry.message);
+      break;
   }
 }
 
@@ -90,7 +94,6 @@ function renderLogs() {
   if (!logBuffer.length || !debugOutputEl) return;
 
   const fragment = document.createDocumentFragment();
-  
   logBuffer.forEach(log => {
     const entry = document.createElement('div');
     entry.className = `log-entry ${log.level}`;
@@ -99,45 +102,37 @@ function renderLogs() {
   });
 
   debugOutputEl.insertBefore(fragment, debugOutputEl.firstChild);
-  
+
+  // Keep only up to MAX_DEBUG_LINES
   while (debugOutputEl.children.length > MAX_DEBUG_LINES) {
     debugOutputEl.lastChild.remove();
   }
-
   logBuffer = [];
   debugOutputEl.scrollTop = 0;
 }
 
-//////////////////////////////
-// Helper: safeAddEventListener
-//////////////////////////////
-function safeAddEventListener(elementId, event, handler) {
-    const element = document.getElementById(elementId);
-    if (element) {
-        element.addEventListener(event, handler);
-    } else {
-        debugLog(`Element ${elementId} not found`, null, "warn");
-    }
+////////////////////////////////////////////////
+// Safe addEventListener
+////////////////////////////////////////////////
+function safeAddEventListener(id, eventName, handler) {
+  const el = document.getElementById(id);
+  if (!el) {
+    debugLog(`Element #${id} not found`, null, "warn");
+    return;
+  }
+  el.addEventListener(eventName, handler);
 }
 
-//////////////////////////////
-// onMessage debug handling
-//////////////////////////////
+////////////////////////////////////////////////
+// Chrome runtime message listening
+////////////////////////////////////////////////
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-    if (request.type === "SIDEPANEL_LOG") {
-        debugLog(request.message);
-        sendResponse({ success: true });
-    }
-});
-
-// Add version check listener
-chrome.runtime.onMessage.addListener((message) => {
-  if (message.type === "VERSION_CHECK" && message.latestVersion) {
-    showUpdateNotice(message);
+  if (request.type === "SIDEPANEL_LOG") {
+    debugLog(request.message);
+    sendResponse({ success: true });
   }
 });
 
-// Add version update listener
 chrome.runtime.onMessage.addListener((request) => {
   if (request.type === "SIDEPANEL_VERSION_UPDATE") {
     const header = document.querySelector('header');
@@ -154,511 +149,466 @@ chrome.runtime.onMessage.addListener((request) => {
   }
 });
 
-function showUpdateNotice(versionInfo) {
+// Show "update available" notice quietly
+chrome.runtime.onMessage.addListener((request) => {
+  if (request.type === "VERSION_CHECK" && request.latestVersion) {
+    showUpdateNotice(request);
+  }
+});
+
+function showUpdateNotice(info) {
   const updateNotice = document.createElement('div');
   updateNotice.className = 'update-notice';
   updateNotice.innerHTML = `
     <div style="background:#fff3cd;color:#856404;padding:8px;margin:8px;border-radius:4px;border:1px solid #ffeeba;">
-      Update Available: v${versionInfo.latestVersion} 
-      <a href="${versionInfo.updateUrl}" target="_blank" style="color:#533f03;text-decoration:underline;">
-        Update Now
-      </a>
+      Update Available: v${info.latestVersion}
+      <a href="${info.updateUrl}" target="_blank" style="color:#533f03;text-decoration:underline;">Update Now</a>
     </div>
   `;
-  
   document.body.insertBefore(updateNotice, document.body.firstChild);
 }
 
-//////////////////////////////
+////////////////////////////////////////////////
 // init
-//////////////////////////////
+////////////////////////////////////////////////
 function init() {
-    try {
-        debugLog("Sidepanel initializing...");
-        
-        // Add version check at start of init
-        chrome.runtime.sendMessage({ type: "CHECK_VERSION_QUIET" });
-        
-        loadEnvVars();
+  try {
+    debugLog("Sidepanel initializing...");
+    chrome.runtime.sendMessage({ type: "CHECK_VERSION_QUIET" });
 
-        safeAddEventListener("addRowBtn", "click", addRow);
-        safeAddEventListener("saveBtn", "click", saveEnvVars);
-        safeAddEventListener("refreshEnvBtn", "click", refreshEnvTest);
-        safeAddEventListener("clearDebugBtn", "click", clearDebug);
-        safeAddEventListener("loadCredsBtn", "click", () => {
-            window.location.href = chrome.runtime.getURL('pages/credentials_manager.html');
-        });
+    loadEnvVars();
 
-        // Container for row actions
-        envContainerEl.addEventListener('click', handleVariableActions);
+    safeAddEventListener("addRowBtn", "click", addRow);
+    safeAddEventListener("saveBtn", "click", saveEnvVars);
+    safeAddEventListener("refreshEnvBtn", "click", refreshEnvTest);
+    safeAddEventListener("clearDebugBtn", "click", clearDebug);
 
-        updatePluginsList();
+    safeAddEventListener("loadCredsBtn", "click", () => {
+      window.location.href = chrome.runtime.getURL('pages/credentials_manager.html');
+    });
 
-        // Initialize tooltips
-        document.querySelectorAll('.action-button').forEach(btn => {
-            btn.addEventListener('mouseenter', (e) => {
-                showToast(e.target.textContent);
-            });
-        });
+    envContainerEl.addEventListener('click', handleVariableActions);
 
-        // [ADDED] Copy Superpowers Instructions for ChatGPT button
-        const copyBtn = document.getElementById("copyInstructionsBtn");
-        if (copyBtn) {
-            copyBtn.addEventListener("click", async () => {
-                try {
-                    // Fetch the README-LLM.md text from extension
-                    const readmeUrl = chrome.runtime.getURL("README-LLM.md");
-                    const resp = await fetch(readmeUrl);
-                    const text = await resp.text();
+    updatePluginsList();
 
-                    await navigator.clipboard.writeText(text);
-                    showToast("Superpowers instructions copied to clipboard!");
-                    debugLog("Copied Superpowers instructions to clipboard");
-                } catch (err) {
-                    console.error("Error copying instructions:", err);
-                    showToast("Failed to copy instructions");
-                }
-            });
+    // Show tooltip on hover
+    document.querySelectorAll('.action-button').forEach(btn => {
+      btn.addEventListener('mouseenter', () => {
+        showToast(btn.textContent);
+      });
+    });
+
+    // Copy instructions button
+    const copyBtn = document.getElementById("copyInstructionsBtn");
+    if (copyBtn) {
+      copyBtn.addEventListener("click", async () => {
+        try {
+          const readmeUrl = chrome.runtime.getURL("README-LLM.md");
+          const resp = await fetch(readmeUrl);
+          const text = await resp.text();
+          await navigator.clipboard.writeText(text);
+          showToast("Superpowers instructions copied to clipboard!");
+          debugLog("Copied Superpowers instructions to clipboard");
+        } catch (err) {
+          console.error("Error copying instructions:", err);
+          showToast("Failed to copy instructions");
         }
-        
-    } catch (error) {
-        console.error("Initialization error:", error);
-        debugLog("Initialization error:", error, "error");
+      });
     }
-}
 
+  } catch (err) {
+    console.error("Initialization error:", err);
+    debugLog("Initialization error:", err, "error");
+  }
+}
 document.addEventListener("DOMContentLoaded", init);
 
-//////////////////////////////
+////////////////////////////////////////////////
 // loadEnvVars
-//////////////////////////////
+////////////////////////////////////////////////
 function loadEnvVars() {
-    debugLog("Loading environment variables");
-    chrome.storage.local.get(["superEnvVars"], (result) => {
-        if (chrome.runtime.lastError) {
-            debugLog("Error loading vars:", chrome.runtime.lastError, "error");
-            return;
-        }
-        
-        const vars = result.superEnvVars || {};
-        const envVars = (typeof vars === 'object' && !Array.isArray(vars))
-            ? (vars.default || vars)
-            : {};
-
-        debugLog("Loaded variables:", envVars, "info");
-        renderRows(envVars);
-    });
+  debugLog("Loading environment variables");
+  chrome.storage.local.get(["superEnvVars"], (res) => {
+    if (chrome.runtime.lastError) {
+      debugLog("Error loading vars:", chrome.runtime.lastError, "error");
+      return;
+    }
+    const vars = res.superEnvVars || {};
+    const envVars = (typeof vars === 'object' && !Array.isArray(vars)) ? (vars.default || vars) : {};
+    debugLog("Loaded variables:", envVars, "info");
+    renderRows(envVars);
+  });
 }
 
-//////////////////////////////
+////////////////////////////////////////////////
 // renderRows
-//////////////////////////////
-let renderRowsScheduled = false;
-let lastEnvVarsData = null;
-
+////////////////////////////////////////////////
 function renderRows(envVars) {
-    if (!envContainerEl) {
-        debugLog("No envContainer element found!", null, "error");
-        return;
-    }
+  if (!envContainerEl) {
+    debugLog("No envContainer element found!", null, "error");
+    return;
+  }
+  chrome.storage.local.get(["superEnvVars"], (res) => {
+    const vars = res.superEnvVars || {};
+    const descriptions = vars.descriptions || {};
 
-    // Load descriptions together with variables
-    chrome.storage.local.get(["superEnvVars"], (result) => {
-        const vars = result.superEnvVars || {};
-        const descriptions = vars.descriptions || {};
+    envContainerEl.innerHTML = '<div class="rows-list"></div>';
+    const container = envContainerEl.querySelector('.rows-list');
 
-        // Clear the container
-        envContainerEl.innerHTML = '<div class="rows-list"></div>';
-        const container = envContainerEl.querySelector('.rows-list');
-        
-        // Simple direct rendering, one row after another, now with descriptions
-        Object.entries(envVars).forEach(([key, value]) => {
-            const desc = descriptions[key] || "";
-            const row = createRow(key, value, desc);
-            container.appendChild(row);
-        });
+    Object.entries(envVars).forEach(([key, value]) => {
+      const desc = descriptions[key] || "";
+      const row = createRow(key, value, desc);
+      container.appendChild(row);
     });
+  });
 }
 
-// Add diff calculation
-function calculateDiffs(oldState, newState) {
-    stateChangeTracker.added.clear();
-    stateChangeTracker.modified.clear();
-    stateChangeTracker.removed.clear();
-
-    // Find added and modified
-    for (const [key, value] of Object.entries(newState)) {
-        if (!(key in oldState)) {
-            stateChangeTracker.added.add(key);
-        } else if (oldState[key] !== value) {
-            stateChangeTracker.modified.add(key);
-        }
-    }
-
-    // Find removed
-    for (const key of Object.keys(oldState)) {
-        if (!(key in newState)) {
-            stateChangeTracker.removed.add(key);
-        }
-    }
-}
-
-//////////////////////////////
+////////////////////////////////////////////////
 // createRow
-//////////////////////////////
+////////////////////////////////////////////////
 function createRow(keyVal = "", valVal = "", descVal = "") {
-    const row = document.createElement("div");
-    row.className = "variable-card";
+  const row = document.createElement("div");
+  row.className = "variable-card";
 
-    // Add an anchor ID so we can jump to sidepanel.html#KEY
-    const anchorId = encodeURIComponent(keyVal);
-    row.innerHTML = `
-        <a name="${anchorId}" id="${anchorId}"></a>
-        <div class="input-group">
-            <label>Key</label>
-            <input type="text" class="super-input" placeholder="KEY" value="${keyVal}">
-        </div>
-        <div class="input-group">
-            <label>Value</label>
-            <input type="password" class="super-input" placeholder="VALUE" value="${valVal}">
-        </div>
-        <div class="input-group">
-            <label>Description</label>
-            <input type="text" class="super-input" placeholder="Optional description" value="${descVal}">
-        </div>
-        <div class="variable-actions">
-            <div class="action-row">
-                <button class="action-button toggle">👁️ Show</button>
-                <button class="action-button delete">❌ Remove</button>
-            </div>
-            <button class="action-button save">💾 Save</button>
-        </div>
-    `;
-    return row;
+  // Remember the old key to remove from storage if changed
+  row.dataset.originalKey = keyVal;
+
+  const anchorId = encodeURIComponent(keyVal);
+  row.innerHTML = `
+    <a name="${anchorId}" id="${anchorId}"></a>
+    <div class="input-group">
+      <label>Key</label>
+      <input type="text" class="super-input" placeholder="KEY" value="${keyVal}">
+    </div>
+    <div class="input-group">
+      <label>Value</label>
+      <input type="password" class="super-input" placeholder="VALUE" value="${valVal}">
+    </div>
+    <div class="input-group">
+      <label>Description</label>
+      <input type="text" class="super-input" placeholder="Optional description" value="${descVal}">
+    </div>
+    <div class="variable-actions">
+      <div class="action-row">
+        <button class="action-button toggle">👁️ Show</button>
+        <button class="action-button delete">❌ Remove</button>
+      </div>
+      <button class="action-button save">💾 Save</button>
+    </div>
+  `;
+  return row;
 }
 
-//////////////////////////////
+////////////////////////////////////////////////
 // addRow
-//////////////////////////////
+////////////////////////////////////////////////
 function addRow() {
-    const newRow = createRow();
-    if (envContainerEl.firstChild) {
-        envContainerEl.insertBefore(newRow, envContainerEl.firstChild);
-    } else {
-        envContainerEl.appendChild(newRow);
-    }
+  const newRow = createRow();
+  if (envContainerEl.firstChild) {
+    envContainerEl.insertBefore(newRow, envContainerEl.firstChild);
+  } else {
+    envContainerEl.appendChild(newRow);
+  }
 }
 
-//////////////////////////////
-// saveField
-//////////////////////////////
+////////////////////////////////////////////////
+// saveField (single row)
+////////////////////////////////////////////////
 async function saveField(button) {
-    const card = button.closest('.variable-card');
-    if (!card) {
-        debugLog('Cannot find variable card', null, "error");
-        showToast('Error: No variable card found');
-        return;
-    }
+  const card = button.closest('.variable-card');
+  if (!card) {
+    debugLog('Cannot find variable card', null, "error");
+    showToast('Error: No variable card');
+    return;
+  }
+  const originalText = button.textContent;
+  button.textContent = '💫 Saving...';
+  button.disabled = true;
 
-    const originalText = button.textContent;
-    button.textContent = '💫 Saving...';
-    button.disabled = true;
+  const inputs = card.querySelectorAll('input');
+  const key = inputs[0]?.value?.trim();
+  const value = inputs[1]?.value;
+  const desc = inputs[2]?.value?.trim();
 
-    const inputs = card.querySelectorAll('input');
-    const key = inputs[0]?.value?.trim();
-    const value = inputs[1]?.value;
-    const description = inputs[2]?.value?.trim();
+  if (!key) {
+    showToast('Please enter a key');
+    button.textContent = originalText;
+    button.disabled = false;
+    return;
+  }
 
-    if (!key) {
-        showToast('Please enter a key name');
-        button.textContent = originalText;
-        button.disabled = false;
-        return;
-    }
+  try {
+    await new Promise((resolve, reject) => {
+      chrome.storage.local.get(["superEnvVars"], (res) => {
+        if (chrome.runtime.lastError) return reject(chrome.runtime.lastError);
 
-    try {
-        await new Promise((resolve, reject) => {
-            chrome.storage.local.get(['superEnvVars'], (result) => {
-                if (chrome.runtime.lastError) {
-                    reject(chrome.runtime.lastError);
-                    return;
-                }
+        const store = res.superEnvVars || { default: {} };
+        if (!store.default) store.default = {};
+        if (!store.descriptions) store.descriptions = {};
 
-                const vars = result.superEnvVars || { default: {} };
-                if (!vars.default) vars.default = {};
+        const oldKey = card.dataset.originalKey || "";
+        // If the user changed the key from oldKey -> new key, remove old from store
+        if (oldKey && oldKey !== key) {
+          delete store.default[oldKey];
+          delete store.descriptions[oldKey];
+        }
 
-                vars.default[key] = value;
+        // Now set the new key
+        store.default[key] = value;
+        if (desc) store.descriptions[key] = desc;
+        else delete store.descriptions[key];
 
-                if (!vars.descriptions) vars.descriptions = {};
-                if (description) {
-                    vars.descriptions[key] = description;
-                } else {
-                    delete vars.descriptions[key];
-                }
+        // Update the row's known "originalKey"
+        card.dataset.originalKey = key;
 
-                chrome.storage.local.set({ superEnvVars: vars }, () => {
-                    if (chrome.runtime.lastError) {
-                        reject(chrome.runtime.lastError);
-                        return;
-                    }
-                    resolve();
-                });
-            });
+        chrome.storage.local.set({ superEnvVars: store }, () => {
+          if (chrome.runtime.lastError) return reject(chrome.runtime.lastError);
+          resolve();
         });
+      });
+    });
 
-        button.textContent = '✅ Saved!';
-        setTimeout(() => {
-            button.textContent = originalText;
-            button.disabled = false;
-        }, 1000);
+    button.textContent = '✅ Saved!';
+    setTimeout(() => {
+      button.textContent = originalText;
+      button.disabled = false;
+    }, 1000);
+    showToast(`Saved: ${key}`);
+    debugLog(`Saved field: ${key} => ${value}`, { desc }, "info");
+    // Reload
+    loadEnvVars();
 
-        showToast(`Saved: ${key}`);
-        debugLog(`Saved field: ${key} = ${value}`, { description }, "info");
-        // Reload to reflect changes
-        loadEnvVars();
-    } catch (error) {
-        console.error("Error saving field:", error);
-        showToast('Error saving field');
-        debugLog("Error saving field:", error, "error");
-        button.textContent = '❌ Error';
-        setTimeout(() => {
-            button.textContent = originalText;
-            button.disabled = false;
-        }, 1000);
-    }
+  } catch (err) {
+    console.error("Error saving field:", err);
+    showToast('Error saving field');
+    debugLog("Error saving field:", err, "error");
+    button.textContent = '❌ Error';
+    setTimeout(() => {
+      button.textContent = originalText;
+      button.disabled = false;
+    }, 1000);
+  }
 }
 
-//////////////////////////////
-// saveEnvVars
-//////////////////////////////
+////////////////////////////////////////////////
+// saveEnvVars (Save All)
+////////////////////////////////////////////////
 function saveEnvVars() {
-    const rows = envContainerEl.querySelectorAll(".variable-card");
-    const newEnv = {};
-    const newDesc = {};
+  const rows = envContainerEl.querySelectorAll('.variable-card');
+  const newEnv = {};
+  const newDescs = {};
 
-    rows.forEach((row) => {
-        const inputs = row.querySelectorAll("input");
-        const k = inputs[0].value.trim();
-        const v = inputs[1].value;
-        const d = inputs[2].value.trim();
-        if (k) {
-            newEnv[k] = v;
-            if (d) newDesc[k] = d;
-        }
+  rows.forEach((row) => {
+    const inputs = row.querySelectorAll('input');
+    const k = inputs[0].value.trim();
+    const v = inputs[1].value;
+    const d = inputs[2].value.trim();
+    if (k) {
+      newEnv[k] = v;
+      if (d) newDescs[k] = d;
+    }
+  });
+
+  debugLog("Saving variables (saveAll):", newEnv);
+  chrome.storage.local.get(["superEnvVars"], (res) => {
+    if (chrome.runtime.lastError) {
+      debugLog("Error loading for saveAll:", chrome.runtime.lastError, "error");
+      alert("Error loading prior environment!");
+      return;
+    }
+
+    const store = res.superEnvVars || {};
+    if (!store.default) store.default = {};
+    if (!store.descriptions) store.descriptions = {};
+
+    // Overwrite default
+    store.default = newEnv;
+
+    // Overwrite or remove descriptions
+    for (const k of Object.keys(store.descriptions)) {
+      if (!newDescs[k]) delete store.descriptions[k];
+    }
+    for (const k of Object.keys(newDescs)) {
+      store.descriptions[k] = newDescs[k];
+    }
+
+    chrome.storage.local.set({ superEnvVars: store }, () => {
+      if (chrome.runtime.lastError) {
+        debugLog("Error saving (saveAll):", chrome.runtime.lastError, "error");
+        alert("Error saving variables!");
+        return;
+      }
+      debugLog("Variables saved successfully", null, "info");
+      alert("Variables saved!");
+      loadEnvVars();
     });
-
-    debugLog("Saving variables:", newEnv);
-
-    chrome.storage.local.get(["superEnvVars"], (res) => {
-        if (chrome.runtime.lastError) {
-            debugLog("Error loading for saveAll:", chrome.runtime.lastError, "error");
-            alert("Error loading prior environment!");
-            return;
-        }
-
-        const vars = res.superEnvVars || {};
-        if (!vars.default) vars.default = {};
-        if (!vars.descriptions) vars.descriptions = {};
-
-        // Overwrite default with newEnv
-        vars.default = newEnv;
-
-        // Overwrite or set descriptions
-        for (const k of Object.keys(vars.descriptions)) {
-            if (!newDesc[k]) {
-                delete vars.descriptions[k];
-            }
-        }
-        for (const k of Object.keys(newDesc)) {
-            vars.descriptions[k] = newDesc[k];
-        }
-
-        chrome.storage.local.set({ superEnvVars: vars }, () => {
-            if (chrome.runtime.lastError) {
-                debugLog("Error saving:", chrome.runtime.lastError, "error");
-                alert("Error saving variables!");
-                return;
-            }
-            debugLog("Variables saved successfully", null, "info");
-            alert("Variables saved!");
-            checkSavedEnvVars(newEnv);
-            loadEnvVars();
-        });
-    });
+  });
 }
 
-//////////////////////////////
-// checkSavedEnvVars
-//////////////////////////////
-function checkSavedEnvVars(expectedEnv) {
-    debugLog(`Verifying saved environment variables...`, null, "debug");
-    chrome.storage.local.get(["superEnvVars"], (data) => {
-        if (chrome.runtime.lastError) {
-            debugLog("Error verifying saved vars:", chrome.runtime.lastError, "error");
-            return;
-        }
-
-        const vars = data.superEnvVars || {};
-        const actual = (typeof vars === 'object' && !Array.isArray(vars)) 
-            ? (vars.default || vars)
-            : {};
-
-        const expectedStr = JSON.stringify(expectedEnv, null, 2);
-        const actualStr = JSON.stringify(actual, null, 2);
-
-        const matches = (expectedStr === actualStr);
-        debugLog(`Verification ${matches ? 'SUCCESS' : 'FAILED'}`, { expectedEnv, actual }, matches ? "info" : "warn");
-    });
-}
-
-//////////////////////////////
+////////////////////////////////////////////////
 // refreshEnvTest
-//////////////////////////////
+////////////////////////////////////////////////
 function refreshEnvTest() {
-    debugLog("Refreshing environment variables test panel...", null, "info");
-    chrome.storage.local.get(["superEnvVars"], (result) => {
-        if (chrome.runtime.lastError) {
-            debugLog("Error loading vars for test:", chrome.runtime.lastError, "error");
-            return;
+  debugLog("Refreshing environment variables test panel...", null, "info");
+  chrome.storage.local.get(["superEnvVars"], (res) => {
+    if (chrome.runtime.lastError) {
+      debugLog("Error loading vars for test:", chrome.runtime.lastError, "error");
+      return;
+    }
+    const testOutput = document.getElementById("envTestOutput");
+    if (!testOutput) {
+      debugLog("No #envTestOutput found, skipping", null, "warn");
+      return;
+    }
+
+    const store = res.superEnvVars || {};
+    let output = "Current Environment Variables:\n============================\n\n";
+
+    // default
+    const def = store.default || {};
+    if (Object.keys(def).length === 0) {
+      output += "No environment variables set.\n";
+    } else {
+      for (const [k,v] of Object.entries(def)) {
+        output += `${k} = ${v}\n`;
+      }
+    }
+
+    const otherKeys = Object.keys(store).filter(k => k !== 'default' && k !== 'descriptions');
+    if (otherKeys.length) {
+      output += "\nNamed Environments:\n===================\n";
+      otherKeys.forEach(envName => {
+        output += `[${envName}]:\n`;
+        for (const [k,v] of Object.entries(store[envName])) {
+          output += `  ${k} = ${v}\n`;
         }
-
-        const testOutput = document.getElementById("envTestOutput");
-        if (!testOutput) {
-            debugLog("No #envTestOutput found, skipping test display", null, "warn");
-            return;
-        }
-
-        const vars = result.superEnvVars || {};
-        let output = "Current Environment Variables:\n";
-        output += "===========================\n\n";
-
-        if (typeof vars === 'object') {
-            const defaultVars = vars.default || {};
-            if (Object.keys(defaultVars).length === 0) {
-                output += "No environment variables set.\n";
-            } else {
-                for (const [key, value] of Object.entries(defaultVars)) {
-                    output += `${key} = ${value}\n`;
-                }
-            }
-
-            const otherEnvs = Object.keys(vars).filter(k => k !== 'default' && k !== 'descriptions');
-            if (otherEnvs.length > 0) {
-                output += "\nNamed Environments:\n";
-                output += "===================\n\n";
-                for (const envName of otherEnvs) {
-                    output += `[${envName}]:\n`;
-                    for (const [key, value] of Object.entries(vars[envName])) {
-                        output += `  ${key} = ${value}\n`;
-                    }
-                    output += "\n";
-                }
-            }
-        }
-        
-        output += "\nLast updated: " + new Date().toISOString();
-        testOutput.textContent = output;
-
-        debugLog("Test panel refreshed", null, "info");
-    });
+        output += "\n";
+      });
+    }
+    output += "\nLast updated: " + new Date().toISOString();
+    testOutput.textContent = output;
+    debugLog("Test panel refreshed");
+  });
 }
 
-//////////////////////////////
+////////////////////////////////////////////////
 // updatePluginsList
-//////////////////////////////
+////////////////////////////////////////////////
 async function updatePluginsList() {
-    const pluginsDiv = document.getElementById('superpowers-plugins');
-    if (!pluginsDiv) return;
-
-    try {
-        const response = await chrome.runtime.sendMessage({ type: "GET_ACTIVE_PLUGINS" });
-        if (response?.plugins) {
-            pluginsDiv.innerHTML = `
-                <strong>Active Plugins:</strong><br>
-                ${response.plugins.map(p => `- ${p.name}`).join('<br>')}
-            `;
-        }
-    } catch (err) {
-        debugLog('Failed to get plugins list:', err, "warn");
+  const pluginsDiv = document.getElementById('superpowers-plugins');
+  if (!pluginsDiv) return;
+  try {
+    const resp = await chrome.runtime.sendMessage({ type: "GET_ACTIVE_PLUGINS" });
+    if (resp?.plugins) {
+      pluginsDiv.innerHTML = `
+        <strong>Active Plugins:</strong><br>
+        ${resp.plugins.map(p => `- ${p.name}`).join('<br>')}
+      `;
     }
+  } catch (err) {
+    debugLog('Failed to get plugins list:', err, "warn");
+  }
 }
 
-//////////////////////////////
+////////////////////////////////////////////////
 // toggleSecret
-//////////////////////////////
+////////////////////////////////////////////////
 function toggleSecret(button) {
-    try {
-        const card = button.closest('.variable-card');
-        // Target specifically the value input with "VALUE" placeholder
-        const valueInput = card.querySelector('input[placeholder="VALUE"]');
-        if (valueInput) {
-            valueInput.type = (valueInput.type === 'password') ? 'text' : 'password';
-            button.textContent = (valueInput.type === 'password') ? '👁️ Show' : '👁️ Hide';
-        }
-    } catch (error) {
-        debugLog('Toggle error:', error, "error");
-        showToast('Error toggling field visibility');
+  try {
+    const card = button.closest('.variable-card');
+    const valInput = card?.querySelector('input[placeholder="VALUE"]');
+    if (valInput) {
+      valInput.type = (valInput.type === 'password') ? 'text' : 'password';
+      button.textContent = (valInput.type === 'password') ? '👁️ Show' : '👁️ Hide';
     }
+  } catch (err) {
+    debugLog('Toggle error:', err, "error");
+    showToast('Error toggling field visibility');
+  }
 }
 
-//////////////////////////////
-// removeRow
-//////////////////////////////
+////////////////////////////////////////////////
+// removeRow (immediate storage removal)
+////////////////////////////////////////////////
 function removeRow(button) {
-    try {
-        const card = button.closest('.variable-card');
-        if (!card) return;
+  try {
+    const card = button.closest('.variable-card');
+    if (!card) return;
 
-        // Get key before removal
-        const key = card.querySelector('input').value;
+    const oldKey = card.dataset.originalKey || "";
 
-        // Add to recycle pool if not too full
-        if (VIRTUAL_LIST_CONFIG.recyclePool.size < VIRTUAL_LIST_CONFIG.maxPoolSize) {
-            VIRTUAL_LIST_CONFIG.recyclePool.set(key, card.cloneNode(true));
+    if (!oldKey) {
+      // Just remove from UI if no originalKey
+      card.remove();
+      showToast('Row removed (no stored key).');
+      return;
+    }
+
+    // Actually remove from storage
+    chrome.storage.local.get(['superEnvVars'], (res) => {
+      if (chrome.runtime.lastError) {
+        debugLog("Remove error:", chrome.runtime.lastError, "error");
+        showToast('Error removing variable');
+        return;
+      }
+
+      const store = res.superEnvVars || { default: {} };
+      if (!store.default) store.default = {};
+      if (!store.descriptions) store.descriptions = {};
+
+      delete store.default[oldKey];
+      delete store.descriptions[oldKey];
+
+      chrome.storage.local.set({ superEnvVars: store }, () => {
+        if (chrome.runtime.lastError) {
+          debugLog('Remove error set:', chrome.runtime.lastError, "error");
+          showToast('Error removing variable');
+          return;
         }
-
+        // Animate row removal
         card.style.opacity = '0';
         card.style.transform = 'translateX(100px)';
         setTimeout(() => {
-            card.remove();
-            if (!envContainerEl.querySelector('.rows-container').children.length) {
-                addRow();
-            }
-            showToast('Variable removed');
+          card.remove();
+          showToast('Variable removed');
+          // Reload environment in background
+          loadEnvVars();
         }, 200);
-    } catch (error) {
-        debugLog('Remove error:', error, "error");
-        showToast('Error removing variable');
-    }
+      });
+    });
+
+  } catch (err) {
+    debugLog('Remove error:', err, "error");
+    showToast('Error removing variable');
+  }
 }
 
-//////////////////////////////
+////////////////////////////////////////////////
 // clearDebug
-//////////////////////////////
+////////////////////////////////////////////////
 function clearDebug() {
-    try {
-        if (debugOutputEl) {
-            debugOutputEl.textContent = '';
-            showToast('Debug output cleared');
-        }
-    } catch (error) {
-        console.error("Error clearing debug:", error);
+  try {
+    if (debugOutputEl) {
+      debugOutputEl.textContent = '';
+      showToast('Debug output cleared');
     }
+  } catch (err) {
+    console.error("Error clearing debug:", err);
+  }
 }
 
-//////////////////////////////
+////////////////////////////////////////////////
 // handleVariableActions
-//////////////////////////////
-function handleVariableActions(event) {
-    const target = event.target;
-    if (!target.classList.contains('action-button')) return;
+////////////////////////////////////////////////
+function handleVariableActions(ev) {
+  const button = ev.target;
+  if (!button.classList.contains('action-button')) return;
 
-    const button = target;
-    if (button.classList.contains('toggle')) {
-        toggleSecret(button);
-    } else if (button.classList.contains('delete')) {
-        removeRow(button);
-    } else if (button.classList.contains('save')) {
-        saveField(button);
-    }
+  if (button.classList.contains('toggle')) {
+    toggleSecret(button);
+  } else if (button.classList.contains('delete')) {
+    removeRow(button);
+  } else if (button.classList.contains('save')) {
+    saveField(button);
+  }
 }
