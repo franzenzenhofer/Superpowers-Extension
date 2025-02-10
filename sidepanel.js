@@ -133,30 +133,28 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
 });
 
-chrome.runtime.onMessage.addListener((request) => {
-  if (request.type === "SIDEPANEL_VERSION_UPDATE") {
-    const header = document.querySelector('header');
-    if (header) {
-      const updateDiv = document.createElement('div');
-      updateDiv.className = 'version-update-notice';
-      updateDiv.innerHTML = `
-        <a href="${request.updateUrl}" target="_blank" style="display:block;padding:8px;background:#fff3cd;color:#856404;text-decoration:none;text-align:center;margin:8px 0;">
-          🆕 Update available: v${request.latestVersion} - Click to download
-        </a>
-      `;
-      header.appendChild(updateDiv);
-    }
-  }
-});
+function hasExistingUpdateNotice() {
+  return document.querySelector('.update-notice') !== null;
+}
 
-// Show "update available" notice quietly
-chrome.runtime.onMessage.addListener((request) => {
-  if (request.type === "VERSION_CHECK" && request.latestVersion) {
-    showUpdateNotice(request);
-  }
-});
+// Single update notice handler with timestamp tracking
+let lastUpdateTimestamp = 0;
+const UPDATE_COOLDOWN = 1000; // 1 second cooldown between notices
 
 function showUpdateNotice(info) {
+  // Don't add if we already have an update notice
+  if (document.querySelector('.update-notice')) {
+    console.debug("[Sidepanel] Update notice already exists, skipping");
+    return;
+  }
+
+  // Prevent duplicate notices in rapid succession
+  if (info.timestamp && info.timestamp - lastUpdateTimestamp < UPDATE_COOLDOWN) {
+    console.debug("[Sidepanel] Update notice cooldown active, skipping");
+    return;
+  }
+  lastUpdateTimestamp = info.timestamp || Date.now();
+
   const updateNotice = document.createElement('div');
   updateNotice.className = 'update-notice';
   updateNotice.innerHTML = `
@@ -167,6 +165,13 @@ function showUpdateNotice(info) {
   `;
   document.body.insertBefore(updateNotice, document.body.firstChild);
 }
+
+// Single message handler for all update types
+chrome.runtime.onMessage.addListener((request) => {
+  if ((request.type === "VERSION_CHECK" || request.type === "SIDEPANEL_VERSION_UPDATE") && request.latestVersion) {
+    showUpdateNotice(request);
+  }
+});
 
 ////////////////////////////////////////////////
 // init
