@@ -4,12 +4,26 @@ const VERSION_CONFIG = {
   GITHUB_VERSION_URL: "https://raw.githubusercontent.com/franzenzenhofer/Superpowers-Extension/main/manifest.json",
   GITHUB_REPO_URL: "https://github.com/franzenzenhofer/Superpowers-Extension",
   hasCheckedVersion: false,
-  hasNotifiedUpdate: false
+  hasNotifiedUpdate: false,
+  lastNotifiedVersion: null
 };
 
 // Add cache breaker function
 function getCacheBreakerUrl(url) {
   return `${url}?cb=${Date.now()}-${Math.random().toString(36).substring(7)}`;
+}
+
+/**
+ * Checks if we should notify about an update
+ */
+function shouldNotifyUpdate(latestVersion) {
+  if (VERSION_CONFIG.hasNotifiedUpdate && VERSION_CONFIG.lastNotifiedVersion === latestVersion) {
+    console.debug("[Version Check] Already notified about version", latestVersion);
+    return false;
+  }
+  VERSION_CONFIG.hasNotifiedUpdate = true;
+  VERSION_CONFIG.lastNotifiedVersion = latestVersion;
+  return true;
 }
 
 /**
@@ -32,10 +46,9 @@ export async function checkVersion() {
 
     console.debug(`[Version Check] Current: ${currentVersion}, Latest: ${remoteManifest.version}`);
 
-    if (remoteManifest.version > currentVersion && !VERSION_CONFIG.hasNotifiedUpdate) {
+    if (remoteManifest.version > currentVersion && shouldNotifyUpdate(remoteManifest.version)) {
       console.debug("[Version Check] Update available, notifying user");
       notifyUpdate(currentVersion, remoteManifest.version);
-      VERSION_CONFIG.hasNotifiedUpdate = true;
       chrome.tabs.create({ url: VERSION_CONFIG.GITHUB_REPO_URL });
     } else {
       console.debug("[Version Check] Version is current or already notified");
@@ -60,11 +73,11 @@ export async function checkVersionQuiet() {
 
     console.debug(`[Version Check] Quiet check - Current: ${currentVersion}, Latest: ${remoteManifest.version}`);
 
-    if (remoteManifest.version > currentVersion) {
+    if (remoteManifest.version > currentVersion && shouldNotifyUpdate(remoteManifest.version)) {
       console.debug("[Version Check] Update available (quiet mode)");
       notifyUpdate(currentVersion, remoteManifest.version);
     } else {
-      console.debug("[Version Check] Version is current (quiet mode)");
+      console.debug("[Version Check] Version is current or already notified (quiet mode)");
     }
   } catch (err) {
     console.debug("[Version Check] Silent check failed:", err);
@@ -85,7 +98,7 @@ export async function checkVersionSidepanel() {
 
     console.debug(`[Version Check] Sidepanel check - Current: ${currentVersion}, Latest: ${remoteManifest.version}`);
 
-    if (remoteManifest.version > currentVersion) {
+    if (remoteManifest.version > currentVersion && shouldNotifyUpdate(remoteManifest.version)) {
       console.debug("[Version Check] Update available, notifying sidepanel");
       chrome.runtime.sendMessage({
         type: "SIDEPANEL_VERSION_UPDATE",
@@ -94,7 +107,7 @@ export async function checkVersionSidepanel() {
         updateUrl: VERSION_CONFIG.GITHUB_REPO_URL
       });
     } else {
-      console.debug("[Version Check] Version is current (sidepanel check)");
+      console.debug("[Version Check] Version is current or already notified (sidepanel check)");
     }
   } catch (err) {
     console.debug("[Version Check] Sidepanel check failed:", err);
