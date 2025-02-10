@@ -14,6 +14,47 @@ function getCacheBreakerUrl(url) {
 }
 
 /**
+ * Checks if an update notice is already showing in the sidepanel
+ */
+async function isUpdateNoticeShowing() {
+  try {
+    // Use modern chrome.windows.getAll API
+    const windows = await chrome.windows.getAll({ populate: true });
+    for (const window of windows) {
+      for (const tab of window.tabs) {
+        if (tab.url?.includes('sidepanel.html')) {
+          // Check main frame
+          const [mainResults] = await chrome.scripting.executeScript({
+            target: { tabId: tab.id },
+            func: () => !!document.querySelector('.update-notice')
+          });
+          
+          if (mainResults?.result) {
+            console.debug("[Version Check] Update notice found in main frame");
+            return true;
+          }
+
+          // Check all frames
+          const [frameResults] = await chrome.scripting.executeScript({
+            target: { tabId: tab.id, allFrames: true },
+            func: () => !!document.querySelector('.update-notice')
+          });
+          
+          if (frameResults?.result) {
+            console.debug("[Version Check] Update notice found in frame");
+            return true;
+          }
+        }
+      }
+    }
+    return false;
+  } catch (err) {
+    console.debug("[Version Check] Error checking for update notice:", err);
+    return false;
+  }
+}
+
+/**
  * Checks if we should notify about an update
  */
 function shouldNotifyUpdate(latestVersion) {
@@ -46,12 +87,17 @@ export async function checkVersion() {
 
     console.debug(`[Version Check] Current: ${currentVersion}, Latest: ${remoteManifest.version}`);
 
-    if (remoteManifest.version > currentVersion && shouldNotifyUpdate(remoteManifest.version)) {
-      console.debug("[Version Check] Update available, notifying user");
-      notifyUpdate(currentVersion, remoteManifest.version);
-      chrome.tabs.create({ url: VERSION_CONFIG.GITHUB_REPO_URL });
+    if (remoteManifest.version > currentVersion) {
+      const noticeExists = await isUpdateNoticeShowing();
+      if (!noticeExists && shouldNotifyUpdate(remoteManifest.version)) {
+        console.debug("[Version Check] Update available, notifying user");
+        notifyUpdate(currentVersion, remoteManifest.version);
+        chrome.tabs.create({ url: VERSION_CONFIG.GITHUB_REPO_URL });
+      } else {
+        console.debug("[Version Check] Update notice already showing or already notified");
+      }
     } else {
-      console.debug("[Version Check] Version is current or already notified");
+      console.debug("[Version Check] Version is current");
     }
   } catch (err) {
     console.debug("[Version Check] Failed:", err);
@@ -73,11 +119,16 @@ export async function checkVersionQuiet() {
 
     console.debug(`[Version Check] Quiet check - Current: ${currentVersion}, Latest: ${remoteManifest.version}`);
 
-    if (remoteManifest.version > currentVersion && shouldNotifyUpdate(remoteManifest.version)) {
-      console.debug("[Version Check] Update available (quiet mode)");
-      notifyUpdate(currentVersion, remoteManifest.version);
+    if (remoteManifest.version > currentVersion) {
+      const noticeExists = await isUpdateNoticeShowing();
+      if (!noticeExists && shouldNotifyUpdate(remoteManifest.version)) {
+        console.debug("[Version Check] Update available (quiet mode)");
+        notifyUpdate(currentVersion, remoteManifest.version);
+      } else {
+        console.debug("[Version Check] Update notice already showing or already notified (quiet mode)");
+      }
     } else {
-      console.debug("[Version Check] Version is current or already notified (quiet mode)");
+      console.debug("[Version Check] Version is current (quiet mode)");
     }
   } catch (err) {
     console.debug("[Version Check] Silent check failed:", err);
@@ -98,16 +149,21 @@ export async function checkVersionSidepanel() {
 
     console.debug(`[Version Check] Sidepanel check - Current: ${currentVersion}, Latest: ${remoteManifest.version}`);
 
-    if (remoteManifest.version > currentVersion && shouldNotifyUpdate(remoteManifest.version)) {
-      console.debug("[Version Check] Update available, notifying sidepanel");
-      chrome.runtime.sendMessage({
-        type: "SIDEPANEL_VERSION_UPDATE",
-        currentVersion,
-        latestVersion: remoteManifest.version,
-        updateUrl: VERSION_CONFIG.GITHUB_REPO_URL
-      });
+    if (remoteManifest.version > currentVersion) {
+      const noticeExists = await isUpdateNoticeShowing();
+      if (!noticeExists && shouldNotifyUpdate(remoteManifest.version)) {
+        console.debug("[Version Check] Update available, notifying sidepanel");
+        chrome.runtime.sendMessage({
+          type: "SIDEPANEL_VERSION_UPDATE",
+          currentVersion,
+          latestVersion: remoteManifest.version,
+          updateUrl: VERSION_CONFIG.GITHUB_REPO_URL
+        });
+      } else {
+        console.debug("[Version Check] Update notice already showing or already notified (sidepanel check)");
+      }
     } else {
-      console.debug("[Version Check] Version is current or already notified (sidepanel check)");
+      console.debug("[Version Check] Version is current (sidepanel check)");
     }
   } catch (err) {
     console.debug("[Version Check] Sidepanel check failed:", err);
