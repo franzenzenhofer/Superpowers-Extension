@@ -3,7 +3,8 @@ console.debug("[Version Checker] Module loading...");
 const VERSION_CONFIG = {
   GITHUB_VERSION_URL: "https://raw.githubusercontent.com/franzenzenhofer/Superpowers-Extension/main/manifest.json",
   GITHUB_REPO_URL: "https://github.com/franzenzenhofer/Superpowers-Extension",
-  hasCheckedVersion: false
+  hasCheckedVersion: false,
+  hasNotifiedUpdate: false
 };
 
 // Add cache breaker function
@@ -31,12 +32,13 @@ export async function checkVersion() {
 
     console.debug(`[Version Check] Current: ${currentVersion}, Latest: ${remoteManifest.version}`);
 
-    if (remoteManifest.version > currentVersion) {
+    if (remoteManifest.version > currentVersion && !VERSION_CONFIG.hasNotifiedUpdate) {
       console.debug("[Version Check] Update available, notifying user");
       notifyUpdate(currentVersion, remoteManifest.version);
+      VERSION_CONFIG.hasNotifiedUpdate = true;
       chrome.tabs.create({ url: VERSION_CONFIG.GITHUB_REPO_URL });
     } else {
-      console.debug("[Version Check] Version is current");
+      console.debug("[Version Check] Version is current or already notified");
     }
   } catch (err) {
     console.debug("[Version Check] Failed:", err);
