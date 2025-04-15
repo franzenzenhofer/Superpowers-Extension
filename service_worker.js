@@ -1,5 +1,5 @@
 // Add debug logging for module loading at the very top
-console.debug("[SW] Loading service worker modules...");
+console.debug("[SW] Loading service worker modules... [FIXED-VERSION]");
 
 import { initializePluginManager } from './plugin_manager.js';
 import { initializeVersionChecker, checkVersionSidepanel } from './modules/version_checker.js';
@@ -113,6 +113,14 @@ const DEBUG = {
   }
 };
 
+// Consolidate the panel state tracking HERE
+const PANEL_STATE = {
+  sidePanel: {
+    isOpen: false,
+    enabled: false
+  }
+};
+
 const LOG_SERVICE = {
   logs: [],
   maxLogs: 1000,
@@ -149,17 +157,45 @@ const LOG_SERVICE = {
   
   sendBatch() {
     if (!this.pendingBatch.length) return;
-    
-    const batch = this.pendingBatch;
+
+    const batch = [...this.pendingBatch]; // Create a copy to avoid issues
     this.pendingBatch = [];
-    
-    chrome.tabs.query({}, tabs => {
-      tabs.forEach(tab => {
-        chrome.tabs.sendMessage(tab.id, {
-          type: "LOG_BATCH",
-          logs: batch
-        }).catch(() => {}); // Ignore disconnected tabs
-      });
+
+    // FIXED APPROACH: Use a function that handles errors directly
+    function sendSafely(tabId, message) {
+      try {
+        chrome.tabs.sendMessage(tabId, message, function(response) {
+          // Handle response inside callback, checking for lastError
+          if (chrome.runtime.lastError) {
+            // Silently handle expected connection errors
+            if (!chrome.runtime.lastError.message?.includes("Could not establish connection")) {
+              console.warn(`[FIXED] Error sending to tab ${tabId}:`, chrome.runtime.lastError.message);
+            }
+          }
+        });
+      } catch (err) {
+        console.warn(`[FIXED] Exception sending to tab ${tabId}:`, err.message);
+      }
+    }
+
+    // Query tabs safely
+    chrome.tabs.query({}, function(tabs) {
+      if (chrome.runtime.lastError) {
+        console.warn("[FIXED] Error querying tabs:", chrome.runtime.lastError.message);
+        return;
+      }
+      
+      // Process each tab
+      if (tabs && tabs.length > 0) {
+        for (const tab of tabs) {
+          if (tab && tab.id) {
+            sendSafely(tab.id, {
+              type: "LOG_BATCH",
+              logs: batch
+            });
+          }
+        }
+      }
     });
   }
 };
@@ -237,6 +273,33 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             uptime: Date.now() - DEBUG.state.startupTime,
             activeRequests: Array.from(DEBUG.state.activeRequests)
           }
+        });
+        finishRequest(tracked);
+        return false; // Not async
+
+      case 'GET_COMBINED_ENV':
+        // Handler for environment testing
+        chrome.storage.local.get("superEnvVars", (result) => {
+          const envVars = result.superEnvVars?.default || {};
+          sendResponse({ 
+            success: true, 
+            env: envVars
+          });
+          finishRequest(tracked);
+        });
+        return true; // Async response
+
+      case 'GET_PLUGINS_LIST':
+        // Handler for plugins list
+        const pluginsList = Array.from(DEBUG.state.plugins.values()).map(plugin => ({
+          name: plugin.name,
+          version: plugin.version || 'N/A',
+          status: plugin.active ? 'Active' : 'Inactive',
+          error: plugin.error
+        }));
+        sendResponse({
+          success: true,
+          plugins: pluginsList
         });
         finishRequest(tracked);
         return false; // Not async
@@ -328,18 +391,19 @@ chrome.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
 // Update the message listener
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.type === "OPEN_SIDEPANEL") {
-    if (!SIDEPANEL_STATE.isOpen) {
+    if (!PANEL_STATE.sidePanel.enabled) {
       chrome.sidePanel.open({ windowId: sender.tab.windowId });
-      SIDEPANEL_STATE.isOpen = true;
+      PANEL_STATE.sidePanel.enabled = true;
     } else {
       chrome.sidePanel.close({ windowId: sender.tab.windowId });
-      SIDEPANEL_STATE.isOpen = false;
+      PANEL_STATE.sidePanel.enabled = false;
     }
     sendResponse({ success: true });
     return true;
   }
 });
 
+// Keep the listener below this comment block
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.type === 'EXCHANGE_OAUTH_CODE') {
     // Important: Return true to indicate we will send response asynchronously
@@ -360,25 +424,54 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.type === "OPEN_SIDEPANEL") {
     try {
-      // Toggle the panel by enabling/disabling it
-      chrome.sidePanel.setOptions({
-        enabled: !PANEL_STATE.isOpen
-      }).then(() => {
-        PANEL_STATE.isOpen = !PANEL_STATE.isOpen;
-        // If we're enabling it, also open it
-        if (PANEL_STATE.isOpen && chrome.sidePanel?.open) {
-          chrome.sidePanel.open({ windowId: sender.tab.windowId });
-          // Add direct version check call here
-          console.debug("[SW] Checking version on sidepanel open");
-          checkVersionSidepanel();  // Direct call without catch
-        }
-        sendResponse({ success: true, isOpen: PANEL_STATE.isOpen });
-      });
+      // This listener correctly uses PANEL_STATE.sidePanel.enabled and isOpen
+      // It handles the toggle logic by enabling/disabling the panel
+      if (!PANEL_STATE.sidePanel.enabled) {
+        chrome.sidePanel.setOptions({
+          enabled: true
+        }).then(() => {
+          try {
+            // Attempt to open explicitly after enabling
+            if (chrome.sidePanel?.open) {
+              chrome.sidePanel.open({ windowId: sender.tab.windowId });
+            }
+            PANEL_STATE.sidePanel.enabled = true;
+            PANEL_STATE.sidePanel.isOpen = true; // Assume open if enabled/opened
+            sendResponse({ success: true, state: PANEL_STATE.sidePanel });
+          } catch (openErr) {
+            // Handle user gesture error specifically
+            if (openErr.message.includes("user gesture")) {
+              console.warn("[SW] sidePanel.open() needs user gesture. Panel enabled, user must click.");
+              PANEL_STATE.sidePanel.enabled = true; // Still enabled
+              PANEL_STATE.sidePanel.isOpen = false; // But not programmatically opened
+              sendResponse({ success: true, state: PANEL_STATE.sidePanel, needsGesture: true });
+            } else {
+              throw openErr; // Rethrow other errors
+            }
+          }
+        }).catch(err => { // Catch errors from setOptions
+            console.error("[SW] Error enabling side panel:", err);
+            sendResponse({ success: false, error: err.message });
+        });
+      } else {
+        // Panel is enabled, so disable it
+        chrome.sidePanel.setOptions({
+          enabled: false
+        }).then(() => {
+          PANEL_STATE.sidePanel.enabled = false;
+          PANEL_STATE.sidePanel.isOpen = false;
+          sendResponse({ success: true, state: PANEL_STATE.sidePanel });
+        }).catch(err => { // Catch errors from setOptions
+            console.error("[SW] Error disabling side panel:", err);
+            sendResponse({ success: false, error: err.message });
+        });
+      }
     } catch (err) {
-      console.error("[SW] Side panel error:", err);
+      // Catch synchronous errors, though less likely here
+      console.error("[SW] Side panel toggle error:", err);
       sendResponse({ success: false, error: err.message });
     }
-    return true; // Keep channel open for async
+    return true; // Indicate async response
   }
 
   if (request.type === "OPEN_CREDENTIALS_MANAGER") {
@@ -388,7 +481,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         enabled: true,
         path: 'pages/credentials_manager.html'
       }).then(() => {
-        PANEL_STATE.isOpen = true;
+        PANEL_STATE.sidePanel.enabled = true;
         if (chrome.sidePanel?.open) {
           chrome.sidePanel.open({ windowId: sender.tab.windowId });
         }
@@ -404,53 +497,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       sendResponse({ success: true, mode: "fallback" });
     }
     return true; // Keep channel open for async
-  }
-});
-
-// Consolidate the panel state tracking
-const PANEL_STATE = {
-  sidePanel: {
-    isOpen: false,
-    enabled: false
-  }
-};
-
-// Replace all conflicting side panel handlers with this single one
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  if (request.type === "OPEN_SIDEPANEL") {
-    try {
-      if (!PANEL_STATE.sidePanel.enabled) {
-        chrome.sidePanel.setOptions({
-          enabled: true
-        }).then(() => {
-          try {
-            if (chrome.sidePanel?.open) {
-              chrome.sidePanel.open({ windowId: sender.tab.windowId });
-            }
-            PANEL_STATE.sidePanel.enabled = true;
-            PANEL_STATE.sidePanel.isOpen = true;
-          } catch (openErr) {
-            if (openErr.message.includes("user gesture")) {
-              console.warn("[SW] sidePanel.open() user-gesture fallback");
-            } else {
-              throw openErr;
-            }
-          }
-        });
-      } else {
-        chrome.sidePanel.setOptions({
-          enabled: false
-        }).then(() => {
-          PANEL_STATE.sidePanel.enabled = false;
-          PANEL_STATE.sidePanel.isOpen = false;
-        });
-      }
-      sendResponse({ success: true });
-    } catch (err) {
-      console.error("[SW] Side panel error:", err);
-      sendResponse({ success: false, error: err.message });
-    }
-    return true;
   }
 });
 
@@ -542,6 +588,30 @@ async function initialize() {
     DEBUG.state.plugins = plugins;
     DEBUG.state.isInitialized = true;
 
+    // Check if superenv is loaded and active - it's critical for other plugins
+    const superenvPlugin = plugins.get('superenv_extension');
+    if (!superenvPlugin || !superenvPlugin.active) {
+      console.error("[SW] CRITICAL: superenv plugin is not loaded or not active!");
+      logSW('superenv plugin missing or inactive', DEBUG.LEVELS.ERROR, {
+        installed: plugins.has('superenv_extension'),
+        active: superenvPlugin?.active || false
+      });
+    } else {
+      console.log("[SW] superenv plugin loaded and active");
+    }
+
+    // Check if all OpenAI-dependent plugins have what they need
+    const openaiPlugin = plugins.get('superopenai_extension');
+    if (openaiPlugin) {
+      console.log("[SW] superopenai plugin is loaded, checking status");
+      if (!openaiPlugin.active) {
+        console.error("[SW] WARNING: superopenai plugin failed to activate");
+        logSW('superopenai plugin inactive', DEBUG.LEVELS.ERROR, {
+          error: openaiPlugin.error || "Unknown error"
+        });
+      }
+    }
+
     // Check if any plugin is inactive => big warning
     const failures = Array.from(plugins.values()).filter(p => !p.active);
     if (failures.length > 0) {
@@ -570,22 +640,37 @@ async function initialize() {
 // 4) This sets up your sidepanel logic
 // ----------------------------------------------------------------------------
 function setupSidePanelBehavior() {
-  // Listen for action button clicks
+  // Use chrome.sidePanel.setPanelBehavior to enable opening on action click
+  if (chrome.sidePanel?.setPanelBehavior) {
+    chrome.sidePanel.setPanelBehavior({
+      openPanelOnActionClick: true // Ensure this is TRUE
+    }).then(() => {
+      console.log("[SW] Side panel behavior set to open on action click.");
+    }).catch(err => {
+      console.warn("[SW] Could not set side panel behavior:", err);
+      // Fallback to click listener if setPanelBehavior fails
+      setupActionClickListener();
+    });
+  } else {
+    // Fallback for older versions (less reliable than setPanelBehavior)
+    console.warn("[SW] chrome.sidePanel.setPanelBehavior not supported. Falling back to onClicked listener.");
+    setupActionClickListener();
+  }
+}
+
+// Separate function for the action click listener to avoid code duplication
+function setupActionClickListener() {
   chrome.action.onClicked.addListener((tab) => {
+    console.log("[SW] Action icon clicked (fallback).");
     if (chrome.sidePanel?.open) {
-      chrome.sidePanel.open({ windowId: tab.windowId });
+      chrome.sidePanel.open({ windowId: tab.windowId })
+        .catch(err => console.error("[SW] Error opening sidepanel:", err));
     } else {
-      // Fallback for older Chrome versions
+      // If sidePanel API itself isn't available, maybe open as a tab
+      console.warn("[SW] chrome.sidePanel.open not available.");
       chrome.tabs.create({ url: chrome.runtime.getURL("sidepanel.html") });
     }
   });
-
-  // Optionally disable auto-open behavior if supported
-  if (chrome.sidePanel?.setPanelBehavior) {
-    chrome.sidePanel.setPanelBehavior({ 
-      openPanelOnActionClick: true // Enable auto-open on action click
-    });
-  }
 }
 
 // ----------------------------------------------------------------------------

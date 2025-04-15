@@ -3,9 +3,17 @@
 // Relays messages from content => calls ga.js => responds to content => page.
 
 import {
+  createExtensionBridge
+} from '/scripts/plugin_bridge.js';
+
+// Import all necessary handlers from ga.js
+import {
   login,
   getLoginStatus,
   test,
+  listAccounts,
+  listAccountSummaries,
+  listProperties,
   runReport,
   runPivotReport,
   batchRunReports,
@@ -16,98 +24,50 @@ import {
   createAudienceExport,
   getAudienceExport,
   queryAudienceExport,
-  listAudienceExports,
-  listAccounts,
-  listAccountSummaries,
-  listProperties
+  listAudienceExports
 } from "./ga.js";
 
 export const ga_extension = {
   name: "ga_extension",
 
   install(context) {
-    const CALL_TYPE = "GA_CALL";
+    // Define the method handlers for the bridge
+    // The bridge passes (methodName, args, sender, requestId)
+    const methodHandlers = {
+      // Simple mapping for most methods
+      login: (m, args) => login(...args),
+      test: (m, args) => test(...args),
+      listAccounts: (m, args) => listAccounts(...args),
+      listAccountSummaries: (m, args) => listAccountSummaries(...args),
+      listProperties: (m, args) => listProperties(...args),
+      runReport: (m, args) => runReport(...args),
+      runPivotReport: (m, args) => runPivotReport(...args),
+      batchRunReports: (m, args) => batchRunReports(...args),
+      batchRunPivotReports: (m, args) => batchRunPivotReports(...args),
+      runRealtimeReport: (m, args) => runRealtimeReport(...args),
+      getMetadata: (m, args) => getMetadata(...args),
+      checkCompatibility: (m, args) => checkCompatibility(...args),
+      createAudienceExport: (m, args) => createAudienceExport(...args),
+      getAudienceExport: (m, args) => getAudienceExport(...args),
+      queryAudienceExport: (m, args) => queryAudienceExport(...args),
+      listAudienceExports: (m, args) => listAudienceExports(...args),
 
-    chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-      if (request.type !== CALL_TYPE) return false;
+      // Special case for synchronous getLoginStatus
+      getLoginStatus: (methodName, args, sender, requestId) => {
+        return Promise.resolve(getLoginStatus());
+      },
+    };
 
-      const { methodName, args } = request;
-      console.log(`[ga_extension] method=${methodName}, args=`, args);
-
-      let promise;
-      switch (methodName) {
-        case "login":
-          promise = login(...args);
-          break;
-        case "getLoginStatus":
-          sendResponse({ success: true, result: getLoginStatus() });
-          return true;
-        case "test":
-          promise = test();
-          break;
-
-        // GA Admin
-        case "listAccounts":
-          promise = listAccounts(...args);
-          break;
-        case "listAccountSummaries":
-          promise = listAccountSummaries(...args);
-          break;
-        case "listProperties":
-          promise = listProperties(...args);
-          break;
-
-        // GA Data
-        case "runReport":
-          promise = runReport(...args);
-          break;
-        case "runPivotReport":
-          promise = runPivotReport(...args);
-          break;
-        case "batchRunReports":
-          promise = batchRunReports(...args);
-          break;
-        case "batchRunPivotReports":
-          promise = batchRunPivotReports(...args);
-          break;
-        case "runRealtimeReport":
-          promise = runRealtimeReport(...args);
-          break;
-        case "getMetadata":
-          promise = getMetadata(...args);
-          break;
-        case "checkCompatibility":
-          promise = checkCompatibility(...args);
-          break;
-
-        // Audience Exports
-        case "createAudienceExport":
-          promise = createAudienceExport(...args);
-          break;
-        case "getAudienceExport":
-          promise = getAudienceExport(...args);
-          break;
-        case "queryAudienceExport":
-          promise = queryAudienceExport(...args);
-          break;
-        case "listAudienceExports":
-          promise = listAudienceExports(...args);
-          break;
-
-        default:
-          promise = Promise.reject(new Error(`[ga_extension] Unknown method: ${methodName}`));
-      }
-
-      promise
-        .then((result) => {
-          sendResponse({ success: true, result });
-        })
-        .catch((err) => {
-          console.error("[ga_extension] error =>", err);
-          sendResponse({ success: false, error: err.message });
-        });
-
-      return true; // keep sendResponse channel open
+    // Create the extension bridge
+    createExtensionBridge({
+      pluginName: 'ga',
+      methodHandlers,
     });
+
+    /*
+    console.log("[ga_extension] Extension bridge initialized.");
+    */
+
+    // The old chrome.runtime.onMessage listener is now handled by the bridge.
   }
 };

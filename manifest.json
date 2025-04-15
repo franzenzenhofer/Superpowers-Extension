@@ -1,6 +1,6 @@
 {
   "name": "Superpowers by Franz Enzenhofer",
-  "version": "0.1.56",
+  "version": "0.1.89",
   "description": "A robust Chrome extension granting in-page superpowers (cross-domain fetch, env vars).",
   "manifest_version": 3,
 
@@ -10,7 +10,6 @@
     "sidePanel",
     "tabs",
     "webNavigation",
-    "sub_frames",
     "webRequest",
     "webRequestBlocking",
     "debugger",
@@ -20,7 +19,6 @@
   "host_permissions": [
       "<all_urls>",
       "file://*/*",
-      "blob:*",
       "https://api.openai.com/*",
       "http://localhost/*",
       "https://oauth2.googleapis.com/*",
@@ -39,6 +37,7 @@
         "plugin_config.json",
         "plugins/*/*.js",
         "plugins/*.js",
+        "scripts/plugin_bridge.js",
         "pages/credentials_manager.html",
         "pages/credentials_manager.js",
         "scripts/credentials_helpers.js",

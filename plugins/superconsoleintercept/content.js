@@ -1,29 +1,16 @@
-(function() {
-  const PLUGIN_EVENT_TYPE = "SUPER_CONSOLE_EVENT";
-  
-  // Listen for console events from page
-  window.addEventListener("message", (ev) => {
-    if (!ev.data || ev.data.direction !== "from-page") return;
-    if (ev.data.type !== PLUGIN_EVENT_TYPE) return;
+import { createContentBridge } from '/scripts/plugin_bridge.js';
 
-    // Forward to service worker
-    chrome.runtime.sendMessage({
-      type: PLUGIN_EVENT_TYPE,
-      level: ev.data.level,
-      args: ev.data.args
-    });
-  });
+(function () {
+  // Initialize the content bridge for 'superconsoleintercept'
+  // This handles forwarding calls (like logEvent, enable, disable)
+  // to the extension and relaying broadcasted events (CONSOLE_EVENT)
+  // from the extension back to the page.
+  createContentBridge('superconsoleintercept');
 
-  // Listen for console events from service worker
-  chrome.runtime.onMessage.addListener((msg) => {
-    if (msg.type !== PLUGIN_EVENT_TYPE) return;
-    
-    // Forward to page
-    window.postMessage({
-      direction: "from-content-script",
-      type: PLUGIN_EVENT_TYPE,
-      level: msg.level,
-      args: msg.args
-    }, "*");
-  });
+  /*
+  console.debug('[superconsoleintercept/content.js] Content bridge initialized.');
+  */
 })();
+
+// The previous logic for forwarding SUPER_CONSOLE_EVENT messages
+// in both directions has been replaced by the bridge.

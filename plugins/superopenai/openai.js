@@ -5,6 +5,9 @@
  * (including the new SSE streaming logic for "chatCompletionStream".)
  */
 
+// Import the fetchEnvVarsFromSuperenv helper from extension.js
+import { fetchEnvVarsFromSuperenv } from './extension.js';
+
 const OPENAI_API_BASE = "https://api.openai.com/v1";
 
 // In-memory config
@@ -38,14 +41,14 @@ function getModelConfig(model) {
 }
 
 /**
- * Store the user’s API key
+ * Store the user's API key
  */
 export function setApiKey(key) {
   _apiKey = key;
 }
 
 /**
- * Store the user’s organization ID
+ * Store the user's organization ID
  */
 export function setOrganizationId(orgId) {
   _organizationId = orgId;
@@ -55,9 +58,40 @@ export function setOrganizationId(orgId) {
  * A helper for normal (non-stream) fetch calls
  */
 async function openaiFetch(path, options = {}) {
-  if (!_apiKey) {
-    throw new Error("No API key set for OpenAI! Please setApiKey(...) first or store in extension config.");
+  // Try up to 2 times to load the API key if it's missing
+  let keyLoaded = false;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    if (!_apiKey) {
+      console.log(`[OpenAI] No API key set, attempt ${attempt + 1} to load`);
+      
+      try {
+        // Use our new hierarchical API key loading function
+        keyLoaded = await ensureApiKeyLoaded();
+        
+        if (keyLoaded) {
+          console.log("[OpenAI] Successfully loaded API key");
+          break; // Key loaded successfully, exit the retry loop
+        } else if (attempt === 0) {
+          // Only log this on first attempt to avoid spam
+          console.warn("[OpenAI] Failed to load API key, will retry once before failing");
+          // Small delay before retrying to allow for any async storage operations to complete
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+      } catch (err) {
+        console.error("[OpenAI] Error during API key loading attempt:", err);
+      }
+    } else {
+      keyLoaded = true;
+      break; // Key already exists, no need for second attempt
+    }
   }
+
+  // Final check - fail if no key after attempts
+  if (!_apiKey) {
+    console.error("[OpenAI] API key still not available after retry attempts");
+    throw new Error("No API key set for OpenAI! Please setApiKey(...) first or store in environment variables.");
+  }
+
   const url = `${OPENAI_API_BASE}${path}`;
   const headers = {
     "Content-Type": "application/json",
@@ -69,7 +103,6 @@ async function openaiFetch(path, options = {}) {
 
   try {
     // Log outgoing request payload
-    //first lots of emogsi so we see it
     console.log("🤖 🔄 🌐 ⚡️ 📡"); // Visual separator for important API calls
 
     console.log('[OpenAI] Outgoing request:', {
@@ -88,6 +121,15 @@ async function openaiFetch(path, options = {}) {
 
     if (!res.ok) {
       const errorBody = await res.json().catch(() => ({}));
+      
+      // Special case for authentication errors - might need to reload API key
+      if (res.status === 401) {
+        console.error("[OpenAI] Authentication error (401) - API key may be invalid or expired");
+        // Clear the key so next request will try to reload it from superenv
+        _apiKey = null;
+        console.log("[OpenAI] API key cleared - will try to reload from superenv on next request");
+      }
+      
       const error = new Error(`OpenAI API Error (${res.status}): ${errorBody.error?.message || "Unknown error"}`);
       error.status = res.status;
       error.endpoint = path;
@@ -109,7 +151,140 @@ async function openaiFetch(path, options = {}) {
 }
 
 /**
- * If we’re using an o1 or o1-mini model, forcibly remove/override certain params
+ * Attempts to load the OpenAI API key, following a clear hierarchy:
+ * 1. First try to get it from superenv (the source of truth)
+ * 2. Only if superenv fails or doesn't have the key, try direct storage access
+ * 
+ * @returns {Promise<boolean>} True if key was loaded successfully
+ */
+async function ensureApiKeyLoaded() {
+  if (_apiKey) {
+    return true; // Key already loaded
+  }
+  
+  console.log("[OpenAI] No API key set, attempting to load from superenv first");
+  
+  // ATTEMPT 1 (PRIMARY): Use superenv as the source of truth
+  try {
+    console.log("[OpenAI] PRIMARY: Requesting environment variables from superenv");
+    // Send a message to superenv to get environment variables
+    const envVars = await new Promise((resolve, reject) => {
+      chrome.runtime.sendMessage(
+        { type: "SUPERENV_GET_VARS" },
+        (response) => {
+          if (chrome.runtime.lastError) {
+            reject(new Error(`Chrome runtime error: ${chrome.runtime.lastError.message}`));
+            return;
+          }
+          
+          if (!response) {
+            reject(new Error("No response received from superenv"));
+            return;
+          }
+          
+          if (response.success === false) {
+            reject(new Error(response.error || "Unknown error from superenv"));
+            return;
+          }
+          
+          // Success case
+          resolve(response.success && response.result ? response.result : {});
+        }
+      );
+    });
+    
+    // Check if we got the API key from superenv
+    if (envVars && envVars.OPENAI_API_KEY) {
+      console.log("[OpenAI] Successfully retrieved API key from superenv");
+      setApiKey(envVars.OPENAI_API_KEY);
+      
+      // Also set org ID if available
+      if (envVars.OPENAI_ORGANIZATION_ID) {
+        setOrganizationId(envVars.OPENAI_ORGANIZATION_ID);
+        console.log("[OpenAI] Also loaded organization ID from superenv");
+      }
+      
+      return true;
+    } else {
+      console.warn("[OpenAI] superenv responded but no API key was found");
+      // Continue to fallback
+    }
+  } catch (err) {
+    console.error("[OpenAI] Failed to get API key from superenv:", err);
+    // Continue to fallback
+  }
+  
+  // ATTEMPT 2 (FALLBACK): Direct storage access if superenv failed or didn't have the key
+  console.log("[OpenAI] FALLBACK: Attempting direct storage access");
+  
+  // Try direct access to superEnvVars
+  try {
+    console.log("[OpenAI] Directly accessing chrome.storage.local for superEnvVars");
+    const result = await new Promise((resolve) => {
+      chrome.storage.local.get("superEnvVars", (result) => {
+        if (chrome.runtime.lastError) {
+          console.error("[OpenAI] Storage error:", chrome.runtime.lastError);
+          resolve(null);
+        } else {
+          resolve(result);
+        }
+      });
+    });
+    
+    if (result && result.superEnvVars && result.superEnvVars.default) {
+      const defaultVars = result.superEnvVars.default;
+      if (defaultVars.OPENAI_API_KEY) {
+        console.log("[OpenAI] Successfully retrieved API key directly from chrome.storage.local");
+        setApiKey(defaultVars.OPENAI_API_KEY);
+        
+        // Also set org ID if available
+        if (defaultVars.OPENAI_ORGANIZATION_ID) {
+          setOrganizationId(defaultVars.OPENAI_ORGANIZATION_ID);
+          console.log("[OpenAI] Also loaded organization ID");
+        }
+        
+        return true;
+      } else {
+        console.warn("[OpenAI] API key not found in direct superEnvVars access");
+      }
+    } else {
+      console.warn("[OpenAI] No valid superEnvVars found in storage");
+    }
+  } catch (err) {
+    console.error("[OpenAI] Error during direct superEnvVars access:", err);
+  }
+  
+  // Last resort: Check for dedicated API key storage
+  try {
+    console.log("[OpenAI] Checking for dedicated API key storage");
+    const dedicatedResult = await new Promise((resolve) => {
+      chrome.storage.local.get("openaiApiKey", (result) => {
+        if (chrome.runtime.lastError) {
+          console.error("[OpenAI] Dedicated storage error:", chrome.runtime.lastError);
+          resolve(null);
+        } else {
+          resolve(result);
+        }
+      });
+    });
+    
+    if (dedicatedResult && dedicatedResult.openaiApiKey) {
+      console.log("[OpenAI] Found API key in dedicated storage");
+      setApiKey(dedicatedResult.openaiApiKey);
+      return true;
+    } else {
+      console.warn("[OpenAI] No dedicated API key storage found");
+    }
+  } catch (err) {
+    console.error("[OpenAI] Error checking dedicated API key storage:", err);
+  }
+  
+  console.error("[OpenAI] All API key loading strategies failed");
+  return false;
+}
+
+/**
+ * If we're using an o1 or o1-mini model, forcibly remove/override certain params
  * (presence_penalty, frequency_penalty, etc.), force temperature=1, rename system->developer if no developer role found
  */
 function preprocessForO1(requestBody) {
@@ -297,95 +472,127 @@ export async function handleChatCompletion(payload) {
 // 2) Streaming Chat
 // -----------------------------------------------------------------------
 /**
- * Streaming version of chat completion, using SSE (Server-Sent Events)
- *
- * @param {object} payload       - The request payload (model, messages, etc.)
- * @param {function} onPartialChunk - Callback for each SSE chunk from OpenAI
- * @returns {Promise<object>} final result when the stream ends
+ * NEW: Handle streaming chat completions via Server-Sent Events (SSE)
+ * Updated to use broadcastEvent for sending chunks back via the plugin bridge.
  */
-export async function handleChatCompletionStream(payload, onPartialChunk) {
-  console.log("🌊 🌊 🌊 CHAT COMPLETION STREAM CALLED 🌊 🌊 🌊");
-  console.log("📩 INCOMING STREAM PAYLOAD:", JSON.stringify(payload, null, 2));
-  
-  const path = "/chat/completions";
-  const requestBody = buildChatRequestBody(payload, "gpt-4o");
-  // Force streaming
-  requestBody.stream = true;
-
-  console.log("🔄 TRANSFORMED STREAM REQUEST:", JSON.stringify(requestBody, null, 2));
-
-  // Prepare fetch
+export async function handleChatCompletionStream(payload, sender, requestId, broadcastEvent) {
+  // Try to load API key if missing
   if (!_apiKey) {
-    throw new Error("No API key set for OpenAI!");
+    console.log("[OpenAI] No API key set for streaming, attempting to load");
+    
+    try {
+      // Use our hierarchical API key loading function
+      const keyLoaded = await ensureApiKeyLoaded();
+      
+      if (!keyLoaded) {
+        console.error("[OpenAI] Failed to load API key for streaming");
+        throw new Error("No API key set for OpenAI! Please setApiKey(...) first or store in environment variables.");
+      }
+    } catch (err) {
+      console.error("[OpenAI] Error during API key loading attempt for streaming:", err);
+      throw new Error("Error loading API key: " + err.message);
+    }
   }
-  const url = `${OPENAI_API_BASE}${path}`;
+  
+  // Still no API key after trying to load it
+  if (!_apiKey) {
+    throw new Error("No API key set for OpenAI! Please setApiKey(...) first or store in environment variables.");
+  }
+
+  if (!requestId || typeof broadcastEvent !== 'function') {
+    console.error("[openai.js] Missing requestId or broadcastEvent for streaming.");
+    throw new Error("Streaming setup failed.");
+  }
+
+  const url = `${OPENAI_API_BASE}/chat/completions`;
   const headers = {
     "Content-Type": "application/json",
-    "Authorization": `Bearer ${_apiKey}`
+    "Authorization": `Bearer ${_apiKey}`,
+    "Accept": "text/event-stream" // Important for SSE
   };
   if (_organizationId) {
     headers["OpenAI-Organization"] = _organizationId;
   }
 
-  // Debug logging with emojis
-  console.log("🤖 🔄 🌐 ⚡️ 📡"); // Visual separator
-  console.log('[OpenAI] Outgoing request:', {
-    endpoint: path,
-    method: "POST",
-    payload: requestBody
-  });
+  const body = buildChatRequestBody({ ...payload, stream: true }); // Ensure stream is true
 
-  const res = await fetch(url, {
-    method: "POST",
-    headers,
-    body: JSON.stringify(requestBody)
-  });
-  if (!res.ok) {
-    const errorBody = await res.json().catch(() => ({}));
-    throw new Error(`OpenAI SSE Error (${res.status}): ${errorBody.error?.message || "Unknown error"}`);
-  }
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+    });
 
-  // Parse the SSE stream
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder("utf-8");
-  let buffer = "";
+    if (!res.ok) {
+      const errorBody = await res.json().catch(() => ({}));
+      
+      // Special case for authentication errors - might need to reload API key
+      if (res.status === 401) {
+        console.error("[OpenAI] Authentication error (401) during streaming - API key may be invalid or expired");
+        // Clear the key so next request will try to reload it from superenv
+        _apiKey = null;
+        console.log("[OpenAI] API key cleared - will try to reload from superenv on next request");
+      }
+      
+      const error = new Error(`OpenAI API Error (${res.status}) during stream setup: ${errorBody.error?.message || "Unknown error"}`);
+      error.status = res.status;
+      error.endpoint = url;
+      error.method = "POST";
+      error.requestBody = body;
+      error.responseBody = errorBody;
+      throw error;
+    }
 
-  while (true) {
-    const { value, done } = await reader.read();
-    if (done) break;
+    // Process the stream
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
 
-    buffer += decoder.decode(value, { stream: true });
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
 
-    let boundaryIndex;
-    while ((boundaryIndex = buffer.indexOf("\n\n")) !== -1) {
-      const sseEvent = buffer.slice(0, boundaryIndex);
-      buffer = buffer.slice(boundaryIndex + 2);
+      buffer += decoder.decode(value, { stream: true });
 
-      const lines = sseEvent.split("\n");
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (trimmed.startsWith("data:")) {
-          const jsonStr = trimmed.slice("data:".length).trim();
-          if (jsonStr === "[DONE]") {
-            // end of stream
-            return { message: "Stream completed" };
-          }
-          try {
-            const parsed = JSON.parse(jsonStr);
-            console.log("📦 STREAM CHUNK:", JSON.stringify(parsed, null, 2));
-            if (onPartialChunk) {
-              onPartialChunk(parsed);
+      // Process complete lines (events) in the buffer
+      let boundary = buffer.indexOf("\n\n");
+      while (boundary !== -1) {
+        const eventStr = buffer.substring(0, boundary);
+        buffer = buffer.substring(boundary + 2); // Skip the \n\n
+
+        if (eventStr.startsWith("data: ")) {
+          const dataStr = eventStr.substring(6).trim(); // Get the JSON part
+          if (dataStr === "[DONE]") {
+            // End of stream signaled by OpenAI
+            // The final result is often synthesized or handled differently,
+            // but we could broadcast a 'DONE' event if needed.
+            // broadcastEvent('STREAM_DONE', [requestId]);
+          } else {
+            try {
+              const chunk = JSON.parse(dataStr);
+              // Broadcast the chunk back via the content script -> page
+              broadcastEvent('STREAM_CHUNK', [requestId, chunk]); // Pass requestId and chunk
+            } catch (e) {
+              console.error("[openai.js] Error parsing stream chunk:", e, "Data:", dataStr);
             }
-          } catch (err) {
-            console.warn("❌ [handleChatCompletionStream] SSE parse error:", err, jsonStr);
           }
         }
+        boundary = buffer.indexOf("\n\n");
       }
     }
-  }
+    // Handle any remaining buffer if necessary (usually shouldn't happen with SSE)
 
-  // If we get here, no [DONE] marker was found
-  return { message: "Stream ended (no [DONE])" };
+    // Since the stream has ended, we don't have a single consolidated 'result'
+    // like in non-streaming calls. The caller (page script) needs to reconstruct
+    // the full response from the chunks. We resolve the promise to indicate completion.
+    return { success: true, message: "Stream completed" }; // Indicate successful stream processing
+
+  } catch (err) {
+    console.error("[openai.js] Error during chat stream:", err);
+    // Broadcast an error event? Or let the main catch handle it.
+    // broadcastEvent('STREAM_ERROR', [requestId, err.message]);
+    throw err; // Re-throw so the bridge's catch handler sends an error response
+  }
 }
 
 // -----------------------------------------------------------------------

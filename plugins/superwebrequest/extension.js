@@ -1,6 +1,8 @@
 // plugins/superwebrequest/extension.js
 // Minimal bridging for chrome.webRequest methods, e.g. handlerBehaviorChanged().
 
+import { createExtensionBridge } from '../../scripts/plugin_bridge.js';
+
 export const superwebrequest_extension = {
   name: "superwebrequest_extension",
 
@@ -8,6 +10,21 @@ export const superwebrequest_extension = {
     let enabled = false;
     const eventListeners = new Map();
 
+    // Create the extension bridge with a handler for all webRequest methods
+    const { broadcastEvent } = createExtensionBridge({
+      pluginName: 'superwebrequest',
+      methodHandlers: {
+        // Handler for all webRequest methods
+        handler: (methodName, args, sender) => {
+          if (!enabled) {
+            throw new Error("Superwebrequest is not enabled");
+          }
+          return callChromeWebRequest(methodName, args);
+        }
+      }
+    });
+
+    // Handle control messages for enabling/disabling
     chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       if (request.type === "SUPER_WEBREQUEST_CONTROL") {
         if (request.action === "turnOn") {
@@ -20,15 +37,7 @@ export const superwebrequest_extension = {
         sendResponse({ success: true });
         return true;
       }
-
-      if (!enabled || request.type !== "SUPER_WEBREQUEST_CALL") return false;
-
-      const { requestId, methodName, args } = request;
-      callChromeWebRequest(methodName, args)
-        .then(result => sendResponse({ success: true, result }))
-        .catch(err => sendResponse({ success: false, error: err.message || String(err) }));
-
-      return true;
+      return false;
     });
 
     function setupEventListeners() {
@@ -46,7 +55,9 @@ export const superwebrequest_extension = {
 
       webRequestEvents.forEach(evtName => {
         const listener = (...args) => {
-          if (enabled) broadcastWebRequestEvent(evtName, args);
+          if (enabled) {
+            broadcastEvent(evtName, args);
+          }
         };
         eventListeners.set(evtName, listener);
         
@@ -65,44 +76,6 @@ export const superwebrequest_extension = {
         }
       });
       eventListeners.clear();
-    }
-
-    async function broadcastWebRequestEvent(eventName, eventArgs) {
-      if (!enabled) return;
-      
-      try {
-        const tabs = await chrome.tabs.query({
-          status: "complete",
-          url: ["http://*/*", "https://*/*"]
-        });
-
-        for (const tab of tabs) {
-          if (!tab.id || tab.id < 0 || !tab.url || 
-              tab.url.startsWith('chrome://') || 
-              tab.url.startsWith('chrome-extension://')) {
-            continue;
-          }
-
-          try {
-            await Promise.race([
-              chrome.tabs.sendMessage(tab.id, {
-                type: "SUPER_WEBREQUEST_EVENT",
-                eventName,
-                args: eventArgs
-              }),
-              new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 1000))
-            ]);
-          } catch (err) {
-            if (!err.message.includes('Could not establish connection') &&
-                !err.message.includes('message port closed') &&
-                !err.message.includes('Timeout')) {
-              console.debug(`[superwebrequest] Tab ${tab.id} error:`, err.message);
-            }
-          }
-        }
-      } catch (err) {
-        console.debug("[superwebrequest] Broadcast error:", err);
-      }
     }
 
     // Start completely disabled

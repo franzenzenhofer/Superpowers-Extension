@@ -1,3 +1,5 @@
+import { createPageBridge } from '/scripts/plugin_bridge.js';
+
 (function() {
   // console.debug('[gsc/page] Initializing GSC page script');
   
@@ -12,6 +14,13 @@
 
   const CALL_TYPE = "GSC_CALL";
   const RESPONSE_TYPE = "GSC_RESPONSE";
+
+  // Instantiate the bridge for 'gsc'
+  const gscBridge = createPageBridge('gsc');
+
+  // Assign the bridge directly to the Gsc namespace.
+  // Method calls like Superpowers.Gsc.listSites(...) will be proxied.
+  window.Superpowers.Gsc = gscBridge;
 
   function callGscMethod(methodName, ...args) {
     // console.log('🔄 [FLOW] 3. Page script: calling GSC method:', { methodName, args });

@@ -1,4 +1,6 @@
 // plugins/superruntime/extension.js
+import { createExtensionBridge } from '../../scripts/plugin_bridge.js';
+
 export const superruntime_extension = {
   name: "superruntime_extension",
 
@@ -9,7 +11,21 @@ export const superruntime_extension = {
     // Start disabled and clean
     removeEventListeners();
 
-    // Handle method calls
+    // Create the extension bridge with a handler for all methods
+    const { broadcastEvent } = createExtensionBridge({
+      pluginName: 'superruntime',
+      methodHandlers: {
+        // Handler for all runtime methods
+        handler: (methodName, args, sender) => {
+          if (!enabled) {
+            throw new Error("Superruntime is not enabled");
+          }
+          return callChromeRuntime(methodName, args);
+        }
+      }
+    });
+
+    // Handle control messages for enabling/disabling
     chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       if (request.type === "SUPER_RUNTIME_CONTROL") {
         if (request.action === "turnOn") {
@@ -21,16 +37,6 @@ export const superruntime_extension = {
         }
         return;
       }
-
-      if (!enabled || request.type !== "SUPER_RUNTIME_CALL") return false;
-
-      const { requestId, methodName, args } = request;
-
-      callChromeRuntime(methodName, args)
-        .then(result => sendResponse({ success: true, result }))
-        .catch(err => sendResponse({ success: false, error: err.message || String(err) }));
-
-      return true;
     });
 
     function setupEventListeners() {
@@ -48,7 +54,11 @@ export const superruntime_extension = {
       ];
 
       runtimeEvents.forEach(evtName => {
-        const listener = (...args) => broadcastRuntimeEvent(evtName, args);
+        const listener = (...args) => {
+          if (enabled) {
+            broadcastEvent(evtName, args);
+          }
+        };
         eventListeners.set(evtName, listener);
         
         const evtObject = chrome.runtime[evtName];
@@ -76,7 +86,7 @@ export const superruntime_extension = {
 
 /**
  * Attempt to call chrome.runtime[methodName](...args) as a Promise.
- * If the method doesn’t return a promise, fallback to old callback style.
+ * If the method doesn't return a promise, fallback to old callback style.
  */
 function callChromeRuntime(methodName, args) {
   return new Promise((resolve, reject) => {
@@ -111,51 +121,4 @@ function callChromeRuntime(methodName, args) {
       }
     }
   });
-}
-
-async function broadcastRuntimeEvent(eventName, eventArgs) {
-  if (!enabled) return; // Extra safety check
-  
-  try {
-    const tabs = await chrome.tabs.query({
-      status: "complete",
-      url: ["http://*/*", "https://*/*"]
-    });
-
-    for (const tab of tabs) {
-      // Skip tabs that can't receive messages
-      if (!tab.id || tab.id < 0 || !tab.url || 
-          tab.url.startsWith('chrome://') || 
-          tab.url.startsWith('chrome-extension://')) {
-        continue;
-      }
-
-      try {
-        // Add timeout to avoid hanging
-        const response = await Promise.race([
-          chrome.tabs.sendMessage(tab.id, {
-            type: "SUPER_RUNTIME_EVENT",
-            eventName,
-            args: eventArgs
-          }),
-          new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Timeout')), 1000)
-          )
-        ]);
-
-        if (!response?.success) {
-          console.debug(`[superruntime] Tab ${tab.id} failed to handle message`);
-        }
-      } catch (err) {
-        // Only log unexpected errors
-        if (!err.message.includes('Could not establish connection') &&
-            !err.message.includes('message port closed') &&
-            !err.message.includes('Timeout')) {
-          console.debug(`[superruntime] Tab ${tab.id} error:`, err.message);
-        }
-      }
-    }
-  } catch (err) {
-    console.debug("[superruntime] Broadcast error:", err);
-  }
 }

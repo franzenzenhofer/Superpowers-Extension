@@ -1046,3 +1046,12 @@ body {
     100% { background-color: transparent; }
 }
 
+/* Add styles for the version info */
+.version-info {
+    font-size: 0.75rem; /* Smaller font size */
+    color: var(--super-secondary-text); /* Use a secondary text color */
+    text-align: right; /* Align to the right */
+    margin-top: -0.5rem; /* Adjust spacing as needed */
+    margin-bottom: 0.5rem; /* Add some space below */
+}
+

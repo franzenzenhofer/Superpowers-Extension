@@ -1,38 +1,33 @@
-// plugins/superstorage/extension.js
+// plugins/storage/extension.js
 // Service worker logic to handle chrome.storage calls and broadcast events.
+
+import { createExtensionBridge } from '../../scripts/plugin_bridge.js';
 
 export const storage_extension = {
     name: "storage_extension",
 
     install(context) {
         try {
-            setupMessageHandlers();
-            setupStorageEvents();
+            // Create the extension bridge with a handler for all storage methods
+            const { broadcastEvent } = createExtensionBridge({
+                pluginName: 'storage',
+                methodHandlers: {
+                    // Handler for all storage methods
+                    handler: (methodName, args, sender) => {
+                        return handleStorageCall(methodName, args);
+                    }
+                }
+            });
+
+            // Setup storage event listener
+            chrome.storage.onChanged.addListener((changes, areaName) => {
+                broadcastEvent("onChanged", [changes, areaName]);
+            });
         } catch (err) {
-            console.error('[superstorage_extension] Installation error:', err);
+            console.error('[storage_extension] Installation error:', err);
         }
     }
 };
-
-function setupMessageHandlers() {
-    chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-        if (request.type !== "SUPER_STORAGE_CALL") return false;
-
-        const { requestId, methodName, args } = request;
-        
-        handleStorageCall(methodName, args)
-            .then(result => sendResponse({ success: true, result }))
-            .catch(err => sendResponse({ success: false, error: err.message || String(err) }));
-
-        return true; // Keep channel open for async response
-    });
-}
-
-function setupStorageEvents() {
-    chrome.storage.onChanged.addListener((changes, areaName) => {
-        broadcastStorageEvent("onChanged", [changes, areaName]);
-    });
-}
 
 async function handleStorageCall(methodName, args = []) {
     const [area, method] = methodName.split('.');
@@ -75,21 +70,5 @@ function callStorageMethod(storageArea, method, args) {
         } catch (err) {
             reject(err);
         }
-    });
-}
-
-function broadcastStorageEvent(eventName, eventArgs) {
-    chrome.tabs.query({}, (tabs) => {
-        tabs.forEach((tab) => {
-            if (tab.id >= 0) {
-                chrome.tabs.sendMessage(tab.id, {
-                    type: "SUPER_STORAGE_EVENT",
-                    eventName,
-                    args: eventArgs
-                }).catch(() => {
-                    // Ignore errors for inactive tabs
-                });
-            }
-        });
     });
 }

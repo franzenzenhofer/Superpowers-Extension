@@ -5,22 +5,108 @@
 // We keep it straightforward: on each request, load from storage, do the update if needed,
 // respond with the updated result. No complicated caching or queueing.
 
+import {
+  createExtensionBridge
+} from '/scripts/plugin_bridge.js';
+
 export const superenv_extension = {
     name: "superenv_extension",
   
     install(context) {
-      // Listen for the messages from content script
-      chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-        // We check request.type for "SUPERENV_..."
-        const msgType = request.type || "";
-        if (!msgType.startsWith("SUPERENV_")) return false; // Not our message
+      // Define method handlers, breaking out the logic from the old switch statement
+      // Bridge passes (methodName, args, sender, requestId)
+      const methodHandlers = {
+        // GET /vars => SUPERENV_GET_VARS
+        getEnvVars: async (methodName, args) => {
+          try {
+            console.log("[superenv] Handling getEnvVars request - Reading directly from storage");
+            
+            // Always perform a fresh read from storage - no caching
+            const envVarsData = await loadFromStorage();
+            
+            // Log presence/absence of key for debugging
+            if (envVarsData.default && typeof envVarsData.default.OPENAI_API_KEY === 'string') {
+              console.log("[superenv] Responding with env vars including OPENAI_API_KEY");
+            } else {
+              console.warn("[superenv] Responding, but OPENAI_API_KEY is missing in stored data");
+            }
+            
+            // Return the stored environment variables or an empty object
+            return envVarsData.default || {};
+          } catch (error) {
+            console.error("[superenv] Error retrieving environment variables:", error);
+            throw error; // Propagate error to caller
+          }
+        },
   
-        handleSuperenvMessage(request, sendResponse).catch((err) => {
-          console.error("[superenv_extension] Error handling message:", err);
-          sendResponse({ success: false, error: err.message });
-        });
-        return true; // Keep the message channel open for async
+        // POST /propose => SUPERENV_PROPOSE_VARS
+        proposeVars: async (methodName, args) => {
+          const payload = args[0]; // Expect { name, description }
+          if (!payload || !payload.name) {
+            throw new Error("Missing name in proposeVars payload");
+          }
+          const envVarsData = await loadFromStorage();
+          if (!envVarsData.default) envVarsData.default = {};
+          if (!envVarsData.descriptions) envVarsData.descriptions = {};
+  
+          // If var doesn't exist in default, create it with empty string
+          if (envVarsData.default[payload.name] === undefined) { // Check specifically for undefined
+            envVarsData.default[payload.name] = "";
+          }
+          // Store description (overwrites if exists)
+          if (payload.description !== undefined) {
+            envVarsData.descriptions[payload.name] = payload.description;
+          }
+          await saveToStorage(envVarsData);
+          return { proposed: payload.name };
+        },
+  
+        // GET /sets => SUPERENV_LIST_ENV_SETS
+        listEnvSets: async (methodName, args) => {
+          return loadFromStorage();
+        },
+  
+        // GET /sets/:name => SUPERENV_GET_ENV_SET
+        getEnvSet: async (methodName, args) => {
+          const envName = args[0] || "default";
+          const envVarsData = await loadFromStorage();
+          return envVarsData[envName] || {};
+        },
+  
+        // POST /sets/:name => SUPERENV_SET_ENV_SET
+        setEnvSet: async (methodName, args) => {
+          const envName = args[0] || "default";
+          const varsObj = args[1] || {};
+          const envVarsData = await loadFromStorage();
+          envVarsData[envName] = varsObj;
+          await saveToStorage(envVarsData);
+          return envVarsData[envName];
+        },
+  
+        // DELETE /sets/:name => SUPERENV_DELETE_ENV_SET
+        deleteEnvSet: async (methodName, args) => {
+          const envName = args[0];
+          if (!envName || envName === "default") {
+            throw new Error("Cannot delete the default env set or missing name");
+          }
+          const envVarsData = await loadFromStorage();
+          if (envVarsData[envName]) {
+            delete envVarsData[envName];
+            await saveToStorage(envVarsData);
+          }
+          return {}; // Return empty object on success
+        },
+      };
+  
+      // Create the extension bridge
+      createExtensionBridge({
+        pluginName: 'superenv',
+        methodHandlers,
       });
+  
+      /*
+      console.log("[superenv_extension] Extension bridge initialized.");
+      */
     }
   };
   
@@ -118,10 +204,9 @@ export const superenv_extension = {
         }
         const data = res.superEnvVars || {};
         if (typeof data !== "object") {
-          // If it was stored as a different type, fallback to empty
-          return resolve({ default: {} });
+          return resolve({ default: {}, descriptions: {} }); // Ensure descriptions exists
         }
-        // Make sure we have a .default at least
+        // Make sure we have .default and .descriptions
         if (!data.default) data.default = {};
         if (!data.descriptions) data.descriptions = {};
         resolve(data);

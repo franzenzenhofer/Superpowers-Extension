@@ -112,11 +112,17 @@ async function loadPlugins() {
       try {
         const pageUrl = chrome.runtime.getURL(plugin.pageScript);
         const scriptEl = document.createElement("script");
+        scriptEl.type = "module";
         scriptEl.src = pageUrl;
         scriptEl.onload = () => scriptEl.remove();
+        scriptEl.onerror = (err) => {
+            console.error(`[content_script.js] Error loading pageScript module for plugin '${plugin.name}':`, err);
+            extensionDebugLog(`Error loading pageScript module for plugin '${plugin.name}': ${err}`, "error");
+            scriptEl.remove(); // Clean up failed script tag
+        };
         (document.head || document.documentElement).appendChild(scriptEl);
 
-        extensionDebugLog(`Injected pageScript for plugin '${plugin.name}' => ${plugin.pageScript}`, "info");
+        extensionDebugLog(`Injected pageScript module for plugin '${plugin.name}' => ${plugin.pageScript}`, "info");
       } catch (err) {
         console.error("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
         console.error(`[content_script.js] Plugin '${plugin.name}' FAILED to inject pageScript!`);

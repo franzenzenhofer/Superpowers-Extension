@@ -1,171 +1,183 @@
 // plugins/superfetch/page.js
-(function() {
-    const DEBUG = {
-        // Minimal logging
-        log: (msg) => { /* no console.log by default */ },
-        error: (msg) => console.error(`[superfetch/page.js] ${msg}`)
-    };
+// Provides Superpowers.fetch API - uses bridge-compatible message types.
 
-    let SUPERFETCH_TIMEOUT_MS = 120000;
-    const activeRequests = new Map();
+(function() {
+    // Use bridge-compatible message types for communication
+    const CALL_TYPE = 'SUPER_SUPERFETCH_CALL';
+    const RESPONSE_TYPE = 'SUPER_SUPERFETCH_RESPONSE';
+    // Default request timeout (managed by the message listener)
+    const REQUEST_TIMEOUT_MS = 30000; // 30 seconds for the message roundtrip
+
+    // Debug logging
+    const log = (...args) => console.debug('[superfetch/page]', ...args);
+    const errLog = (...args) => console.error('[superfetch/page]', ...args);
+
+    const activeRequests = new Map(); // Track requestIds for cleanup
 
     if (!window.Superpowers) {
         window.Superpowers = {};
     }
 
+    // --- Configuration ---
+    // Timeout config for the actual fetch operation (performed in extension.js)
+    let SUPERFETCH_TIMEOUT_MS_CONFIG = 120000; // Default 2 minutes
     window.Superpowers.setSuperfetchTimeout = function(ms) {
-        SUPERFETCH_TIMEOUT_MS = ms;
+        if (typeof ms === 'number' && ms > 0) {
+            SUPERFETCH_TIMEOUT_MS_CONFIG = ms;
+            log(`Fetch timeout configured to ${ms}ms`);
+            // Note: This currently only sets a local config value.
+            // The actual fetch timeout is managed in extension.js.
+        } else {
+            errLog('Invalid timeout value provided to setSuperfetchTimeout');
+        }
     };
 
+    window.Superpowers.getSuperfetchTimeout = function() {
+        return SUPERFETCH_TIMEOUT_MS_CONFIG;
+    }
+
+    // --- Active Requests ---
     window.Superpowers.whatsGoingOn = function() {
         return Array.from(activeRequests.values());
     };
 
-    // A minimal "read-only" Headers class
+    // --- Minimal Headers Class (Read-Only) ---
     class SuperfetchHeaders {
-        constructor(headersObj) {
-            // headersObj is a plain object { name -> value }, all lowercased keys
-            // We'll store them in a Map internally
+        constructor(headersObj = {}) {
             this.map = new Map(Object.entries(headersObj));
         }
-        get(name) {
-            if (!name) return null;
-            return this.map.get(name.toLowerCase()) || null;
-        }
-        has(name) {
-            return this.map.has(name.toLowerCase());
-        }
+        get(name) { return this.map.get(name?.toLowerCase()) || null; }
+        has(name) { return this.map.has(name?.toLowerCase()); }
         forEach(callback, thisArg) {
             for (const [k, v] of this.map.entries()) {
                 callback.call(thisArg, v, k, this);
             }
         }
-        entries() {
-            return this.map.entries();
-        }
-        // Optional: Provide keys() / values() for convenience
-        keys() {
-            return this.map.keys();
-        }
-        values() {
-            return this.map.values();
-        }
-        // The real spec disallows modifying a Response's headers
-        // so we omit .set(), .append(), .delete() or make them no-ops.
+        entries() { return this.map.entries(); }
+        keys() { return this.map.keys(); }
+        values() { return this.map.values(); }
+        [Symbol.iterator]() { return this.map.entries(); }
     }
 
-    window.Superpowers.fetch = async function(url, options = {}) {
-        // Add a safe default for redirect if not provided:
-        if (!options.redirect) {
-            options.redirect = 'follow'; // same default as normal fetch
+    // --- Message Listener ---
+    window.addEventListener("message", (event) => {
+        // Basic validation
+        if (!event.data || event.data.direction !== "from-content-script" || event.data.type !== RESPONSE_TYPE) {
+            return;
         }
 
-        return new Promise((resolve, reject) => {
-            const requestId = Math.random().toString(36).slice(2);
+        const { requestId, success, result, error } = event.data;
+        log(`Received ${RESPONSE_TYPE}`, { requestId, success });
 
+        const pending = activeRequests.get(requestId);
+        if (!pending) {
+            log('Ignoring response for unknown or timed-out request:', requestId);
+            return; // Ignore if request not found or already handled
+        }
+
+        // Clean up timeout and pending request
+        clearTimeout(pending.timeoutId);
+        activeRequests.delete(requestId);
+
+        if (success) {
+            // Build the Response-like object
+            const superHeaders = new SuperfetchHeaders(result.headers);
+            const superResponse = {
+                status: result.status,
+                statusText: result.statusText,
+                ok: result.ok,
+                redirected: result.redirected,
+                url: result.url,
+                type: result.type, // e.g., 'basic', 'cors', 'opaque'
+                headers: superHeaders,
+
+                // Store raw data (ArrayBuffer) for multi-read
+                __rawData: result.rawData, // Expecting ArrayBuffer here
+                __textBody: result.body,   // For backward compatibility
+                __used: false, // Track if body has been read
+
+                _readBody() {
+                    if (this.__used) {
+                        return Promise.reject(new TypeError("Body has already been used."));
+                    }
+                    this.__used = true;
+                    if (!this.__rawData) {
+                         // Should not happen if extension sends ArrayBuffer
+                        return Promise.resolve(new ArrayBuffer(0));
+                    }
+                    // Return a *copy* to prevent mutation issues if read multiple times (though spec forbids it)
+                    return Promise.resolve(this.__rawData.slice(0));
+                },
+
+                arrayBuffer() {
+                    return this._readBody();
+                },
+                text() {
+                    if (this.__rawData) {
+                        return this._readBody().then(buffer => new TextDecoder("utf-8").decode(buffer));
+                    }
+                    return Promise.resolve(this.__textBody || "");
+                },
+                json() {
+                    return this.text().then(text => JSON.parse(text));
+                },
+                blob() {
+                    // Determine MIME type from headers if possible
+                    const contentType = this.headers.get('content-type') || '';
+                    return this._readBody().then(buffer => new Blob([buffer], { type: contentType }));
+                },
+
+                // Extras for debugging or info
+                _superfetch: {
+                    requestId,
+                    timestamp: result.timestamp || Date.now(),
+                    rawHeaders: result.headers, // Plain object
+                }
+            };
+            pending.resolve(superResponse);
+        } else {
+            errLog(`Request ${requestId} failed:`, error);
+            pending.reject(new Error(error || "Unknown superfetch error"));
+        }
+    });
+
+    // --- The Fetch Function ---
+    window.Superpowers.fetch = function(url, options = {}) {
+        log(`Initiating fetch for: ${url}`, options);
+        return new Promise((resolve, reject) => {
+            const requestId = crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2);
+
+            // Set up a timeout for the *message roundtrip*
+            const timeoutId = setTimeout(() => {
+                if (activeRequests.has(requestId)) {
+                    activeRequests.get(requestId).reject(new Error(`[Superpowers.fetch] Request timed out waiting for response (${REQUEST_TIMEOUT_MS}ms)`));
+                    activeRequests.delete(requestId); // Clean up
+                    errLog(`Request ${requestId} timed out waiting for response.`);
+                }
+            }, REQUEST_TIMEOUT_MS);
+
+            // Store pending request details
             activeRequests.set(requestId, {
                 requestId,
                 url,
                 startTime: Date.now(),
-                redirect: options.redirect
+                options,
+                resolve,
+                reject,
+                timeoutId // Store timeoutId for cleanup
             });
 
-            const timeout = setTimeout(() => {
-                cleanup();
-                reject(new Error(`Superfetch timeout after ${SUPERFETCH_TIMEOUT_MS / 1000}s`));
-            }, SUPERFETCH_TIMEOUT_MS);
-
-            function handleResponse(ev) {
-                if (!ev.data || ev.data.direction !== "from-content-script") return;
-                if (ev.data.type !== "SUPERFETCH_RESPONSE") return;
-                if (ev.data.requestId !== requestId) return;
-
-                cleanup();
-
-                if (ev.data.success) {
-                    // We'll store the rawData as an ArrayBuffer in ev.data.rawData
-                    // for more accurate usage of text, blob, etc.
-                    // Fallback to old .body if rawData is missing => old approach
-                    const arrayBuffer = ev.data.rawData || null;
-                    const textBody = ev.data.body || "";
-
-                    // Build an enhanced response object that mimics fetch Response
-                    const superHeaders = new SuperfetchHeaders(ev.data.headers);
-
-                    const superResponse = {
-                        status: ev.data.status,
-                        statusText: ev.data.statusText,
-                        ok: ev.data.status >= 200 && ev.data.status < 300,
-                        redirected: ev.data.redirected,
-                        url: ev.data.url,
-                        type: ev.data.type,
-                        headers: superHeaders,
-
-                        // Keep multi-read logic for backward compatibility
-                        // We'll store the rawData in a property so we can read it multiple times.
-                        __rawData: arrayBuffer,
-                        __textBody: textBody,
-
-                        text: function() {
-                            // If we have a real ArrayBuffer, decode as UTF-8
-                            if (this.__rawData) {
-                                const dec = new TextDecoder("utf-8");
-                                return Promise.resolve(dec.decode(this.__rawData));
-                            }
-                            // else fallback to old .body string
-                            return Promise.resolve(this.__textBody);
-                        },
-                        json: function() {
-                            return this.text().then(JSON.parse);
-                        },
-                        blob: function() {
-                            if (this.__rawData) {
-                                return Promise.resolve(new Blob([this.__rawData]));
-                            }
-                            return Promise.resolve(new Blob([this.__textBody]));
-                        },
-                        arrayBuffer: function() {
-                            if (this.__rawData) {
-                                return Promise.resolve(this.__rawData);
-                            }
-                            // fallback: encode text as arrayBuffer
-                            const buf = new TextEncoder().encode(this.__textBody).buffer;
-                            return Promise.resolve(buf);
-                        },
-
-                        // Some extras for debugging
-                        _superfetch: {
-                            requestId,
-                            timestamp: Date.now(),
-                            rawHeaders: ev.data.headers,
-                            // We keep rawBody for old reference, even though we might store rawData
-                            rawBody: ev.data.body
-                        }
-                    };
-
-                    resolve(superResponse);
-                } else {
-                    DEBUG.error(`Error response: ${ev.data.error}`);
-                    reject(ev.data.error || "Unknown superfetch error");
-                }
-            }
-
-            function cleanup() {
-                activeRequests.delete(requestId);
-                window.removeEventListener("message", handleResponse);
-                clearTimeout(timeout);
-            }
-
-            window.addEventListener("message", handleResponse);
-
+            log(`Sending ${CALL_TYPE}`, { requestId, url });
+            // Send message to content script, using bridge format
             window.postMessage({
                 direction: "from-page",
-                type: "SUPERFETCH",
+                type: CALL_TYPE,
                 requestId,
-                url,
-                options
+                methodName: 'fetch', // Explicitly set methodName for the bridge handler
+                args: [url, options], // Pass url and options as arguments array
             }, "*");
         });
     };
 
+    log('Superpowers.fetch initialized using bridge-compatible messaging.');
 })();

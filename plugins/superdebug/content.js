@@ -1,18 +1,16 @@
 // plugins/superdebug/content.js
-(function() {
-  // console.log("[superdebug/content.js] loaded in content-script context");
+import { createContentBridge } from '/scripts/plugin_bridge.js';
 
-  // Listen for messages from the page
-  window.addEventListener("message", (event) => {
-    if (!event.data || event.data.direction !== "from-page") return;
-    if (event.data.type !== "SUPERPOWERS_DEBUGLOG") return;
+(function () {
+  // Initialize the content bridge for 'superdebug'
+  // This handles forwarding calls (log, enableContext, disableContext)
+  // to the extension.
+  createContentBridge('superdebug');
 
-    const { payload } = event.data;
-
-    // Relay to service worker WITHOUT a callback
-    chrome.runtime.sendMessage({
-      type: "SUPERPOWERS_DEBUGLOG",
-      payload
-    });
-  });
+  /*
+  console.debug('[superdebug/content.js] Content bridge initialized.');
+  */
 })();
+
+// The previous logic for forwarding SUPERPOWERS_DEBUGLOG
+// messages has been replaced by the bridge.

@@ -2,78 +2,57 @@
 // Minimal "superscreenshot" plugin in the service worker.
 // Listens for "SUPERSCREENSHOT", calls doScreenshot() in an async style.
 
+import {
+  createExtensionBridge
+} from '/scripts/plugin_bridge.js';
+
 import { doScreenshot } from "./doScreenshot.js";
 
 export const superscreenshot_extension = {
   name: "superscreenshot_extension",
-  activeOperations: new Map(),
+  // activeOperations: new Map(), // No longer needed with bridge handling requests individually
 
   install(context) {
-    const { debug } = context;
+    const methodHandlers = {
+      // Handler for the main screenshot capture call
+      capture: async (methodName, args, sender, requestId) => {
+        const payload = args[0] || {}; // Expect config payload as first arg
+        // console.log(`[superscreenshot_extension] Bridge Call: capture (requestId: ${requestId})`, payload);
+        
+        // No need for manual keep-alive, the bridge handles timeouts.
+        // If doScreenshot provided progress, we would use broadcastEvent here.
 
-    // Convert to non-async listener with Promise chains
-    chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-      if (request.type !== "SUPERSCREENSHOT") return false;
-
-      const opId = request.requestId;
-      // console.log(`[superscreenshot_extension] Starting operation ${opId}`);
-
-      // Keep service worker alive
-      const keepAlive = setInterval(() => {
         try {
-          chrome.tabs.sendMessage(sender.tab.id, {
-            type: "SUPERSCREENSHOT_PROGRESS",
-            operationId: opId,
-            status: 'processing'
-          });
-        } catch (e) {
-          console.warn('Keep-alive failed:', e);
+          const dataUrl = await doScreenshot(payload);
+          // console.log(`[superscreenshot_extension] Success (requestId: ${requestId})`);
+          return dataUrl; // Bridge sends this back as { success: true, result: dataUrl }
+        } catch (err) {
+          console.error(`[superscreenshot_extension] Failure (requestId: ${requestId}):`, err);
+          // Re-throw the error so the bridge sends { success: false, error: err.message }
+          throw err;
         }
-      }, 1000);
+      },
 
-      // Use Promise chains instead of async/await
-      doScreenshot(request.payload)
-        .then(dataUrl => {
-          clearInterval(keepAlive);
-          return chrome.tabs.sendMessage(sender.tab.id, {
-            type: "SUPERSCREENSHOT_RESULT",
-            requestId: opId,
-            success: true,
-            result: dataUrl
-          });
-        })
-        .catch(err => {
-          clearInterval(keepAlive);
-          console.error(`[superscreenshot_extension] Operation ${opId} failed:`, err);
-          return chrome.tabs.sendMessage(sender.tab.id, {
-            type: "SUPERSCREENSHOT_RESULT",
-            requestId: opId,
-            success: false,
-            error: err.message
-          });
-        })
-        .finally(() => {
-          this.activeOperations.delete(opId);
-        });
-
-      // Immediate acknowledgment
-      sendResponse({ 
-        success: true, 
-        status: 'processing',
-        operationId: opId 
-      });
-
-      return true; // Keep channel open
-    });
-
-    // Status endpoint (also non-async)
-    chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-      if (request.type === "SUPERSCREENSHOT_STATUS") {
-        sendResponse({
-          activeOperations: Array.from(this.activeOperations.entries())
-        });
-        return false;
+      // Handler for the status request (if still needed)
+      // Note: This simple version doesn't track active operations like the old one.
+      // If detailed status is required, state management would need to be added here.
+      getStatus: async (methodName, args) => {
+         // console.log(`[superscreenshot_extension] Bridge Call: getStatus`);
+        // Return simple status or empty object, as bridge handles requests individually.
+        return { status: "ready", active_operations_count: 0 }; 
       }
+    };
+
+    // Create the extension bridge
+    createExtensionBridge({
+      pluginName: 'superscreenshot',
+      methodHandlers,
     });
+
+    /*
+    console.log("[superscreenshot_extension] Extension bridge initialized.");
+    */
+
+    // Old onMessage listeners are replaced by the bridge
   }
 };

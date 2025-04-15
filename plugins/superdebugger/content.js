@@ -1,5 +1,5 @@
 // plugins/superdebugger/content.js
-// Minimal bridging from the page => SW for chrome.debugger API
+import { createContentBridge } from '/scripts/plugin_bridge.js';
 
 /**
  * Content script initialization and message handling
@@ -160,4 +160,17 @@
   // Initialize state
   STATE.initialized = true;
   // console.log("[superdebugger/content.js] loaded in content-script context");
+
+  // Avoid multiple executions if script is injected multiple times
+  if (window.superDebuggerContentBridgeInitialized) return;
+  window.superDebuggerContentBridgeInitialized = true;
+
+  // Initialize the content bridge for 'superdebugger'
+  // Handles forwarding calls (attach, detach, sendCommand) to the extension
+  // and relaying responses and events (onEvent, onDetach) back to the page.
+  createContentBridge('superdebugger');
+
+  /*
+  console.log('[superdebugger/content.js] Content bridge initialized.');
+  */
 })();

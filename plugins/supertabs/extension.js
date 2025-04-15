@@ -2,6 +2,8 @@
 // Runs in the service worker (MV3). Bridges all chrome.tabs.* methods
 // and broadcasts tab events back to each content script (so the page sees them).
 
+import { createExtensionBridge } from '../../scripts/plugin_bridge.js';
+
 export const supertabs_extension = {
   name: "supertabs_extension",
 
@@ -10,27 +12,18 @@ export const supertabs_extension = {
       console.log("[supertabs_extension] Installing supertabs in SW...");
     }
 
-    // 1) Listen for calls from content script => “SUPER_TABS_CALL”
-    chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-      if (request.type !== "SUPER_TABS_CALL") return false;
-
-      const { requestId, methodName, args } = request;
-      // console.log(`[supertabs_extension] method=${methodName}, requestId=${requestId}`);
-
-      // Attempt to call chrome.tabs[methodName]
-      callChromeTabs(methodName, args)
-        .then((result) => {
-          sendResponse({ success: true, result });
-        })
-        .catch((err) => {
-          console.error("[supertabs_extension] callChromeTabs error:", err);
-          sendResponse({ success: false, error: err.message || String(err) });
-        });
-
-      return true; // async
+    // Create the extension bridge with a handler for all methods
+    const { broadcastEvent } = createExtensionBridge({
+      pluginName: 'supertabs',
+      methodHandlers: {
+        // Handler for all tab methods
+        handler: (methodName, args, sender) => {
+          return callChromeTabs(methodName, args);
+        }
+      }
     });
 
-    // 2) Forward events from chrome.tabs.* to all tabs, so content.js => page
+    // Set up event listeners for tab events to broadcast them
     const tabEvents = [
       "onCreated",
       "onUpdated",
@@ -45,12 +38,10 @@ export const supertabs_extension = {
     ];
 
     tabEvents.forEach((evtName) => {
-      // e.g. chrome.tabs.onCreated.addListener(...)
-      // must do dynamic: chrome.tabs[evtName].addListener(...)
       const evtObject = chrome.tabs[evtName];
       if (!evtObject || !evtObject.addListener) return; // skip unsupported
       evtObject.addListener((...args) => {
-        broadcastTabEvent(evtName, args);
+        broadcastEvent(evtName, args);
       });
     });
   },
@@ -85,23 +76,5 @@ function callChromeTabs(methodName, args) {
     } catch (err) {
       reject(err);
     }
-  });
-}
-
-/**
- * Broadcast a tab event to **all** tabs (so each content script can pass it to page).
- */
-function broadcastTabEvent(eventName, eventArgs) {
-  // We can do chrome.tabs.query({}) to find all tabs, then send a message to each
-  chrome.tabs.query({}, (allTabs) => {
-    allTabs.forEach((t) => {
-      if (t.id >= 0) {
-        chrome.tabs.sendMessage(t.id, {
-          type: "SUPER_TABS_EVENT",
-          eventName,
-          args: eventArgs,
-        });
-      }
-    });
   });
 }

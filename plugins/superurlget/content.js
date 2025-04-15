@@ -1,48 +1,14 @@
-(function() {
-  window.addEventListener("message", (event) => {
-    if (!event.data || event.data.direction !== "from-page") return;
-    if (event.data.type !== "SUPERURLGET_CALL") return;
+import { createContentBridge } from '/scripts/plugin_bridge.js';
 
-    const { requestId, methodName, url, config } = event.data;
+(function () {
+  // Initialize the content bridge for 'superurlget'
+  // This handles forwarding calls to the extension and relaying responses/events back.
+  createContentBridge('superurlget');
 
-    chrome.runtime.sendMessage({
-      type: "SUPERURLGET_CALL",
-      requestId,
-      methodName,
-      url,
-      config
-    }, (response) => {
-      if (chrome.runtime.lastError) {
-        console.error("[superurlget/content.js] runtime.lastError:", chrome.runtime.lastError);
-        window.postMessage({
-          direction: "from-content-script",
-          type: "SUPERURLGET_RESPONSE",
-          requestId,
-          success: false,
-          error: chrome.runtime.lastError.message
-        }, "*");
-        return;
-      }
-
-      window.postMessage({
-        direction: "from-content-script",
-        type: "SUPERURLGET_RESPONSE",
-        requestId,
-        success: response?.success,
-        result: response?.result,
-        error: response?.error
-      }, "*");
-    });
-  });
-
-  chrome.runtime.onMessage.addListener((message) => {
-    if (message.type === "SUPERURLGET_EVENT") {
-      window.postMessage({
-        direction: "from-content-script",
-        type: "SUPERURLGET_EVENT",
-        eventName: message.eventName,
-        args: message.args
-      }, "*");
-    }
-  });
+  /*
+  console.debug('[superurlget/content.js] Content bridge initialized.');
+  */
 })();
+
+// The previous logic for handling SUPERURLGET_CALL, _RESPONSE, and _EVENT
+// messages has been replaced by the bridge.

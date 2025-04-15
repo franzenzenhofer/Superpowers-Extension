@@ -29,7 +29,7 @@ import { superreadme_extension } from './plugins/superreadme/extension.js';
 /**
  * This plugin manager now loads each plugin in a robust manner:
  * - If one fails, we catch that error, log a BIG WARNING, and continue with the rest.
- * - We store each plugin’s status in a Map, including any error message.
+ * - We store each plugin's status in a Map, including any error message.
  */
 async function installPlugin(extension, pluginContext, registerPlugin) {
   try {
@@ -63,9 +63,7 @@ export async function initializePluginManager() {
     });
 
     if (status) {
-      /*
-      console.log(`[plugin_manager] Plugin ${plugin.name} registered: ${status}`);
-      */
+      console.log(`[plugin_manager] Plugin ${plugin.name} registered successfully`);
     } else {
       console.error("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
       console.error(`[plugin_manager] Plugin ${plugin.name} FAILED to load!`);
@@ -74,10 +72,41 @@ export async function initializePluginManager() {
     }
   }
 
-  // Our list of known plugins to install. We do them all, even if some fail.
-  const pluginList = [
+  // We need to install critical plugins first, in sequence
+  // These are dependencies that other plugins rely on, especially superenv
+  const criticalPlugins = [
+    superenv_extension, // Must be loaded first as other plugins depend on it
+  ];
+
+  // Install critical plugins first, in sequence
+  console.log("[plugin_manager] Installing critical plugins sequentially...");
+  for (const plugin of criticalPlugins) {
+    console.log(`[plugin_manager] Installing critical plugin: ${plugin.name}`);
+    await installPlugin(plugin, pluginContext, registerPlugin);
+    
+    // Verify the environment plugin is active before continuing
+    if (plugin.name === 'superenv_extension' && 
+        (!pluginContext.registeredPlugins.get(plugin.name) || 
+         !pluginContext.registeredPlugins.get(plugin.name).active)) {
+      console.error("[plugin_manager] CRITICAL ERROR: superenv failed to load, this will affect other plugins!");
+    }
+  }
+
+  // Secondary critical plugins that depend on the first set
+  const secondaryPlugins = [
+    superopenai_extension, // Depends on superenv for API key
+  ];
+
+  // Install secondary critical plugins
+  console.log("[plugin_manager] Installing secondary critical plugins...");
+  for (const plugin of secondaryPlugins) {
+    console.log(`[plugin_manager] Installing secondary plugin: ${plugin.name}`);
+    await installPlugin(plugin, pluginContext, registerPlugin);
+  }
+
+  // Remaining plugins
+  const remainingPlugins = [
     superfetch_extension,
-    superenv_extension,
     superdebug_extension,
     superpages_extension,
     superping_extension,
@@ -87,7 +116,6 @@ export async function initializePluginManager() {
     superruntime_extension,
     superwebrequest_extension,
     superasyncrandominteger_extension,
-    superopenai_extension,
     superurlget_extension,
     superdebugger_extension,
     superwebnavigation_extension,
@@ -95,17 +123,16 @@ export async function initializePluginManager() {
     superconsoleintercept_extension,
     gsc_extension,
     ga_extension,
-    storage_extension,  // Add this to the plugin list
+    storage_extension,
     superreadme_extension
   ];
 
-  // Install each plugin in parallel
-  await Promise.all(pluginList.map(ext =>
+  // Install the rest of the plugins in parallel
+  console.log("[plugin_manager] Installing remaining plugins in parallel...");
+  await Promise.all(remainingPlugins.map(ext =>
     installPlugin(ext, pluginContext, registerPlugin)
   ));
 
-  /*
-  console.log("[plugin_manager] All plugin installs attempted. Some may have failed; see warnings above if any.");
-  */
+  console.log("[plugin_manager] All plugin installations complete");
   return pluginContext.registeredPlugins;
 }

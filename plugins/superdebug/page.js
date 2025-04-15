@@ -1,9 +1,22 @@
 // plugins/superdebug/page.js
+import { createPageBridge } from '/scripts/plugin_bridge.js';
+
 (function() {
   if (!window.Superpowers) {
     window.Superpowers = {};
   }
   // console.log("[superdebug/page.js] loaded in page context");
+
+  // Store original console if needed elsewhere
+  if (!window._originalConsole) {
+      window._originalConsole = { ...console };
+  }
+
+  // Instantiate the bridge
+  const debugBridge = createPageBridge('superdebug');
+
+  // --- State (still managed locally for enable/disable) ---
+  let _isEnabled = false; 
 
   /**
    * Safely convert any input (object, array, etc.) into a readable string.
@@ -21,59 +34,78 @@
     return String(value);
   }
 
-  window.Superpowers.debugLog = function(msg, level = "info", domElementOrSelector) {
-    const timestamp = new Date().toISOString();
-    const printableMsg = toPrintable(msg);
-
-    // 1) Log to console
-    const consoleLine = `[Superpowers.debugLog][${timestamp}] ${printableMsg}`;
-    switch (level) {
-      case "error":
-        console.error(consoleLine);
-        break;
-      case "warn":
-      case "warning":
-        console.warn(consoleLine);
-        break;
-      case "debug":
-        // console.debug(consoleLine);
-        break;
-      default:
-        // console.log(consoleLine);
-        break;
+  // --- Core Logging Function --- 
+  window.Superpowers.debugLog = function(...args) {
+    if (!_isEnabled) {
+      return; // Do nothing if disabled locally
     }
 
-    // 2) Try to append to the DOM element or selector (if provided)
-    if (domElementOrSelector) {
-      try {
-        let el = domElementOrSelector;
-        if (typeof domElementOrSelector === "string") {
-          el = document.querySelector(domElementOrSelector);
-        }
-        if (el && el.nodeType === Node.ELEMENT_NODE) {
-          const line = document.createElement("div");
-          line.style.whiteSpace = "pre-wrap"; 
-          line.textContent = `[${timestamp}][${level}] ${printableMsg}`;
-          el.appendChild(line);
-        }
-      } catch (err) {
-        console.debug("[superdebug/page.js] Failed to append log to DOM:", err);
-      }
+    // Attempt serialization (same logic as before)
+    let serializedArgs = [];
+    try {
+      serializedArgs = args.map(arg => JSON.parse(JSON.stringify(arg, safeReplacer())));
+    } catch (e) {
+      serializedArgs = args.map(arg => {
+        if (typeof arg === 'function') return '[Function]';
+        if (arg instanceof Error) return `[Error: ${arg.message}]`;
+        return String(arg);
+      });
+      window._originalConsole?.warn?.('[Superpowers.debugLog] Serialization fallback:', e, args);
     }
 
-    // 3) Send a message to the content script => background => sidepanel
-    window.postMessage({
-      direction: "from-page",
-      type: "SUPERPOWERS_DEBUGLOG",
-      payload: {
-        level,
-        timestamp,
-        // Make sure we pass the printable string, not the raw object
-        message: printableMsg,
-        extra: {}
-      }
-    }, "*");
+    const logEntry = {
+      timestamp: new Date().toISOString(),
+      url: window.location.href,
+      args: serializedArgs
+    };
+
+    // Send immediately via bridge - no buffering/throttling on page side
+    // Use fire-and-forget style
+    debugBridge.log(logEntry).catch(err => {
+      window._originalConsole?.error?.('[Superpowers.debugLog] Bridge call failed:', err);
+    });
   };
 
-  // console.log("[superdebug/page.js] window.Superpowers.debugLog is ready");
+  // --- Control Functions --- 
+  // Enable/disable locally AND notify the bridge/SW if needed
+  window.Superpowers.debugLog.enable = async () => {
+    _isEnabled = true;
+    try {
+        // Optional: Notify SW that this specific page context is enabling logs
+        await debugBridge.enableContext(); 
+        window._originalConsole?.log?.('[Superpowers.debugLog] Enabled.');
+    } catch (err) {
+        window._originalConsole?.error?.('[Superpowers.debugLog] Failed to notify bridge on enable:', err);
+    }
+  };
+
+  window.Superpowers.debugLog.disable = async () => {
+    _isEnabled = false;
+    try {
+        // Optional: Notify SW that this specific page context is disabling logs
+        await debugBridge.disableContext(); 
+        window._originalConsole?.log?.('[Superpowers.debugLog] Disabled.');
+    } catch (err) {
+        window._originalConsole?.error?.('[Superpowers.debugLog] Failed to notify bridge on disable:', err);
+    }
+  };
+
+  // --- Serialization Helper (remains the same) ---
+  function safeReplacer() {
+    const seen = new WeakSet();
+    return (key, value) => {
+      if (typeof value === 'object' && value !== null) {
+        if (seen.has(value)) {
+          return '[Circular Reference]';
+        }
+        seen.add(value);
+      }
+      if (typeof value === 'bigint') {
+          return value.toString() + 'n';
+      }
+      return value;
+    };
+  }
+
+  // Old buffering/throttling logic removed.
 })();

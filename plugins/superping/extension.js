@@ -2,6 +2,8 @@
 // Minimal "ping" plugin in the service worker.
 // Listens for the "SUPERPING" message and simply logs/echoes it (no real return needed).
 
+import { createExtensionBridge } from '/scripts/plugin_bridge.js';
+
 export const superping_extension = {
   name: "superping_extension",
 
@@ -9,25 +11,31 @@ export const superping_extension = {
    * Called by plugin_manager.js to install the plugin in the SW context.
    */
   install(context) {
+    /*
     if (context.debug) {
-      // console.log("[superping_extension] Installing Superping in SW...");
+      console.log("[superping_extension] Installing bridge...");
     }
+    */
 
-    /**
-     * Listen for messages of type "SUPERPING".
-     * We'll just log them to console and respond success: true.
-     */
-    chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-      if (request.type !== "SUPERPING") return false;
+    const methodHandlers = {
+      // Handler for the 'ping' method from the (now async) page.js
+      ping: async (methodName, args, sender) => {
+        const msg = args[0]; // The message payload
+        // console.log(`[superping_extension] Bridge Call: ping`, msg);
+        
+        // Just acknowledge receipt. The bridge sends { success: true, result: ... }
+        return { received: msg }; // Or simply return true or undefined
+      }
+    };
 
-      // console.log("[superping_extension] Got SUPERPING =>", request.payload);
-
-      // Minimal synchronous response (in MV3, it's still callback-based),
-      // but from the page's perspective, it's a "fire and forget".
-      sendResponse({ success: true });
-
-      // Must return true to indicate async or possible delayed response
-      return true;
+    // Create the extension bridge
+    createExtensionBridge({
+      pluginName: 'superping',
+      methodHandlers,
     });
+
+    /*
+    console.log("[superping_extension] Extension bridge initialized.");
+    */
   }
 };

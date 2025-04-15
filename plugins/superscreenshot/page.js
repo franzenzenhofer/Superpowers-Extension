@@ -2,38 +2,27 @@
 // Exposes an async function Superpowers.screenshot(urlOrObjOrNothing) that returns a Promise.
 // The messaging logic is EXACTLY like superpingasync/page.js, just with "SUPERSCREENSHOT".
 
+import { createPageBridge } from '/scripts/plugin_bridge.js';
+
 (function() {
   if (!window.Superpowers) window.Superpowers = {};
 
-  window.Superpowers.screenshot = function(payload) {
-    return new Promise((resolve, reject) => {
-      const requestId = Math.random().toString(36).slice(2);
-      let timeoutId = setTimeout(() => {
-        window.removeEventListener("message", handleResponse);
-        reject("Operation timed out");
-      }, 30000);
+  // Instantiate the bridge for 'superscreenshot'
+  const screenshotBridge = createPageBridge('superscreenshot');
 
-      function handleResponse(ev) {
-        if (!ev.data || ev.data.direction !== "from-content-script") return;
-        if (ev.data.requestId !== requestId) return;
-
-        if (ev.data.type === "SUPERSCREENSHOT_RESPONSE") {
-          window.removeEventListener("message", handleResponse);
-          clearTimeout(timeoutId);
-          ev.data.success ? resolve(ev.data.result) : reject(ev.data.error);
-        }
-      }
-
-      window.addEventListener("message", handleResponse);
-
-      window.postMessage({
-        direction: "from-page",
-        type: "SUPERSCREENSHOT",
-        requestId,
-        payload
-      }, "*");
-    });
+  // Assign the method directly using the bridge proxy.
+  // The bridge handles the async call and response.
+  // Note: The bridge itself has a built-in timeout (30s by default).
+  window.Superpowers.screenshot = (...args) => {
+    // The bridge proxy expects the method name as the property
+    // and arguments passed to the function call.
+    // Since we only have one core function, we can name the method 'capture'.
+    return screenshotBridge.capture(...args);
   };
 
-  // console.log("[superscreenshot/page.js] Superpowers.screenshot() ready");
+  /*
+  console.log("[superscreenshot/page.js] Superpowers.screenshot() bridge ready");
+  */
 })();
+
+// The old manual Promise, listener, and postMessage logic is removed.
