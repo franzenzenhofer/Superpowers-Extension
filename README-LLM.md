@@ -1,4 +1,4 @@
-> Last updated: Monday, February 10, 2025 at 01:54 PM GMT+1
+> Last updated: Tuesday, April 15, 2025 at 05:43 PM GMT+2
 
 
 # README-GPT.md
@@ -101,65 +101,6 @@ To enable **Superpowers** in your page:
 
 
 
-### superaction
-Type: Bridge  
-Purpose: The "superaction" plugin acts as a bridge between a web page and a Chrome extension's service worker, enabling communication and interaction with the `chrome.action` API. It allows web pages to invoke `chrome.action` methods and listen for events from the extension.
-
-### Public API
-
-#### Superpowers.action.xxxMethod(...)
-- Purpose: Dynamically invokes any method available on the `chrome.action` API from the web page context.
-- Input: 
-  - `methodName` (String): The name of the `chrome.action` method to be called.
-  - `...args` (Array): Arguments to be passed to the specified `chrome.action` method.
-- Returns: A Promise that resolves with the result of the `chrome.action` method call, or rejects with an error message if the call fails.
-- Example:
-  ```javascript
-  // Example: Dynamically call the 'setBadgeText' method on chrome.action
-  window.Superpowers.action.setBadgeText({ text: 'New' })
-    .then(result => {
-      console.log('Badge text set successfully:', result);
-    })
-    .catch(error => {
-      console.error('Failed to set badge text:', error);
-    });
-  ```
-
-#### Superpowers.action.on(eventName, callback)
-- Purpose: Registers an event listener for events emitted by the `chrome.action` API.
-- Input:
-  - `eventName` (String): The name of the event to listen for (e.g., `onClicked`).
-  - `callback` (Function): The function to be called when the event is triggered, receiving the event arguments.
-- Returns: None.
-- Example:
-  ```javascript
-  // Example: Listen for the 'onClicked' event on the action button
-  window.Superpowers.action.on('onClicked', (tab) => {
-    console.log('Action button clicked in tab:', tab);
-  });
-  ```
-
-#### Superpowers.action.off(eventName, callback)
-- Purpose: Unregisters a previously registered event listener for a specific event.
-- Input:
-  - `eventName` (String): The name of the event for which the listener should be removed.
-  - `callback` (Function): The function that was originally registered as a listener.
-- Returns: None.
-- Example:
-  ```javascript
-  // Example: Remove the listener for the 'onClicked' event
-  const handleClick = (tab) => {
-    console.log('Action button clicked in tab:', tab);
-  };
-
-  window.Superpowers.action.on('onClicked', handleClick);
-  // Later, remove the listener
-  window.Superpowers.action.off('onClicked', handleClick);
-  ```
-
-This API provides a flexible mechanism for interacting with the `chrome.action` API directly from a web page, leveraging the power of Promises for asynchronous operations and event handling for real-time interactions.
-
-
 ### storage
 Type: Bridge  
 Purpose: Facilitates communication between web page scripts and a browser extension's storage API, enabling seamless storage operations and event handling.
@@ -251,31 +192,63 @@ Purpose: Facilitates communication between web page scripts and a browser extens
 This API provides a robust interface for interacting with browser storage areas, supporting both synchronous and asynchronous operations, and enabling event-driven programming for storage changes.
 
 
-### superasyncrandominteger
-Type: Utility  
-Purpose: Provides asynchronous generation of random integers within a specified range after a delay, allowing non-blocking operations in web applications.
+### superaction
+Type: Bridge  
+Purpose: The "superaction" plugin acts as a bridge between a web page and a Chrome extension's service worker, enabling communication and interaction with the `chrome.action` API. It allows web pages to invoke `chrome.action` methods and listen for events from the extension.
 
 ### Public API
-#### Superpowers.asyncRandomInteger(timeMs, minVal, maxVal)
-- Purpose: Generates a random integer asynchronously within the specified range `[minVal, maxVal]` after a delay of `timeMs` milliseconds.
-- Input:
-  - `timeMs` (Number): The delay in milliseconds before the random integer is generated.
-  - `minVal` (Number): The minimum value of the range (inclusive).
-  - `maxVal` (Number): The maximum value of the range (inclusive).
-- Returns: A `Promise` that resolves with the generated random integer or rejects with an error message if the operation fails.
+
+#### Superpowers.action.xxxMethod(...)
+- Purpose: Dynamically invokes any method available on the `chrome.action` API from the web page context.
+- Input: 
+  - `methodName` (String): The name of the `chrome.action` method to be called.
+  - `...args` (Array): Arguments to be passed to the specified `chrome.action` method.
+- Returns: A Promise that resolves with the result of the `chrome.action` method call, or rejects with an error message if the call fails.
 - Example:
   ```javascript
-  // Example usage of Superpowers.asyncRandomInteger
-  window.Superpowers.asyncRandomInteger(1000, 1, 100)
-    .then((randomInt) => {
-      console.log(`Generated random integer: ${randomInt}`);
+  // Example: Dynamically call the 'setBadgeText' method on chrome.action
+  window.Superpowers.action.setBadgeText({ text: 'New' })
+    .then(result => {
+      console.log('Badge text set successfully:', result);
     })
-    .catch((error) => {
-      console.error(`Error generating random integer: ${error}`);
+    .catch(error => {
+      console.error('Failed to set badge text:', error);
     });
   ```
 
-This method is ideal for scenarios where non-blocking random number generation is required, allowing other operations to proceed while awaiting the result.
+#### Superpowers.action.on(eventName, callback)
+- Purpose: Registers an event listener for events emitted by the `chrome.action` API.
+- Input:
+  - `eventName` (String): The name of the event to listen for (e.g., `onClicked`).
+  - `callback` (Function): The function to be called when the event is triggered, receiving the event arguments.
+- Returns: None.
+- Example:
+  ```javascript
+  // Example: Listen for the 'onClicked' event on the action button
+  window.Superpowers.action.on('onClicked', (tab) => {
+    console.log('Action button clicked in tab:', tab);
+  });
+  ```
+
+#### Superpowers.action.off(eventName, callback)
+- Purpose: Unregisters a previously registered event listener for a specific event.
+- Input:
+  - `eventName` (String): The name of the event for which the listener should be removed.
+  - `callback` (Function): The function that was originally registered as a listener.
+- Returns: None.
+- Example:
+  ```javascript
+  // Example: Remove the listener for the 'onClicked' event
+  const handleClick = (tab) => {
+    console.log('Action button clicked in tab:', tab);
+  };
+
+  window.Superpowers.action.on('onClicked', handleClick);
+  // Later, remove the listener
+  window.Superpowers.action.off('onClicked', handleClick);
+  ```
+
+This API provides a flexible mechanism for interacting with the `chrome.action` API directly from a web page, leveraging the power of Promises for asynchronous operations and event handling for real-time interactions.
 
 
 ### ga
@@ -489,92 +462,6 @@ Purpose: Facilitates interaction with Google Analytics APIs through a content sc
   ```
 
 
-### superconsoleintercept
-Type: Utility  
-Purpose: The `superconsoleintercept` plugin intercepts console events in a web page and facilitates communication between the page, content script, and service worker, enabling enhanced logging and monitoring capabilities across different contexts.
-
-### Public API
-
-#### Superpowers.console.on(level, callback)
-- Purpose: Registers a callback function to be executed whenever a console event of the specified level occurs.
-- Input: 
-  - `level` (string): The console method level to listen for (e.g., "log", "info", "warn", "error").
-  - `callback` (function): The function to be called with the console arguments when the event occurs.
-- Returns: None
-- Example:
-  ```javascript
-  Superpowers.console.on("warn", (message) => {
-    alert("Warning detected: " + message);
-  });
-  ```
-
-#### Superpowers.console.off(level, callback)
-- Purpose: Unregisters a previously registered callback for a specific console level.
-- Input:
-  - `level` (string): The console method level to stop listening for.
-  - `callback` (function): The callback function to be removed.
-- Returns: None
-- Example:
-  ```javascript
-  const myCallback = (message) => console.log("Info:", message);
-  Superpowers.console.on("info", myCallback);
-  // Later, to remove the callback:
-  Superpowers.console.off("info", myCallback);
-  ```
-
-#### Superpowers.console.onAll(callback)
-- Purpose: Registers a callback function to be executed for all console event levels.
-- Input:
-  - `callback` (function): The function to be called with the console arguments for any console event.
-- Returns: None
-- Example:
-  ```javascript
-  Superpowers.console.onAll((level, message) => {
-    console.log(`[${level.toUpperCase()}]: ${message}`);
-  });
-  ```
-
-#### Superpowers.console.turnOn()
-- Purpose: Activates the console interception, overriding the original console methods to enable event broadcasting.
-- Input: None
-- Returns: None
-- Example:
-  ```javascript
-  Superpowers.console.turnOn();
-  console.log("This will be intercepted and broadcasted.");
-  ```
-
-#### Superpowers.console.turnOff()
-- Purpose: Deactivates the console interception, restoring the original console methods.
-- Input: None
-- Returns: None
-- Example:
-  ```javascript
-  Superpowers.console.turnOff();
-  console.log("This will not be intercepted.");
-  ```
-
-#### Superpowers.console.turnTransmissionOn()
-- Purpose: Enables the transmission of console events to other contexts (e.g., content script, service worker).
-- Input: None
-- Returns: None
-- Example:
-  ```javascript
-  Superpowers.console.turnTransmissionOn();
-  ```
-
-#### Superpowers.console.turnTransmissionOff()
-- Purpose: Disables the transmission of console events, stopping them from being forwarded to other contexts.
-- Input: None
-- Returns: None
-- Example:
-  ```javascript
-  Superpowers.console.turnTransmissionOff();
-  ```
-
-This API provides a robust interface for intercepting and managing console events across different contexts, enhancing the logging and monitoring capabilities of web applications.
-
-
 ### gsc
 Type: Utility  
 Purpose: Facilitates interaction with the Google Search Console (GSC) API, enabling operations such as site management, search analytics, sitemap handling, and URL inspection through a structured JavaScript interface.
@@ -758,11 +645,39 @@ Purpose: Facilitates interaction with the Google Search Console (GSC) API, enabl
 This documentation provides a comprehensive guide to the methods available in the `window.Superpowers.Gsc` namespace, allowing developers to effectively interact with Google Search Console through the gsc plugin.
 
 
+### superasyncrandominteger
+Type: Utility  
+Purpose: Provides asynchronous generation of random integers within a specified range after a delay, allowing non-blocking operations in web applications.
+
+### Public API
+#### Superpowers.asyncRandomInteger(timeMs, minVal, maxVal)
+- Purpose: Generates a random integer asynchronously within the specified range `[minVal, maxVal]` after a delay of `timeMs` milliseconds.
+- Input:
+  - `timeMs` (Number): The delay in milliseconds before the random integer is generated.
+  - `minVal` (Number): The minimum value of the range (inclusive).
+  - `maxVal` (Number): The maximum value of the range (inclusive).
+- Returns: A `Promise` that resolves with the generated random integer or rejects with an error message if the operation fails.
+- Example:
+  ```javascript
+  // Example usage of Superpowers.asyncRandomInteger
+  window.Superpowers.asyncRandomInteger(1000, 1, 100)
+    .then((randomInt) => {
+      console.log(`Generated random integer: ${randomInt}`);
+    })
+    .catch((error) => {
+      console.error(`Error generating random integer: ${error}`);
+    });
+  ```
+
+This method is ideal for scenarios where non-blocking random number generation is required, allowing other operations to proceed while awaiting the result.
+
+
 ### superdebug
 Type: Utility  
 Purpose: Provides enhanced debugging capabilities for web applications by capturing and relaying log messages from the page context to a background script, optionally displaying them in a side panel or appending them to the DOM.
 
 ### Public API
+
 #### Superpowers.debugLog(msg, level = "info", domElementOrSelector)
 - Purpose: Logs messages with a specified severity level, optionally displays them in a designated DOM element, and relays them to the background script for further processing or display in a side panel.
 - Input:  
@@ -786,7 +701,113 @@ Purpose: Provides enhanced debugging capabilities for web applications by captur
   Superpowers.debugLog(user, "debug", document.getElementById("userLog"));
   ```
 
-This method provides a versatile way to handle logging in web applications, ensuring that developers can capture detailed information about application behavior and errors, both in the console and visually within the application UI.
+#### Superpowers.debugLog.enable()
+- Purpose: Enables the logging functionality, allowing messages to be logged and relayed to the background script.
+- Input: None
+- Returns: None
+- Example:
+  ```javascript
+  // Enable logging
+  Superpowers.debugLog.enable();
+  ```
+
+#### Superpowers.debugLog.disable()
+- Purpose: Disables the logging functionality, preventing messages from being logged and relayed to the background script.
+- Input: None
+- Returns: None
+- Example:
+  ```javascript
+  // Disable logging
+  Superpowers.debugLog.disable();
+  ```
+
+This API provides a versatile way to handle logging in web applications, ensuring that developers can capture detailed information about application behavior and errors, both in the console and visually within the application UI.
+
+
+### superconsoleintercept
+Type: Utility  
+Purpose: The `superconsoleintercept` plugin intercepts console events in a web page and facilitates communication between the page, content script, and service worker, enabling enhanced logging and monitoring capabilities across different contexts.
+
+### Public API
+
+#### Superpowers.console.on(level, callback)
+- Purpose: Registers a callback function to be executed whenever a console event of the specified level occurs.
+- Input: 
+  - `level` (string): The console method level to listen for (e.g., "log", "info", "warn", "error").
+  - `callback` (function): The function to be called with the console arguments when the event occurs.
+- Returns: None
+- Example:
+  ```javascript
+  Superpowers.console.on("warn", (message) => {
+    alert("Warning detected: " + message);
+  });
+  ```
+
+#### Superpowers.console.off(level, callback)
+- Purpose: Unregisters a previously registered callback for a specific console level.
+- Input:
+  - `level` (string): The console method level to stop listening for.
+  - `callback` (function): The callback function to be removed.
+- Returns: None
+- Example:
+  ```javascript
+  const myCallback = (message) => console.log("Info:", message);
+  Superpowers.console.on("info", myCallback);
+  // Later, to remove the callback:
+  Superpowers.console.off("info", myCallback);
+  ```
+
+#### Superpowers.console.onAll(callback)
+- Purpose: Registers a callback function to be executed for all console event levels.
+- Input:
+  - `callback` (function): The function to be called with the console arguments for any console event.
+- Returns: None
+- Example:
+  ```javascript
+  Superpowers.console.onAll((level, message) => {
+    console.log(`[${level.toUpperCase()}]: ${message}`);
+  });
+  ```
+
+#### Superpowers.console.turnOn()
+- Purpose: Activates the console interception, overriding the original console methods to enable event broadcasting.
+- Input: None
+- Returns: None
+- Example:
+  ```javascript
+  Superpowers.console.turnOn();
+  console.log("This will be intercepted and broadcasted.");
+  ```
+
+#### Superpowers.console.turnOff()
+- Purpose: Deactivates the console interception, restoring the original console methods.
+- Input: None
+- Returns: None
+- Example:
+  ```javascript
+  Superpowers.console.turnOff();
+  console.log("This will not be intercepted.");
+  ```
+
+#### Superpowers.console.turnTransmissionOn()
+- Purpose: Enables the transmission of console events to other contexts (e.g., content script, service worker).
+- Input: None
+- Returns: None
+- Example:
+  ```javascript
+  Superpowers.console.turnTransmissionOn();
+  ```
+
+#### Superpowers.console.turnTransmissionOff()
+- Purpose: Disables the transmission of console events, stopping them from being forwarded to other contexts.
+- Input: None
+- Returns: None
+- Example:
+  ```javascript
+  Superpowers.console.turnTransmissionOff();
+  ```
+
+This API provides a robust interface for intercepting and managing console events across different contexts, enhancing the logging and monitoring capabilities of web applications.
 
 
 ### superfetch
@@ -863,31 +884,20 @@ Purpose: The `superenv` plugin provides a mechanism to manage environment variab
 
 ### Public API
 
-#### Superpowers.getEnvVars()
+#### Superpowers.Env.getEnvVars()
 - Purpose: Retrieves the current set of environment variables.
 - Input: None
 - Returns: A Promise that resolves to an object containing the current environment variables.
 - Example:
   ```javascript
-  window.Superpowers.getEnvVars().then(vars => {
+  window.Superpowers.Env.getEnvVars().then(vars => {
     console.log("Current environment variables:", vars);
   }).catch(error => {
     console.error("Failed to retrieve environment variables:", error);
   });
   ```
 
-#### Superpowers.setEnvVars()
-- Purpose: Deprecated method for setting environment variables. Logs a warning and indicates that this functionality is restricted to the extension sidepanel.
-- Input: None
-- Returns: A Promise that resolves to an object indicating failure and the reason.
-- Example:
-  ```javascript
-  window.Superpowers.setEnvVars().then(response => {
-    console.warn(response.error);
-  });
-  ```
-
-#### Superpowers.proposeVars(name, description)
+#### Superpowers.Env.proposeVars(name, description)
 - Purpose: Proposes a new environment variable with a name and description. If the variable does not exist, it is created with an empty value and the description is stored.
 - Input:
   - `name` (string): The name of the environment variable.
@@ -895,40 +905,40 @@ Purpose: The `superenv` plugin provides a mechanism to manage environment variab
 - Returns: A Promise that resolves with an object indicating success or failure.
 - Example:
   ```javascript
-  window.Superpowers.proposeVars("NEW_VAR", "Description of the new variable").then(response => {
+  window.Superpowers.Env.proposeVars("NEW_VAR", "Description of the new variable").then(response => {
     console.log("Variable proposed:", response);
   }).catch(error => {
     console.error("Failed to propose variable:", error);
   });
   ```
 
-#### Superpowers.listEnvSets()
+#### Superpowers.Env.listEnvSets()
 - Purpose: Lists all available environment variable sets.
 - Input: None
 - Returns: A Promise that resolves to an object containing all environment variable sets.
 - Example:
   ```javascript
-  window.Superpowers.listEnvSets().then(envSets => {
+  window.Superpowers.Env.listEnvSets().then(envSets => {
     console.log("Available environment sets:", envSets);
   }).catch(error => {
     console.error("Failed to list environment sets:", error);
   });
   ```
 
-#### Superpowers.getEnvSet(envName)
+#### Superpowers.Env.getEnvSet(envName)
 - Purpose: Retrieves a specific set of environment variables by name.
 - Input: `envName` (string) - The name of the environment set to retrieve.
 - Returns: A Promise that resolves to an object containing the specified environment variables set.
 - Example:
   ```javascript
-  window.Superpowers.getEnvSet("production").then(vars => {
+  window.Superpowers.Env.getEnvSet("production").then(vars => {
     console.log("Production environment variables:", vars);
   }).catch(error => {
     console.error("Failed to retrieve environment set:", error);
   });
   ```
 
-#### Superpowers.setEnvSet(envName, varsObj)
+#### Superpowers.Env.setEnvSet(envName, varsObj)
 - Purpose: Sets or updates a specific environment variable set with the provided variables.
 - Input: 
   - `envName` (string) - The name of the environment set to update.
@@ -937,36 +947,24 @@ Purpose: The `superenv` plugin provides a mechanism to manage environment variab
 - Example:
   ```javascript
   const newVars = { API_URL: "https://api.example.com", DEBUG_MODE: "false" };
-  window.Superpowers.setEnvSet("production", newVars).then(response => {
+  window.Superpowers.Env.setEnvSet("production", newVars).then(response => {
     console.log("Environment set updated:", response);
   }).catch(error => {
     console.error("Failed to set environment set:", error);
   });
   ```
 
-#### Superpowers.deleteEnvSet(envName)
+#### Superpowers.Env.deleteEnvSet(envName)
 - Purpose: Deletes a specified environment variable set, except the default set.
 - Input: `envName` (string) - The name of the environment set to delete.
 - Returns: A Promise that resolves to an object indicating success or failure.
 - Example:
   ```javascript
-  window.Superpowers.deleteEnvSet("staging").then(response => {
+  window.Superpowers.Env.deleteEnvSet("staging").then(response => {
     console.log("Environment set deleted:", response);
   }).catch(error => {
     console.error("Failed to delete environment set:", error);
   });
-  ```
-
-#### Superpowers.debugLog(message, level, source)
-- Purpose: Logs a debug message with a specified level and source, both locally and to the content script.
-- Input:
-  - `message` (string) - The debug message to log.
-  - `level` (string, optional) - The severity level of the log (default: "info").
-  - `source` (string, optional) - The source of the log message (default: "page").
-- Returns: None
-- Example:
-  ```javascript
-  window.Superpowers.debugLog("This is a debug message", "warn", "custom-source");
   ```
 
 This documentation provides a comprehensive guide to using the `superenv` plugin's public API, ensuring developers can effectively manage environment variables within their web applications.
@@ -1168,92 +1166,6 @@ Purpose: The "superopenai" plugin provides a bridge to interact with the OpenAI 
 This documentation provides a comprehensive overview of the primary methods available through the `superopenai` plugin, ensuring developers can effectively integrate and utilize OpenAI's capabilities within their web applications.
 
 
-### superping
-Type: Utility  
-Purpose: Provides a simple mechanism to send synchronous "ping" messages from a web page to a service worker via a content script, primarily for logging or echo purposes without expecting a response.
-
-### Public API
-#### Superpowers.ping(msg)
-- Purpose: Sends a "ping" message from the web page to the service worker and immediately returns the same message. This function allows for logging or echoing messages without waiting for a response.
-- Input: 
-  - `msg` (String): The message to be sent and logged.
-- Returns: 
-  - (String): The same `msg` that was passed as input.
-- Example:
-  ```javascript
-  // Usage of Superpowers.ping to send a message and receive it back immediately
-  const message = "Hello, Superping!";
-  const response = window.Superpowers.ping(message);
-  console.log(response); // Outputs: "Hello, Superping!"
-  ```
-
-This API is designed to be used in scenarios where a quick, synchronous "ping" is required, and the actual processing or response handling is not necessary from the page's perspective.
-
-
-### superpingasync
-Type: Utility  
-Purpose: Provides an asynchronous mechanism to send a "ping" message from a web page to a browser extension and receive a "pong" response.
-
-### Public API
-#### Superpowers.asyncPing(message)
-- Purpose: Sends a message to the browser extension and receives a response asynchronously.
-- Input: 
-  - `message` (String): The message to be sent to the extension.
-- Returns: 
-  - A `Promise` that resolves with the response from the extension. The response is a string prefixed with "Pong: ". If an error occurs, the promise is rejected with an error message.
-- Example:
-  ```javascript
-  window.Superpowers.asyncPing("Hello, extension!")
-    .then(response => {
-      console.log(response); // Output: "Pong: Hello, extension!"
-    })
-    .catch(error => {
-      console.error("Error:", error);
-    });
-  ```
-
-This API is designed to facilitate communication between a web page and a browser extension using a simple message-passing mechanism. The `asyncPing` method is particularly useful for scenarios where you need to perform an operation in the extension and handle the result back in the page context.
-
-
-### superreadme
-Type: Bridge  
-Purpose: Provides access to specific README files from a Chrome extension, allowing web pages to retrieve and display documentation content directly from the extension's context.
-
-### Public API
-
-#### Superpowers.readme.getLLMReadme()
-- Purpose: Retrieves the content of the `README-LLM.md` file from the extension.
-- Input: None
-- Returns: A Promise that resolves with the content of the `README-LLM.md` file as a string. If an error occurs, the promise is rejected with an error message.
-- Example:
-  ```javascript
-  window.Superpowers.readme.getLLMReadme()
-    .then(content => {
-      console.log("LLM Readme Content:", content);
-    })
-    .catch(error => {
-      console.error("Failed to retrieve LLM Readme:", error);
-    });
-  ```
-
-#### Superpowers.readme.getMainReadme()
-- Purpose: Retrieves the content of the `README.md` file from the extension.
-- Input: None
-- Returns: A Promise that resolves with the content of the `README.md` file as a string. If an error occurs, the promise is rejected with an error message.
-- Example:
-  ```javascript
-  window.Superpowers.readme.getMainReadme()
-    .then(content => {
-      console.log("Main Readme Content:", content);
-    })
-    .catch(error => {
-      console.error("Failed to retrieve Main Readme:", error);
-    });
-  ```
-
-This API allows developers to programmatically access and utilize the documentation content embedded within a Chrome extension, facilitating dynamic content display and integration into web applications.
-
-
 ### superdebugger
 Type: Utility  
 Purpose: The `superdebugger` plugin provides a robust interface for interacting with the `chrome.debugger` API, facilitating debugging tasks within Chrome extensions. It includes comprehensive error handling and state management to ensure reliable communication between the page, content script, and service worker.
@@ -1321,12 +1233,216 @@ Purpose: The `superdebugger` plugin provides a robust interface for interacting 
 This API offers a comprehensive interface for managing debugging sessions and interacting with the `chrome.debugger` API, providing developers with the tools necessary to perform advanced debugging tasks within their extensions.
 
 
+### superping
+Type: Utility  
+Purpose: Provides a simple mechanism to send synchronous "ping" messages from a web page to a service worker via a content script, primarily for logging or echo purposes without expecting a response.
+
+### Public API
+#### Superpowers.ping(msg)
+- Purpose: Sends a "ping" message from the web page to the service worker and immediately returns the same message. This function allows for logging or echoing messages without waiting for a response.
+- Input: 
+  - `msg` (String): The message to be sent and logged.
+- Returns: 
+  - (String): The same `msg` that was passed as input.
+- Example:
+  ```javascript
+  // Usage of Superpowers.ping to send a message and receive it back immediately
+  const message = "Hello, Superping!";
+  const response = window.Superpowers.ping(message);
+  console.log(response); // Outputs: "Hello, Superping!"
+  ```
+
+This API is designed to be used in scenarios where a quick, synchronous "ping" is required, and the actual processing or response handling is not necessary from the page's perspective.
+
+
+### superpingasync
+Type: Utility  
+Purpose: Provides an asynchronous mechanism to send a "ping" message from a web page to a browser extension and receive a "pong" response.
+
+### Public API
+#### Superpowers.asyncPing(message)
+- Purpose: Sends a message to the browser extension and receives a response asynchronously.
+- Input: 
+  - `message` (String): The message to be sent to the extension.
+- Returns: 
+  - A `Promise` that resolves with the response from the extension. The response is a string prefixed with "Pong: ". If an error occurs, the promise is rejected with an error message.
+- Example:
+  ```javascript
+  // Example usage of Superpowers.asyncPing
+  window.Superpowers.asyncPing("Hello, extension!")
+    .then(response => {
+      console.log(response); // Output: "Pong: Hello, extension!"
+    })
+    .catch(error => {
+      console.error("Error:", error);
+    });
+  ```
+
+This API is designed to facilitate communication between a web page and a browser extension using a simple message-passing mechanism. The `asyncPing` method is particularly useful for scenarios where you need to perform an operation in the extension and handle the result back in the page context.
+
+
+### superreadme
+Type: Bridge  
+Purpose: Provides access to specific README files from a Chrome extension, allowing web pages to retrieve and display documentation content directly from the extension's context.
+
+### Public API
+
+#### Superpowers.readme.getLLMReadme()
+- Purpose: Retrieves the content of the `README-LLM.md` file from the extension.
+- Input: None
+- Returns: A Promise that resolves with the content of the `README-LLM.md` file as a string. If an error occurs, the promise is rejected with an error message.
+- Example:
+  ```javascript
+  window.Superpowers.readme.getLLMReadme()
+    .then(content => {
+      console.log("LLM Readme Content:", content);
+    })
+    .catch(error => {
+      console.error("Failed to retrieve LLM Readme:", error);
+    });
+  ```
+
+#### Superpowers.readme.getMainReadme()
+- Purpose: Retrieves the content of the `README.md` file from the extension.
+- Input: None
+- Returns: A Promise that resolves with the content of the `README.md` file as a string. If an error occurs, the promise is rejected with an error message.
+- Example:
+  ```javascript
+  window.Superpowers.readme.getMainReadme()
+    .then(content => {
+      console.log("Main Readme Content:", content);
+    })
+    .catch(error => {
+      console.error("Failed to retrieve Main Readme:", error);
+    });
+  ```
+
+This API allows developers to programmatically access and utilize the documentation content embedded within a Chrome extension, facilitating dynamic content display and integration into web applications.
+
+
+### superstorage
+- **No text files** found for plugin.
+
+
+### superruntime
+Type: Utility  
+Purpose: The superruntime plugin provides a bridge to interact with Chrome's runtime API from web pages, enabling dynamic control and event handling within browser extensions.
+
+### Public API
+
+#### Superpowers.runtime.turnOn()
+- Purpose: Enables the superruntime functionality, allowing communication between the web page and the background script.
+- Input: None
+- Returns: `undefined`
+- Example:
+  ```javascript
+  window.Superpowers.runtime.turnOn();
+  ```
+
+#### Superpowers.runtime.turnOff()
+- Purpose: Disables the superruntime functionality, halting communication between the web page and the background script.
+- Input: None
+- Returns: `undefined`
+- Example:
+  ```javascript
+  window.Superpowers.runtime.turnOff();
+  ```
+
+#### Superpowers.runtime.on(eventName, callback)
+- Purpose: Registers a callback to be executed when a specified runtime event occurs.
+- Input: 
+  - `eventName` (string): The name of the event to listen for.
+  - `callback` (function): The function to execute when the event is triggered.
+- Returns: `undefined`
+- Example:
+  ```javascript
+  window.Superpowers.runtime.on('onInstalled', (details) => {
+    console.log('Extension installed:', details);
+  });
+  ```
+
+#### Superpowers.runtime.off(eventName, callback)
+- Purpose: Unregisters a previously registered callback for a specified runtime event.
+- Input:
+  - `eventName` (string): The name of the event to stop listening for.
+  - `callback` (function): The function to remove from the event's callback list.
+- Returns: `undefined`
+- Example:
+  ```javascript
+  const myCallback = (details) => console.log('Extension installed:', details);
+  window.Superpowers.runtime.on('onInstalled', myCallback);
+  window.Superpowers.runtime.off('onInstalled', myCallback);
+  ```
+
+#### Superpowers.runtime.xxxMethod(...)
+- Purpose: Dynamically calls a method on the Chrome runtime API.
+- Input:
+  - `methodName` (string): The name of the Chrome runtime method to call.
+  - `args` (array): Arguments to pass to the Chrome runtime method.
+- Returns: A `Promise` that resolves with the result of the method call or rejects with an error.
+- Example:
+  ```javascript
+  window.Superpowers.runtime.getBackgroundPage().then(backgroundPage => {
+    console.log('Background page:', backgroundPage);
+  }).catch(error => {
+    console.error('Error calling method:', error);
+  });
+  ```
+
+This documentation provides a comprehensive guide to using the `window.Superpowers.runtime` methods available in the superruntime plugin, enabling seamless integration with Chrome's runtime API.
+
+
+### superscreenshot
+Type: Utility  
+Purpose: The superscreenshot plugin provides a mechanism to capture screenshots of web pages or specific browser tabs. It supports capturing visible or full-page screenshots, with options for image format, quality, and additional customization like CSS/JS injection.
+
+### Public API
+#### Superpowers.screenshot(...)
+- Purpose: Captures a screenshot based on the provided configuration and returns it as a data URL.
+- Input: 
+  - `payload` (Object): Configuration object with the following optional properties:
+    - `url` (string): The URL to open for the screenshot. Required if `tabId` is not provided.
+    - `tabId` (number): The tab ID to capture. Required if `url` is not provided.
+    - `captureMode` (string): Capture mode, either `"visible"` for the current viewport or `"full"` for the entire page. Defaults to `"visible"`.
+    - `format` (string): Image format, either `"png"` or `"jpeg"`. Defaults to `"png"`.
+    - `quality` (number): Image quality (0-100) for JPEG format. Ignored if format is PNG. Defaults to 100.
+    - `delayMs` (number): Delay in milliseconds before capture to allow dynamic content to render. Defaults to 1000 ms.
+    - `keepTabOpen` (boolean): If true, the tab or window created for the screenshot is not closed after capture. Defaults to false.
+    - `width` (number): Desired window width if creating a new window.
+    - `height` (number): Desired window height if creating a new window.
+    - `injectCss` (string): CSS string to inject into the page before capture.
+    - `injectJs` (string): JavaScript string to inject and execute on the page before capture.
+- Returns: 
+  - `Promise<string>`: Resolves with a data URL string representing the screenshot image. Rejects with an error message if the operation fails.
+- Example:
+  ```javascript
+  // Capture a full-page screenshot of a specific URL
+  window.Superpowers.screenshot({
+    url: "https://example.com",
+    captureMode: "full",
+    format: "jpeg",
+    quality: 80,
+    delayMs: 2000,
+    injectCss: "body { background-color: lightgray; }",
+    injectJs: "document.body.style.border = '5px solid red';"
+  })
+  .then(dataUrl => {
+    console.log("Screenshot captured:", dataUrl);
+    // You can use the data URL to display the image or save it
+  })
+  .catch(error => {
+    console.error("Screenshot failed:", error);
+  });
+  ```
+
+This documentation provides a comprehensive guide to using the `Superpowers.screenshot` method, ensuring developers can effectively integrate and utilize the superscreenshot plugin in their applications.
+
+
 ### supertabs
 Type: Utility  
 Purpose: Provides a bridge to the Chrome `tabs` API, enabling direct method calls and event handling from a web page context. This plugin facilitates seamless interaction with browser tabs, allowing developers to query, create, reload tabs, and manage tab events.
 
 ### Public API
-
 #### Superpowers.tabs.query(...)
 - Purpose: Queries all browser tabs that match the specified properties.
 - Input: An object with properties to match against tabs (e.g., `{ active: true }`).
@@ -1398,118 +1514,98 @@ Purpose: Provides a bridge to the Chrome `tabs` API, enabling direct method call
 This documentation provides a comprehensive guide to using the `supertabs` plugin's public API, ensuring seamless integration and interaction with browser tabs from a web page context.
 
 
-### superscreenshot
-Type: Utility  
-Purpose: The superscreenshot plugin provides a mechanism to capture screenshots of web pages or specific browser tabs. It supports capturing visible or full-page screenshots, with options for image format, quality, and additional customization like CSS/JS injection.
-
-### Public API
-#### Superpowers.screenshot(...)
-- Purpose: Captures a screenshot based on the provided configuration and returns it as a data URL.
-- Input: 
-  - `payload` (Object): Configuration object with the following optional properties:
-    - `url` (string): The URL to open for the screenshot. Required if `tabId` is not provided.
-    - `tabId` (number): The tab ID to capture. Required if `url` is not provided.
-    - `captureMode` (string): Capture mode, either `"visible"` for the current viewport or `"full"` for the entire page. Defaults to `"visible"`.
-    - `format` (string): Image format, either `"png"` or `"jpeg"`. Defaults to `"png"`.
-    - `quality` (number): Image quality (0-100) for JPEG format. Ignored if format is PNG. Defaults to 100.
-    - `delayMs` (number): Delay in milliseconds before capture to allow dynamic content to render. Defaults to 1000 ms.
-    - `keepTabOpen` (boolean): If true, the tab or window created for the screenshot is not closed after capture. Defaults to false.
-    - `width` (number): Desired window width if creating a new window.
-    - `height` (number): Desired window height if creating a new window.
-    - `injectCss` (string): CSS string to inject into the page before capture.
-    - `injectJs` (string): JavaScript string to inject and execute on the page before capture.
-- Returns: 
-  - `Promise<string>`: Resolves with a data URL string representing the screenshot image. Rejects with an error message if the operation fails.
-- Example:
-  ```javascript
-  // Capture a full-page screenshot of a specific URL
-  window.Superpowers.screenshot({
-    url: "https://example.com",
-    captureMode: "full",
-    format: "jpeg",
-    quality: 80,
-    delayMs: 2000,
-    injectCss: "body { background-color: lightgray; }",
-    injectJs: "document.body.style.border = '5px solid red';"
-  })
-  .then(dataUrl => {
-    console.log("Screenshot captured:", dataUrl);
-    // You can use the data URL to display the image or save it
-  })
-  .catch(error => {
-    console.error("Screenshot failed:", error);
-  });
-  ```
-
-This documentation provides a comprehensive guide to using the `Superpowers.screenshot` method, ensuring developers can effectively integrate and utilize the superscreenshot plugin in their applications.
-
-
-### superruntime
-Type: Utility  
-Purpose: The superruntime plugin provides a bridge to interact with Chrome's runtime API from web pages, enabling dynamic control and event handling within browser extensions.
+### supersidepanel
+Type: Bridge  
+Purpose: Facilitates communication between in-page scripts and the Chrome sidePanel API through a content script and service worker, enabling seamless integration and control of the side panel features within web applications.
 
 ### Public API
 
-#### Superpowers.runtime.turnOn()
-- Purpose: Enables the superruntime functionality, allowing communication between the web page and the background script.
-- Input: None
-- Returns: `undefined`
+#### Superpowers.sidePanel.open(options)
+- Purpose: Opens the Chrome side panel with specified options.
+- Input: `options` (Object) - Configuration options for opening the side panel.
+- Returns: `Promise<void>` - Resolves when the panel is successfully opened.
 - Example:
   ```javascript
-  window.Superpowers.runtime.turnOn();
+  window.Superpowers.sidePanel.open({ url: "https://example.com" })
+    .then(() => console.log("Side panel opened successfully"))
+    .catch((error) => console.error("Failed to open side panel:", error));
   ```
 
-#### Superpowers.runtime.turnOff()
-- Purpose: Disables the superruntime functionality, halting communication between the web page and the background script.
-- Input: None
-- Returns: `undefined`
+#### Superpowers.sidePanel.setOptions(options)
+- Purpose: Sets configuration options for the Chrome side panel.
+- Input: `options` (Object) - New configuration settings for the side panel.
+- Returns: `Promise<void>` - Resolves when options are successfully set.
 - Example:
   ```javascript
-  window.Superpowers.runtime.turnOff();
+  window.Superpowers.sidePanel.setOptions({ width: 400 })
+    .then(() => console.log("Options set successfully"))
+    .catch((error) => console.error("Failed to set options:", error));
   ```
 
-#### Superpowers.runtime.on(eventName, callback)
-- Purpose: Registers a callback to be executed when a specified runtime event occurs.
+#### Superpowers.sidePanel.getOptions()
+- Purpose: Retrieves the current configuration options of the Chrome side panel.
+- Input: None
+- Returns: `Promise<Object>` - Resolves with the current options of the side panel.
+- Example:
+  ```javascript
+  window.Superpowers.sidePanel.getOptions()
+    .then((options) => console.log("Current options:", options))
+    .catch((error) => console.error("Failed to get options:", error));
+  ```
+
+#### Superpowers.sidePanel.setPanelBehavior(behavior)
+- Purpose: Sets the behavior of the Chrome side panel.
+- Input: `behavior` (Object) - Defines the behavior settings for the side panel.
+- Returns: `Promise<void>` - Resolves when behavior is successfully set.
+- Example:
+  ```javascript
+  window.Superpowers.sidePanel.setPanelBehavior({ autoHide: true })
+    .then(() => console.log("Panel behavior set successfully"))
+    .catch((error) => console.error("Failed to set panel behavior:", error));
+  ```
+
+#### Superpowers.sidePanel.getPanelBehavior()
+- Purpose: Retrieves the current behavior settings of the Chrome side panel.
+- Input: None
+- Returns: `Promise<Object>` - Resolves with the current behavior settings of the side panel.
+- Example:
+  ```javascript
+  window.Superpowers.sidePanel.getPanelBehavior()
+    .then((behavior) => console.log("Current panel behavior:", behavior))
+    .catch((error) => console.error("Failed to get panel behavior:", error));
+  ```
+
+#### Superpowers.sidePanel.on(eventName, callback)
+- Purpose: Registers an event listener for future side panel events.
 - Input: 
-  - `eventName` (string): The name of the event to listen for.
-  - `callback` (function): The function to execute when the event is triggered.
-- Returns: `undefined`
+  - `eventName` (String) - The name of the event to listen for.
+  - `callback` (Function) - The function to call when the event occurs.
+- Returns: `void`
 - Example:
   ```javascript
-  window.Superpowers.runtime.on('onInstalled', (details) => {
-    console.log('Extension installed:', details);
+  window.Superpowers.sidePanel.on("customEvent", (data) => {
+    console.log("Custom event received:", data);
   });
   ```
 
-#### Superpowers.runtime.off(eventName, callback)
-- Purpose: Unregisters a previously registered callback for a specified runtime event.
-- Input:
-  - `eventName` (string): The name of the event to stop listening for.
-  - `callback` (function): The function to remove from the event's callback list.
-- Returns: `undefined`
+#### Superpowers.sidePanel.off(eventName, callback)
+- Purpose: Unregisters an event listener for side panel events.
+- Input: 
+  - `eventName` (String) - The name of the event to stop listening for.
+  - `callback` (Function) - The function to remove from the event listeners.
+- Returns: `void`
 - Example:
   ```javascript
-  const myCallback = (details) => console.log('Extension installed:', details);
-  window.Superpowers.runtime.on('onInstalled', myCallback);
-  window.Superpowers.runtime.off('onInstalled', myCallback);
+  const handleCustomEvent = (data) => {
+    console.log("Custom event received:", data);
+  };
+
+  window.Superpowers.sidePanel.on("customEvent", handleCustomEvent);
+  // Later, to remove the listener:
+  window.Superpowers.sidePanel.off("customEvent", handleCustomEvent);
   ```
 
-#### Superpowers.runtime.xxxMethod(...)
-- Purpose: Dynamically calls a method on the Chrome runtime API.
-- Input:
-  - `methodName` (string): The name of the Chrome runtime method to call.
-  - `args` (array): Arguments to pass to the Chrome runtime method.
-- Returns: A `Promise` that resolves with the result of the method call or rejects with an error.
-- Example:
-  ```javascript
-  window.Superpowers.runtime.getBackgroundPage().then(backgroundPage => {
-    console.log('Background page:', backgroundPage);
-  }).catch(error => {
-    console.error('Error calling method:', error);
-  });
-  ```
-
-This documentation provides a comprehensive guide to using the `window.Superpowers.runtime` methods available in the superruntime plugin, enabling seamless integration with Chrome's runtime API.
+This API provides a comprehensive interface for managing and interacting with the Chrome side panel, allowing developers to customize its behavior and appearance dynamically.
 
 
 ### superurlget
@@ -1717,100 +1813,6 @@ Purpose: Provides a bridge for handling and manipulating web requests within a b
   ```
 
 This documentation provides a comprehensive guide to using the `superwebrequest` plugin's public API, enabling developers to effectively manage and manipulate web requests within their browser extensions.
-
-
-### supersidepanel
-Type: Bridge  
-Purpose: Facilitates communication between in-page scripts and the Chrome sidePanel API through a content script and service worker, enabling seamless integration and control of the side panel features within web applications.
-
-### Public API
-
-#### Superpowers.sidePanel.open(options)
-- Purpose: Opens the Chrome side panel with specified options.
-- Input: `options` (Object) - Configuration options for opening the side panel.
-- Returns: `Promise<void>` - Resolves when the panel is successfully opened.
-- Example:
-  ```javascript
-  window.Superpowers.sidePanel.open({ url: "https://example.com" })
-    .then(() => console.log("Side panel opened successfully"))
-    .catch((error) => console.error("Failed to open side panel:", error));
-  ```
-
-#### Superpowers.sidePanel.setOptions(options)
-- Purpose: Sets configuration options for the Chrome side panel.
-- Input: `options` (Object) - New configuration settings for the side panel.
-- Returns: `Promise<void>` - Resolves when options are successfully set.
-- Example:
-  ```javascript
-  window.Superpowers.sidePanel.setOptions({ width: 400 })
-    .then(() => console.log("Options set successfully"))
-    .catch((error) => console.error("Failed to set options:", error));
-  ```
-
-#### Superpowers.sidePanel.getOptions()
-- Purpose: Retrieves the current configuration options of the Chrome side panel.
-- Input: None
-- Returns: `Promise<Object>` - Resolves with the current options of the side panel.
-- Example:
-  ```javascript
-  window.Superpowers.sidePanel.getOptions()
-    .then((options) => console.log("Current options:", options))
-    .catch((error) => console.error("Failed to get options:", error));
-  ```
-
-#### Superpowers.sidePanel.setPanelBehavior(behavior)
-- Purpose: Sets the behavior of the Chrome side panel.
-- Input: `behavior` (Object) - Defines the behavior settings for the side panel.
-- Returns: `Promise<void>` - Resolves when behavior is successfully set.
-- Example:
-  ```javascript
-  window.Superpowers.sidePanel.setPanelBehavior({ autoHide: true })
-    .then(() => console.log("Panel behavior set successfully"))
-    .catch((error) => console.error("Failed to set panel behavior:", error));
-  ```
-
-#### Superpowers.sidePanel.getPanelBehavior()
-- Purpose: Retrieves the current behavior settings of the Chrome side panel.
-- Input: None
-- Returns: `Promise<Object>` - Resolves with the current behavior settings of the side panel.
-- Example:
-  ```javascript
-  window.Superpowers.sidePanel.getPanelBehavior()
-    .then((behavior) => console.log("Current panel behavior:", behavior))
-    .catch((error) => console.error("Failed to get panel behavior:", error));
-  ```
-
-#### Superpowers.sidePanel.on(eventName, callback)
-- Purpose: Registers an event listener for future side panel events.
-- Input: 
-  - `eventName` (String) - The name of the event to listen for.
-  - `callback` (Function) - The function to call when the event occurs.
-- Returns: `void`
-- Example:
-  ```javascript
-  window.Superpowers.sidePanel.on("customEvent", (data) => {
-    console.log("Custom event received:", data);
-  });
-  ```
-
-#### Superpowers.sidePanel.off(eventName, callback)
-- Purpose: Unregisters an event listener for side panel events.
-- Input: 
-  - `eventName` (String) - The name of the event to stop listening for.
-  - `callback` (Function) - The function to remove from the event listeners.
-- Returns: `void`
-- Example:
-  ```javascript
-  const handleCustomEvent = (data) => {
-    console.log("Custom event received:", data);
-  };
-
-  window.Superpowers.sidePanel.on("customEvent", handleCustomEvent);
-  // Later, to remove the listener:
-  window.Superpowers.sidePanel.off("customEvent", handleCustomEvent);
-  ```
-
-This API provides a comprehensive interface for managing and interacting with the Chrome side panel, allowing developers to customize its behavior and appearance dynamically.
 
 ----
 # Superpowers AI Assistant Example
@@ -2361,7 +2363,7 @@ getEl('chat-message').addEventListener('keypress', e => {
 
 ```
 
-_Generated from source on 2025-02-10T12:54:01.251Z_
+_Generated from source on 2025-04-15T15:43:40.361Z_
 
 ----
 ## Final Notes
