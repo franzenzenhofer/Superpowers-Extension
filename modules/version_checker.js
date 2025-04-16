@@ -73,7 +73,8 @@ async function checkVersionCore(mode = 'regular') {
             type: "SIDEPANEL_VERSION_UPDATE",
             currentVersion,
             latestVersion: remoteManifest.version,
-            updateUrl: VERSION_CONFIG.GITHUB_REPO_URL
+            updateUrl: VERSION_CONFIG.GITHUB_REPO_URL,
+            timestamp: Date.now()
           });
         } else {
           chrome.runtime.sendMessage({
@@ -83,10 +84,6 @@ async function checkVersionCore(mode = 'regular') {
             updateUrl: VERSION_CONFIG.GITHUB_REPO_URL,
             timestamp: Date.now()
           });
-          // Only open GitHub tab in regular mode
-          if (mode === 'regular') {
-            chrome.tabs.create({ url: VERSION_CONFIG.GITHUB_REPO_URL });
-          }
         }
       } else {
         console.debug(`[Version Check] Update notice already showing or notified (${mode})`);

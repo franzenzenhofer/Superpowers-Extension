@@ -9,6 +9,34 @@ import {
   createExtensionBridge
 } from '/scripts/plugin_bridge.js';
 
+// Add cache variables
+let swCache = null; // Service worker cache
+let isCacheValid = false;
+
+/**
+ * Get environment variables from cache or storage
+ * Uses in-memory cache to avoid repeated storage reads
+ */
+async function getEnvVarsFromCacheOrStorage() {
+  if (isCacheValid && swCache !== null) {
+    console.log("[superenv] Returning cached env vars");
+    return swCache.default || {};
+  }
+  
+  console.log("[superenv] Cache invalid or empty, loading from storage");
+  try {
+    swCache = await loadFromStorage(); // Use existing function
+    isCacheValid = true;
+    console.log("[superenv] Cache populated from storage");
+    return swCache.default || {};
+  } catch (error) {
+    console.error("[superenv] Failed to load from storage:", error);
+    isCacheValid = false; // Ensure cache remains invalid on error
+    swCache = null; // Clear potentially partial cache
+    throw error; // Re-throw error
+  }
+}
+
 export const superenv_extension = {
     name: "superenv_extension",
   
@@ -19,20 +47,20 @@ export const superenv_extension = {
         // GET /vars => SUPERENV_GET_VARS
         getEnvVars: async (methodName, args) => {
           try {
-            console.log("[superenv] Handling getEnvVars request - Reading directly from storage");
+            console.log("[superenv] Handling getEnvVars request - Using cache when available");
             
-            // Always perform a fresh read from storage - no caching
-            const envVarsData = await loadFromStorage();
+            // Use cached values when available
+            const defaultVars = await getEnvVarsFromCacheOrStorage();
             
             // Log presence/absence of key for debugging
-            if (envVarsData.default && typeof envVarsData.default.OPENAI_API_KEY === 'string') {
+            if (defaultVars && typeof defaultVars.OPENAI_API_KEY === 'string') {
               console.log("[superenv] Responding with env vars including OPENAI_API_KEY");
             } else {
               console.warn("[superenv] Responding, but OPENAI_API_KEY is missing in stored data");
             }
             
             // Return the stored environment variables or an empty object
-            return envVarsData.default || {};
+            return defaultVars || {};
           } catch (error) {
             console.error("[superenv] Error retrieving environment variables:", error);
             throw error; // Propagate error to caller
@@ -58,6 +86,11 @@ export const superenv_extension = {
             envVarsData.descriptions[payload.name] = payload.description;
           }
           await saveToStorage(envVarsData);
+          
+          // Invalidate cache after modification
+          isCacheValid = false;
+          swCache = null;
+          
           return { proposed: payload.name };
         },
   
@@ -80,6 +113,11 @@ export const superenv_extension = {
           const envVarsData = await loadFromStorage();
           envVarsData[envName] = varsObj;
           await saveToStorage(envVarsData);
+          
+          // Invalidate cache after modification
+          isCacheValid = false;
+          swCache = null;
+          
           return envVarsData[envName];
         },
   
@@ -93,6 +131,10 @@ export const superenv_extension = {
           if (envVarsData[envName]) {
             delete envVarsData[envName];
             await saveToStorage(envVarsData);
+            
+            // Invalidate cache after modification
+            isCacheValid = false;
+            swCache = null;
           }
           return {}; // Return empty object on success
         },
@@ -103,10 +145,22 @@ export const superenv_extension = {
         pluginName: 'superenv',
         methodHandlers,
       });
-  
-      /*
-      console.log("[superenv_extension] Extension bridge initialized.");
-      */
+      
+      // Add storage listener to invalidate cache when superEnvVars changes
+      chrome.storage.onChanged.addListener((changes, areaName) => {
+        if (areaName === 'local' && changes.superEnvVars) {
+          console.log("[superenv] Detected storage change for superEnvVars. Invalidating cache.");
+          isCacheValid = false;
+          swCache = null;
+        }
+      });
+      
+      // Pre-warm the cache when the extension starts
+      getEnvVarsFromCacheOrStorage().catch(err => {
+        console.warn("[superenv] Initial cache pre-warming failed:", err);
+      });
+      
+      console.log("[superenv_extension] Extension bridge initialized with caching.");
     }
   };
   

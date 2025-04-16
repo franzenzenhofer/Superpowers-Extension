@@ -9,27 +9,27 @@
 
 Hello, GPT. Welcome to **Superpowers** — a powerful Chrome extension that injects a variety of augmented APIs into a webpage context. With **Superpowers**, you can perform cross-domain fetches, manage environment variables, handle tab interactions, capture screenshots, or even chat with OpenAI models, all from within a standard web page!
 
-This README is specifically written to help another **GPT** (i.e., a generative AI system) understand how **Superpowers** works and how to use it effectively in code. By the end, you’ll know:
+This README is specifically written to help another **GPT** (i.e., a generative AI system) understand how **Superpowers** works and how to use it effectively in code. By the end, you'll know:
 
 1. What **Superpowers** is and the basics of its architecture.
 2. Which methods and objects the extension exposes (like `Superpowers.fetch`, `Superpowers.ping`, etc.).
 3. How to integrate them in your own HTML/JS-based page, including best practices for ensuring the extension loads properly (via meta tags and DOM checks).
 
-This document is structured in carefully delineated sections with `----` separators and is **at least 8,000 characters** (to ensure thoroughness). Let’s dive in!
+This document is structured in carefully delineated sections with `----` separators and is **at least 8,000 characters** (to ensure thoroughness). Let's dive in!
 
 ----
 
 ## What is Superpowers?
 ----
 
-**Superpowers** is a Chrome extension that, when installed and running, injects a global `window.Superpowers` object into any page that opts in via a `<meta name="superpowers" content="enabled" />` tag in the `<head>`. The extension also sets up bridging between the real page context and the extension’s service worker, allowing you (the page) to invoke powerful Chrome APIs that would ordinarily be inaccessible from standard JavaScript.
+**Superpowers** is a Chrome extension that, when installed and running, injects a global `window.Superpowers` object into any page that opts in via a `<meta name="superpowers" content="enabled" />` tag in the `<head>`. The extension also sets up bridging between the real page context and the extension's service worker, allowing you (the page) to invoke powerful Chrome APIs that would ordinarily be inaccessible from standard JavaScript.
 
 ----
 
 ## Architecture Overview
 ----
 
-1. **service_worker.js**: The main background service worker for the extension. It loads the plugin_manager, which registers each plugin’s `install(...)` method. This is where messages from content scripts or the page get routed.
+1. **service_worker.js**: The main background service worker for the extension. It loads the plugin_manager, which registers each plugin's `install(...)` method. This is where messages from content scripts or the page get routed.
 2. **content_script.js**: Auto-injected script that runs in each tab. It listens for page messages (e.g., "SUPERFETCH", "SUPERENV_GET_VARS") and relays them to the service worker via `chrome.runtime.sendMessage()`.
 3. **globals_injected (Deprecated)** or other bridging scripts: Historically, these might attach the bridging code directly to `window`. We now do it plugin by plugin. 
 4. **Plugins**: Each plugin (e.g., superfetch, superenv, superping, superpages, etc.) has:
@@ -60,7 +60,7 @@ Important:
 To enable **Superpowers** in your page:
 
 1. **Install the extension** in Chrome (the user must do this).
-2. **Add the meta tag** in your page’s `<head>`:
+2. **Add the meta tag** in your page's `<head>`:
 
    ```html
    <meta name="superpowers" content="enabled"/>
@@ -885,18 +885,31 @@ Purpose: The `superenv` plugin provides a mechanism to manage environment variab
 ### Public API
 
 #### Superpowers.Env.getEnvVars()
-- Purpose: Retrieves the current set of environment variables.
+- Purpose: Retrieves the current set of environment variables with robust caching.
 - Input: None
 - Returns: A Promise that resolves to an object containing the current environment variables.
+- Behavior: This function first attempts to fetch fresh environment variables from storage. If successful, it updates an internal cache and returns the fresh data. If the fetch fails for any reason (like temporary storage issues), it returns the cached values from the most recent successful fetch, ensuring robustness.
 - Example:
   ```javascript
   window.Superpowers.Env.getEnvVars().then(vars => {
     console.log("Current environment variables:", vars);
   }).catch(error => {
+    // This catch block will rarely be triggered because the method
+    // returns cached values instead of throwing errors when storage access fails
     console.error("Failed to retrieve environment variables:", error);
   });
   ```
 
+#### Superpowers.Env.getCachedEnvVars()
+- Purpose: Synchronously retrieves the cached environment variables without making any storage access requests.
+- Input: None
+- Returns: An object containing the most recently cached environment variables.
+- Example:
+  ```javascript
+  const cachedVars = window.Superpowers.Env.getCachedEnvVars();
+  console.log("Cached environment variables:", cachedVars);
+  ```
+  
 #### Superpowers.Env.proposeVars(name, description)
 - Purpose: Proposes a new environment variable with a name and description. If the variable does not exist, it is created with an empty value and the description is stored.
 - Input:

@@ -38,6 +38,7 @@ const ACTION_SAVE_CLASS = "save";
 const TOAST_SHOW_CLASS = "show";
 const LOG_ENTRY_CLASS = "log-entry"; // For debug logs
 const UPDATE_NOTICE_CLASS = "update-notice"; // For version updates
+const UPDATE_NOTICE_CLICKABLE_CLASS = "update-notice-clickable"; // For clickable update notice
 
 // Button states & attributes
 const BUTTON_ORIGINAL_TEXT_ATTR = 'data-original-text';
@@ -207,31 +208,48 @@ const UPDATE_COOLDOWN = 1000; // 1 second cooldown between notices
 function showUpdateNotice(info) {
   // Don't add if we already have an update notice
   if (hasExistingUpdateNotice()) {
-    console.debug("[Sidepanel] Update notice already exists, skipping");
+    debugLog("[Sidepanel] Update notice already exists, skipping");
     return;
   }
 
   // Prevent duplicate notices in rapid succession
   if (info.timestamp && info.timestamp - lastUpdateTimestamp < UPDATE_COOLDOWN) {
-    console.debug("[Sidepanel] Update notice cooldown active, skipping");
+    debugLog("[Sidepanel] Update notice cooldown active, skipping");
     return;
   }
   lastUpdateTimestamp = info.timestamp || Date.now();
 
   const updateNotice = document.createElement('div');
-  updateNotice.className = UPDATE_NOTICE_CLASS; // Use constant
+  updateNotice.className = `${UPDATE_NOTICE_CLASS} ${UPDATE_NOTICE_CLICKABLE_CLASS}`; // Add clickable class
+  // Store the URL in a data attribute
+  updateNotice.dataset.updateUrl = info.updateUrl;
+
   updateNotice.innerHTML = `
     <div style="background:#fff3cd;color:#856404;padding:8px;margin:8px;border-radius:4px;border:1px solid #ffeeba;">
-      Update Available: v${info.latestVersion}
-      <a href="${info.updateUrl}" target="_blank" style="color:#533f03;text-decoration:underline;">Update Now</a>
+      🚀 Update Available: v${info.latestVersion}! Click here to update.
+      <span style="font-size: 1.2em; margin-left: 10px;">🔗</span>
     </div>
   `;
+
+  // Add the click event listener to the notice element
+  updateNotice.addEventListener('click', () => {
+    const urlToOpen = updateNotice.dataset.updateUrl;
+    if (urlToOpen) {
+      debugLog(`[Sidepanel] Update notice clicked, opening: ${urlToOpen}`);
+      chrome.tabs.create({ url: urlToOpen });
+    } else {
+      debugLog("[Sidepanel] Update notice clicked, but no URL found in data attribute", null, "warn");
+      showToast("Could not open update page.");
+    }
+  });
+
   // Insert safely, checking document.body
   if (document.body) {
       document.body.insertBefore(updateNotice, document.body.firstChild);
+      debugLog(`[Sidepanel] Displayed update notice for v${info.latestVersion}`);
   } else {
-      console.warn("Document body not ready for update notice.");
-      // Optionally, retry later or queue
+      console.warn("[Sidepanel] Document body not ready for update notice.");
+      debugLog("[Sidepanel] Document body not ready for update notice.", null, "warn");
   }
 }
 

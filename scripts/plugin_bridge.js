@@ -291,10 +291,15 @@ export function createExtensionBridge({ pluginName, methodHandlers }) {
                         type: EVENT_TYPE,
                         eventName,
                         args: args || [], // Ensure args is an array
-                    }).catch(error => {
-                        // Ignore errors likely due to the content script not being injected/ready in that tab
-                        if (!error.message.includes("Could not establish connection") && !error.message.includes("Receiving end does not exist")) {
-                            console.warn(`[${pluginName}/extension_bridge] Error sending event '${eventName}' to tab ${tab.id}:`, error);
+                    }, function(response) {
+                        // Check for errors after sending message
+                        if (chrome.runtime.lastError) {
+                            const error = chrome.runtime.lastError;
+                            // Ignore errors likely due to the content script not being injected/ready in that tab
+                            if (!error.message.includes("Could not establish connection") && 
+                                !error.message.includes("Receiving end does not exist")) {
+                                console.warn(`[${pluginName}/extension_bridge] Error sending event '${eventName}' to tab ${tab.id}:`, error);
+                            }
                         }
                     });
                 }

@@ -5,9 +5,6 @@
  * (including the new SSE streaming logic for "chatCompletionStream".)
  */
 
-// Import the fetchEnvVarsFromSuperenv helper from extension.js
-import { fetchEnvVarsFromSuperenv } from './extension.js';
-
 const OPENAI_API_BASE = "https://api.openai.com/v1";
 
 // In-memory config
@@ -55,232 +52,65 @@ export function setOrganizationId(orgId) {
 }
 
 /**
- * A helper for normal (non-stream) fetch calls
- */
-async function openaiFetch(path, options = {}) {
-  // Try up to 2 times to load the API key if it's missing
-  let keyLoaded = false;
-  for (let attempt = 0; attempt < 2; attempt++) {
-    if (!_apiKey) {
-      console.log(`[OpenAI] No API key set, attempt ${attempt + 1} to load`);
-      
-      try {
-        // Use our new hierarchical API key loading function
-        keyLoaded = await ensureApiKeyLoaded();
-        
-        if (keyLoaded) {
-          console.log("[OpenAI] Successfully loaded API key");
-          break; // Key loaded successfully, exit the retry loop
-        } else if (attempt === 0) {
-          // Only log this on first attempt to avoid spam
-          console.warn("[OpenAI] Failed to load API key, will retry once before failing");
-          // Small delay before retrying to allow for any async storage operations to complete
-          await new Promise(resolve => setTimeout(resolve, 100));
-        }
-      } catch (err) {
-        console.error("[OpenAI] Error during API key loading attempt:", err);
-      }
-    } else {
-      keyLoaded = true;
-      break; // Key already exists, no need for second attempt
-    }
-  }
-
-  // Final check - fail if no key after attempts
-  if (!_apiKey) {
-    console.error("[OpenAI] API key still not available after retry attempts");
-    throw new Error("No API key set for OpenAI! Please setApiKey(...) first or store in environment variables.");
-  }
-
-  const url = `${OPENAI_API_BASE}${path}`;
-  const headers = {
-    "Content-Type": "application/json",
-    "Authorization": `Bearer ${_apiKey}`
-  };
-  if (_organizationId) {
-    headers["OpenAI-Organization"] = _organizationId;
-  }
-
-  try {
-    // Log outgoing request payload
-    console.log("🤖 🔄 🌐 ⚡️ 📡"); // Visual separator for important API calls
-
-    console.log('[OpenAI] Outgoing request:', {
-      endpoint: path,
-      method: options.method || 'GET',
-      payload: options.body ? JSON.parse(options.body) : undefined
-    });
-
-    const res = await fetch(url, {
-      ...options,
-      headers: {
-        ...headers,
-        ...(options.headers || {})
-      }
-    });
-
-    if (!res.ok) {
-      const errorBody = await res.json().catch(() => ({}));
-      
-      // Special case for authentication errors - might need to reload API key
-      if (res.status === 401) {
-        console.error("[OpenAI] Authentication error (401) - API key may be invalid or expired");
-        // Clear the key so next request will try to reload it from superenv
-        _apiKey = null;
-        console.log("[OpenAI] API key cleared - will try to reload from superenv on next request");
-      }
-      
-      const error = new Error(`OpenAI API Error (${res.status}): ${errorBody.error?.message || "Unknown error"}`);
-      error.status = res.status;
-      error.endpoint = path;
-      error.method = options.method || "GET";
-      error.requestBody = options.body ? JSON.parse(options.body) : undefined;
-      error.responseBody = errorBody;
-      throw error;
-    }
-    return await res.json();
-  } catch (err) {
-    if (err.name === "AbortError") {
-      throw new Error(`Request timeout for ${path}`);
-    }
-    if (err.name === "TypeError" && err.message.includes("Failed to fetch")) {
-      throw new Error(`Network error while calling ${path}. Check your internet connection.`);
-    }
-    throw err;
-  }
-}
-
-/**
- * Attempts to load the OpenAI API key, following a clear hierarchy:
- * 1. First try to get it from superenv (the source of truth)
- * 2. Only if superenv fails or doesn't have the key, try direct storage access
- * 
+ * Attempts to load the OpenAI API key directly from storage
  * @returns {Promise<boolean>} True if key was loaded successfully
+ * @export - Available to other modules that import this one
  */
-async function ensureApiKeyLoaded() {
+export async function ensureApiKeyLoaded() {
   if (_apiKey) {
     return true; // Key already loaded
   }
   
-  console.log("[OpenAI] No API key set, attempting to load from superenv first");
+  console.log("[OpenAI] No API key set, loading directly from storage");
   
-  // ATTEMPT 1 (PRIMARY): Use superenv as the source of truth
   try {
-    console.log("[OpenAI] PRIMARY: Requesting environment variables from superenv");
-    // Send a message to superenv to get environment variables
-    const envVars = await new Promise((resolve, reject) => {
-      chrome.runtime.sendMessage(
-        { type: "SUPERENV_GET_VARS" },
-        (response) => {
-          if (chrome.runtime.lastError) {
-            reject(new Error(`Chrome runtime error: ${chrome.runtime.lastError.message}`));
-            return;
-          }
-          
-          if (!response) {
-            reject(new Error("No response received from superenv"));
-            return;
-          }
-          
-          if (response.success === false) {
-            reject(new Error(response.error || "Unknown error from superenv"));
-            return;
-          }
-          
-          // Success case
-          resolve(response.success && response.result ? response.result : {});
-        }
-      );
-    });
-    
-    // Check if we got the API key from superenv
-    if (envVars && envVars.OPENAI_API_KEY) {
-      console.log("[OpenAI] Successfully retrieved API key from superenv");
-      setApiKey(envVars.OPENAI_API_KEY);
-      
-      // Also set org ID if available
-      if (envVars.OPENAI_ORGANIZATION_ID) {
-        setOrganizationId(envVars.OPENAI_ORGANIZATION_ID);
-        console.log("[OpenAI] Also loaded organization ID from superenv");
-      }
-      
-      return true;
-    } else {
-      console.warn("[OpenAI] superenv responded but no API key was found");
-      // Continue to fallback
-    }
-  } catch (err) {
-    console.error("[OpenAI] Failed to get API key from superenv:", err);
-    // Continue to fallback
-  }
-  
-  // ATTEMPT 2 (FALLBACK): Direct storage access if superenv failed or didn't have the key
-  console.log("[OpenAI] FALLBACK: Attempting direct storage access");
-  
-  // Try direct access to superEnvVars
-  try {
-    console.log("[OpenAI] Directly accessing chrome.storage.local for superEnvVars");
-    const result = await new Promise((resolve) => {
-      chrome.storage.local.get("superEnvVars", (result) => {
+    // Direct storage access - most reliable method
+    const storageResult = await new Promise((resolve, reject) => {
+      chrome.storage.local.get("superEnvVars", (res) => {
         if (chrome.runtime.lastError) {
-          console.error("[OpenAI] Storage error:", chrome.runtime.lastError);
-          resolve(null);
+          reject(chrome.runtime.lastError);
         } else {
-          resolve(result);
+          resolve(res);
         }
       });
     });
     
-    if (result && result.superEnvVars && result.superEnvVars.default) {
-      const defaultVars = result.superEnvVars.default;
-      if (defaultVars.OPENAI_API_KEY) {
-        console.log("[OpenAI] Successfully retrieved API key directly from chrome.storage.local");
-        setApiKey(defaultVars.OPENAI_API_KEY);
-        
-        // Also set org ID if available
-        if (defaultVars.OPENAI_ORGANIZATION_ID) {
-          setOrganizationId(defaultVars.OPENAI_ORGANIZATION_ID);
-          console.log("[OpenAI] Also loaded organization ID");
-        }
-        
-        return true;
-      } else {
-        console.warn("[OpenAI] API key not found in direct superEnvVars access");
+    const key = storageResult?.superEnvVars?.default?.OPENAI_API_KEY;
+    const orgId = storageResult?.superEnvVars?.default?.OPENAI_ORGANIZATION_ID;
+    
+    if (key) {
+      console.log("[OpenAI] Successfully loaded API key from storage");
+      setApiKey(key);
+      if (orgId) {
+        setOrganizationId(orgId);
+        console.log("[OpenAI] Organization ID loaded from storage");
       }
-    } else {
-      console.warn("[OpenAI] No valid superEnvVars found in storage");
+      return true;
     }
-  } catch (err) {
-    console.error("[OpenAI] Error during direct superEnvVars access:", err);
-  }
-  
-  // Last resort: Check for dedicated API key storage
-  try {
-    console.log("[OpenAI] Checking for dedicated API key storage");
-    const dedicatedResult = await new Promise((resolve) => {
+    
+    // Fallback to dedicated API key storage if needed
+    const dedicatedKeyData = await new Promise((resolve, reject) => {
       chrome.storage.local.get("openaiApiKey", (result) => {
         if (chrome.runtime.lastError) {
-          console.error("[OpenAI] Dedicated storage error:", chrome.runtime.lastError);
-          resolve(null);
+          reject(chrome.runtime.lastError);
         } else {
           resolve(result);
         }
       });
     });
     
-    if (dedicatedResult && dedicatedResult.openaiApiKey) {
-      console.log("[OpenAI] Found API key in dedicated storage");
-      setApiKey(dedicatedResult.openaiApiKey);
+    if (dedicatedKeyData?.openaiApiKey) {
+      console.log("[OpenAI] Loaded API key from dedicated storage");
+      setApiKey(dedicatedKeyData.openaiApiKey);
       return true;
-    } else {
-      console.warn("[OpenAI] No dedicated API key storage found");
     }
-  } catch (err) {
-    console.error("[OpenAI] Error checking dedicated API key storage:", err);
+    
+    console.warn("[OpenAI] No API key found in storage");
+    return false;
+  } catch (error) {
+    console.error("[OpenAI] Error accessing storage:", error);
+    return false;
   }
-  
-  console.error("[OpenAI] All API key loading strategies failed");
-  return false;
 }
 
 /**
@@ -481,7 +311,7 @@ export async function handleChatCompletionStream(payload, sender, requestId, bro
     console.log("[OpenAI] No API key set for streaming, attempting to load");
     
     try {
-      // Use our hierarchical API key loading function
+      // Use our simplified key loading function
       const keyLoaded = await ensureApiKeyLoaded();
       
       if (!keyLoaded) {
@@ -529,9 +359,9 @@ export async function handleChatCompletionStream(payload, sender, requestId, bro
       // Special case for authentication errors - might need to reload API key
       if (res.status === 401) {
         console.error("[OpenAI] Authentication error (401) during streaming - API key may be invalid or expired");
-        // Clear the key so next request will try to reload it from superenv
+        // Clear the key so next request will try to reload it from storage
         _apiKey = null;
-        console.log("[OpenAI] API key cleared - will try to reload from superenv on next request");
+        console.log("[OpenAI] API key cleared - will try to reload from storage on next request");
       }
       
       const error = new Error(`OpenAI API Error (${res.status}) during stream setup: ${errorBody.error?.message || "Unknown error"}`);
@@ -952,4 +782,100 @@ export async function handleBatchList(payload) {
   const queryString = qs.length ? `?${qs.join("&")}` : "";
   const path = `/batches${queryString}`;
   return await openaiFetch(path, { method: "GET" });
+}
+
+// -----------------------------------------------------------------------
+// Helper function for making API calls
+// -----------------------------------------------------------------------
+async function openaiFetch(path, options = {}) {
+  // Try up to 2 times to load the API key if it's missing
+  let keyLoaded = false;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    if (!_apiKey) {
+      console.log(`[OpenAI] No API key set, attempt ${attempt + 1} to load`);
+      
+      try {
+        // Use our simplified key loading function
+        keyLoaded = await ensureApiKeyLoaded();
+        
+        if (keyLoaded) {
+          console.log("[OpenAI] Successfully loaded API key");
+          break; // Key loaded successfully, exit the retry loop
+        } else if (attempt === 0) {
+          // Only log this on first attempt to avoid spam
+          console.warn("[OpenAI] Failed to load API key, will retry once before failing");
+          // Small delay before retrying to allow for any async storage operations to complete
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+      } catch (err) {
+        console.error("[OpenAI] Error during API key loading attempt:", err);
+      }
+    } else {
+      keyLoaded = true;
+      break; // Key already exists, no need for second attempt
+    }
+  }
+
+  // Final check - fail if no key after attempts
+  if (!_apiKey) {
+    console.error("[OpenAI] API key still not available after retry attempts");
+    throw new Error("OpenAI API Key not found. Please set the OPENAI_API_KEY in the Superpowers side panel.");
+  }
+
+  const url = `${OPENAI_API_BASE}${path}`;
+  const headers = {
+    "Content-Type": "application/json",
+    "Authorization": `Bearer ${_apiKey}`
+  };
+  if (_organizationId) {
+    headers["OpenAI-Organization"] = _organizationId;
+  }
+
+  try {
+    // Log outgoing request payload
+    console.log("🤖 🔄 🌐 ⚡️ 📡"); // Visual separator for important API calls
+
+    console.log('[OpenAI] Outgoing request:', {
+      endpoint: path,
+      method: options.method || 'GET',
+      payload: options.body ? JSON.parse(options.body) : undefined
+    });
+
+    const res = await fetch(url, {
+      ...options,
+      headers: {
+        ...headers,
+        ...(options.headers || {})
+      }
+    });
+
+    if (!res.ok) {
+      const errorBody = await res.json().catch(() => ({}));
+      
+      // Special case for authentication errors - might need to reload API key
+      if (res.status === 401) {
+        console.error("[OpenAI] Authentication error (401) - API key may be invalid or expired");
+        // Clear the key so next request will try to reload it from storage
+        _apiKey = null;
+        console.log("[OpenAI] API key cleared - will try to reload from storage on next request");
+      }
+      
+      const error = new Error(`OpenAI API Error (${res.status}): ${errorBody.error?.message || "Unknown error"}`);
+      error.status = res.status;
+      error.endpoint = path;
+      error.method = options.method || "GET";
+      error.requestBody = options.body ? JSON.parse(options.body) : undefined;
+      error.responseBody = errorBody;
+      throw error;
+    }
+    return await res.json();
+  } catch (err) {
+    if (err.name === "AbortError") {
+      throw new Error(`Request timeout for ${path}`);
+    }
+    if (err.name === "TypeError" && err.message.includes("Failed to fetch")) {
+      throw new Error(`Network error while calling ${path}. Check your internet connection.`);
+    }
+    throw err;
+  }
 }

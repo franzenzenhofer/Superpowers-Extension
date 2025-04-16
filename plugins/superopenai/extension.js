@@ -38,7 +38,8 @@ import {
   handleBatchCreate,
   handleBatchRetrieve,
   handleBatchCancel,
-  handleBatchList
+  handleBatchList,
+  ensureApiKeyLoaded
 } from "./openai.js";
 
 export const superopenai_extension = {
@@ -46,36 +47,19 @@ export const superopenai_extension = {
 
   async install(context) {
     console.log("[superopenai_extension] Installing in service worker...");
-
-    let keyInitialized = false;
     
-    // Try to initialize OpenAI API key - make up to 2 attempts
-    // This is a best-effort attempt; runtime API calls will retry loading if needed
-    for (let attempt = 0; attempt < 2; attempt++) {
-      try {
-        console.log(`[superopenai_extension] Initial key check (attempt ${attempt + 1})...`);
-        keyInitialized = await initializeOpenAIKey();
-        
-        if (keyInitialized) {
-          console.log("[superopenai_extension] API key successfully initialized during install");
-          break;
-        } else if (attempt === 0) {
-          console.warn("[superopenai_extension] API key not found on first attempt, will retry shortly");
-          // Wait a moment before retry - superenv might still be initializing
-          await new Promise(resolve => setTimeout(resolve, 500));
-        }
-      } catch (err) {
-        console.error(`[superopenai_extension] Error during initial API key check (attempt ${attempt + 1}):`, err);
-        if (attempt === 0) {
-          // Wait before retry
-          await new Promise(resolve => setTimeout(resolve, 500));
-        }
+    // Attempt to initialize the API key but don't block installation if it fails
+    // The key will be loaded on-demand when needed for API calls
+    try {
+      const keyInitialized = await ensureApiKeyLoaded();
+      if (keyInitialized) {
+        console.log("[superopenai_extension] API key successfully initialized during install");
+      } else {
+        console.log("[superopenai_extension] No API key found during install (this is normal if not set yet)");
       }
-    }
-
-    if (!keyInitialized) {
-      console.warn("[superopenai_extension] No API key found during install - this is expected if key hasn't been set yet");
-      console.info("[superopenai_extension] Extension will still be available and API calls will load key when needed");
+    } catch (err) {
+      console.warn("[superopenai_extension] Error during initial key setup:", err);
+      // Continue with installation even if key setup fails
     }
 
     // Define method handlers for the extension bridge
@@ -97,8 +81,8 @@ export const superopenai_extension = {
         return "Organization ID set";
       },
       test: async (methodName, args) => {
-        await new Promise(resolve => setTimeout(resolve, 500)); // Simulate async work
-        return "test success";
+        await new Promise(resolve => setTimeout(resolve, 100)); 
+        return "OpenAI extension is operational";
       },
 
       // Core API methods - Bridge passes (methodName, args, sender, requestId)
@@ -156,141 +140,28 @@ export const superopenai_extension = {
       methodHandlers,
     });
 
+    // Set up storage change listener to update API key if changed in storage
+    chrome.storage.onChanged.addListener((changes, areaName) => {
+      if (areaName === 'local' && changes.superEnvVars && 
+          changes.superEnvVars.newValue?.default?.OPENAI_API_KEY !== 
+          changes.superEnvVars.oldValue?.default?.OPENAI_API_KEY) {
+        
+        console.log("[superopenai] Detected API key change in storage");
+        const newKey = changes.superEnvVars.newValue?.default?.OPENAI_API_KEY;
+        if (newKey) {
+          setApiKey(newKey);
+          console.log("[superopenai] Updated API key from storage change");
+          
+          // Update organization ID if present
+          const newOrgId = changes.superEnvVars.newValue?.default?.OPENAI_ORGANIZATION_ID;
+          if (newOrgId) {
+            setOrganizationId(newOrgId);
+            console.log("[superopenai] Updated organization ID from storage change");
+          }
+        }
+      }
+    });
+
     return extensionBridge;
   }
 };
-
-/**
- * Initializes the OpenAI API key from superenv.
- * This is a best-effort initial check during plugin installation.
- * Runtime API calls will retry key loading if needed.
- */
-async function initializeOpenAIKey() {
-  console.log("[superopenai] Initializing OpenAI API key (best-effort)...");
-  
-  // PRIMARY: Try to get environment variables from superenv
-  try {
-    console.log("[superopenai] Primary: Requesting API key from superenv");
-    // Get environment variables from superenv
-    const envVars = await fetchEnvVarsFromSuperenv();
-    
-    if (envVars && envVars.OPENAI_API_KEY) {
-      setApiKey(envVars.OPENAI_API_KEY);
-      console.log("[superopenai] Successfully loaded OpenAI API key from superenv");
-      
-      // Optionally set organization ID if it exists
-      if (envVars.OPENAI_ORGANIZATION_ID) {
-        setOrganizationId(envVars.OPENAI_ORGANIZATION_ID);
-        console.log("[superopenai] OpenAI organization ID loaded from superenv");
-      }
-      
-      return true;
-    } else {
-      console.warn("[superopenai] superenv response received but no OPENAI_API_KEY found");
-      // Initialization during plugin load may legitimately fail if user hasn't set key yet
-      // This is expected and not a critical error - runtime calls will retry loading
-    }
-  } catch (err) {
-    console.error("[superopenai] Failed to load API key from superenv:", err);
-    // Continue with fallbacks
-  }
-  
-  // FALLBACK: Direct storage access (only if superenv failed or didn't have the key)
-  console.log("[superopenai] Falling back to direct storage access");
-  
-  try {
-    console.log("[superopenai] Directly accessing chrome.storage.local for superEnvVars");
-    const storageData = await new Promise((resolve) => {
-      chrome.storage.local.get("superEnvVars", (result) => {
-        if (chrome.runtime.lastError) {
-          console.error("[superopenai] Error reading from storage:", chrome.runtime.lastError.message);
-          resolve(null);
-        } else {
-          resolve(result);
-        }
-      });
-    });
-    
-    if (storageData && storageData.superEnvVars && storageData.superEnvVars.default) {
-      const defaultVars = storageData.superEnvVars.default;
-      
-      if (defaultVars.OPENAI_API_KEY) {
-        setApiKey(defaultVars.OPENAI_API_KEY);
-        console.log("[superopenai] Successfully loaded OpenAI API key directly from storage");
-        
-        if (defaultVars.OPENAI_ORGANIZATION_ID) {
-          setOrganizationId(defaultVars.OPENAI_ORGANIZATION_ID);
-          console.log("[superopenai] OpenAI organization ID loaded from storage");
-        }
-        
-        return true;
-      } else {
-        console.warn("[superopenai] No API key found in direct storage access");
-      }
-    } else {
-      console.warn("[superopenai] No valid storage data found for superEnvVars");
-    }
-  } catch (storageErr) {
-    console.error("[superopenai] Error during direct storage access:", storageErr);
-  }
-  
-  // Final fallback: Check for dedicated API key storage
-  try {
-    console.log("[superopenai] Checking for dedicated API key storage");
-    const dedicatedKeyData = await new Promise((resolve) => {
-      chrome.storage.local.get("openaiApiKey", (result) => {
-        if (chrome.runtime.lastError) {
-          console.error("[superopenai] Error reading dedicated key storage:", chrome.runtime.lastError.message);
-          resolve(null);
-        } else {
-          resolve(result);
-        }
-      });
-    });
-    
-    if (dedicatedKeyData && dedicatedKeyData.openaiApiKey) {
-      setApiKey(dedicatedKeyData.openaiApiKey);
-      console.log("[superopenai] Successfully loaded OpenAI API key from dedicated storage");
-      return true;
-    } else {
-      console.warn("[superopenai] No API key found in dedicated storage");
-    }
-  } catch (dedicatedErr) {
-    console.error("[superopenai] Error checking dedicated API key storage:", dedicatedErr);
-  }
-  
-  console.warn("[superopenai] Initial API key loading failed - this is expected if key hasn't been set yet");
-  return false;
-}
-
-/**
- * Helper function to fetch environment variables from superenv.
- * Separated for better error handling and potential reuse.
- * @export - Available to other modules that import this one
- */
-export async function fetchEnvVarsFromSuperenv() {
-  return new Promise((resolve, reject) => {
-    chrome.runtime.sendMessage(
-      { type: "SUPERENV_GET_VARS" },
-      (response) => {
-        if (chrome.runtime.lastError) {
-          reject(new Error(`Chrome runtime error: ${chrome.runtime.lastError.message}`));
-          return;
-        }
-        
-        if (!response) {
-          reject(new Error("No response received from superenv"));
-          return;
-        }
-        
-        if (response.success === false) {
-          reject(new Error(response.error || "Unknown error from superenv"));
-          return;
-        }
-        
-        // Success case
-        resolve(response.success && response.result ? response.result : {});
-      }
-    );
-  });
-}

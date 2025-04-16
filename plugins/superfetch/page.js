@@ -94,6 +94,7 @@
                 // Store raw data (ArrayBuffer) for multi-read
                 __rawData: result.rawData, // Expecting ArrayBuffer here
                 __textBody: result.body,   // For backward compatibility
+                __textData: result.textData, // NEW: Store pre-decoded text data sent from extension
                 __used: false, // Track if body has been read
 
                 _readBody() {
@@ -101,30 +102,142 @@
                         return Promise.reject(new TypeError("Body has already been used."));
                     }
                     this.__used = true;
-                    if (!this.__rawData) {
-                         // Should not happen if extension sends ArrayBuffer
+                    
+                    // Check if __rawData exists and is actually an ArrayBuffer
+                    if (!this.__rawData || !(this.__rawData instanceof ArrayBuffer)) {
+                        console.warn("[superfetch/page] Raw data missing or invalid, returning empty buffer");
                         return Promise.resolve(new ArrayBuffer(0));
                     }
+                    
                     // Return a *copy* to prevent mutation issues if read multiple times (though spec forbids it)
                     return Promise.resolve(this.__rawData.slice(0));
                 },
 
                 arrayBuffer() {
-                    return this._readBody();
-                },
-                text() {
-                    if (this.__rawData) {
-                        return this._readBody().then(buffer => new TextDecoder("utf-8").decode(buffer));
+                    // Prioritize using rawData if it's valid
+                    if (this.__rawData instanceof ArrayBuffer) {
+                        return this._readBody();
                     }
-                    return Promise.resolve(this.__textBody || "");
+                    
+                    // Log detailed warning about the actual type received
+                    if (this.__rawData !== null && this.__rawData !== undefined) {
+                        console.warn(
+                            `[superfetch/page] response.arrayBuffer() called, but __rawData is not a valid ArrayBuffer. ` +
+                            `Type: ${typeof this.__rawData}, Constructor: ${this.__rawData?.constructor?.name}`
+                        );
+                    } else {
+                        console.warn("[superfetch/page] response.arrayBuffer() called, but __rawData is null or undefined");
+                    }
+                    
+                    // If we don't have valid rawData but have textData, create an ArrayBuffer from text as fallback
+                    if (typeof this.__textData === 'string' && this.__textData) {
+                        console.debug("[superfetch/page] Creating ArrayBuffer from textData as fallback");
+                        if (this.__used) {
+                            return Promise.reject(new TypeError("Body has already been used."));
+                        }
+                        this.__used = true;
+                        
+                        // Convert text to ArrayBuffer
+                        const encoder = new TextEncoder();
+                        return Promise.resolve(encoder.encode(this.__textData).buffer);
+                    }
+                    
+                    // Ultimate fallback
+                    console.warn("[superfetch/page] No valid data for arrayBuffer()");
+                    return Promise.resolve(new ArrayBuffer(0));
                 },
+                
+                text() {
+                    // If we already have pre-decoded text, use it directly
+                    if (typeof this.__textData === 'string') {
+                        if (this.__used) {
+                            return Promise.reject(new TypeError("Body has already been used."));
+                        }
+                        this.__used = true;
+                        return Promise.resolve(this.__textData);
+                    }
+                    
+                    // Fall back to using textBody (legacy support)
+                    if (typeof this.__textBody === 'string') {
+                        if (this.__used) {
+                            return Promise.reject(new TypeError("Body has already been used."));
+                        }
+                        this.__used = true;
+                        return Promise.resolve(this.__textBody);
+                    }
+                    
+                    // Otherwise try to decode the raw data
+                    if (this.__rawData instanceof ArrayBuffer) {
+                        try {
+                            return this._readBody().then(buffer => {
+                                try {
+                                    return new TextDecoder("utf-8").decode(buffer);
+                                } catch (error) {
+                                    console.warn("[superfetch/page] Failed to decode response as text:", error);
+                                    return ""; // Return empty string on decode error
+                                }
+                            });
+                        } catch (error) {
+                            console.warn("[superfetch/page] Error reading ArrayBuffer:", error);
+                            return Promise.resolve("");
+                        }
+                    }
+                    
+                    // Ultimate fallback
+                    console.warn("[superfetch/page] No valid response body data available for text()");
+                    return Promise.resolve("");
+                },
+                
                 json() {
-                    return this.text().then(text => JSON.parse(text));
+                    // Try to get text first (which handles priority between textData and rawData)
+                    return this.text().then(text => {
+                        try {
+                            if (!text) {
+                                throw new SyntaxError("Empty response body, cannot parse JSON");
+                            }
+                            return JSON.parse(text);
+                        } catch (error) {
+                            console.error("[superfetch/page] Failed to parse JSON:", error);
+                            throw new SyntaxError("Failed to parse JSON: " + error.message);
+                        }
+                    });
                 },
+                
                 blob() {
                     // Determine MIME type from headers if possible
                     const contentType = this.headers.get('content-type') || '';
-                    return this._readBody().then(buffer => new Blob([buffer], { type: contentType }));
+                    
+                    // Prioritize using rawData if it's valid
+                    if (this.__rawData instanceof ArrayBuffer) {
+                        try {
+                            return this._readBody().then(buffer => new Blob([buffer], { type: contentType }));
+                        } catch (error) {
+                            console.warn("[superfetch/page] Error creating Blob from ArrayBuffer:", error);
+                            // Fall through to text fallback
+                        }
+                    }
+                    
+                    // Second priority: textData from extension (most reliable)
+                    if (typeof this.__textData === 'string') {
+                        if (this.__used) {
+                            return Promise.reject(new TypeError("Body has already been used."));
+                        }
+                        this.__used = true;
+                        return Promise.resolve(new Blob([this.__textData], { type: contentType }));
+                    }
+                    
+                    // Third priority: textBody (legacy)
+                    if (typeof this.__textBody === 'string') {
+                        if (this.__used) {
+                            return Promise.reject(new TypeError("Body has already been used."));
+                        }
+                        this.__used = true;
+                        return Promise.resolve(new Blob([this.__textBody], { type: contentType }));
+                    }
+                    
+                    // Ultimate fallback
+                    console.warn("[superfetch/page] No valid data for blob()");
+                    return Promise.resolve(new Blob([], { type: contentType }));
                 },
 
                 // Extras for debugging or info

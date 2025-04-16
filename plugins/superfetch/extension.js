@@ -60,12 +60,43 @@ async function handleSuperfetchBridge(methodName, args, sender) {
         // Clear the timeout timer as fetch completed
         clearTimeout(timeoutId);
 
-        // Process the response
-        const arrayBuffer = await response.arrayBuffer();
+        // Process the response - with DUAL-TRANSFER APPROACH
+        // We'll get both the ArrayBuffer and the text directly
+        let arrayBuffer = null;
+        let textData = '';
         
-        // Also read text for backward compatibility
-        const fallbackText = new TextDecoder("utf-8").decode(arrayBuffer);
-
+        // Clone the response for multiple reads
+        const responseForBuffer = response.clone();
+        const responseForText = response.clone();
+        
+        // Try to get the raw ArrayBuffer
+        try {
+            arrayBuffer = await responseForBuffer.arrayBuffer();
+            console.debug(`[superfetch/extension] Successfully read arrayBuffer for ${url}, size: ${arrayBuffer.byteLength} bytes`);
+        } catch (bufferError) {
+            console.warn(`[superfetch/extension] Failed to read response as ArrayBuffer: ${bufferError.message}`);
+            arrayBuffer = null;
+        }
+        
+        // Also try to get the text directly
+        try {
+            textData = await responseForText.text();
+            console.debug(`[superfetch/extension] Successfully read text for ${url}, length: ${textData.length} chars`);
+        } catch (textError) {
+            console.warn(`[superfetch/extension] Failed to read response as text directly: ${textError.message}`);
+            
+            // If we have arrayBuffer but failed to get text directly, try to decode from buffer
+            if (arrayBuffer) {
+                try {
+                    textData = new TextDecoder("utf-8").decode(arrayBuffer);
+                    console.debug(`[superfetch/extension] Successfully decoded text from arrayBuffer for ${url}`);
+                } catch (decodeError) {
+                    console.warn(`[superfetch/extension] Failed to decode ArrayBuffer to text: ${decodeError.message}`);
+                }
+            }
+        }
+        
+        // At this point we should have at least one of: arrayBuffer or textData
         // Convert Headers object to a plain key-value object (lowercase keys)
         const headerObj = {};
         response.headers.forEach((value, key) => {
@@ -80,12 +111,13 @@ async function handleSuperfetchBridge(methodName, args, sender) {
             status: response.status,
             statusText: response.statusText,
             ok: response.ok,
-            body: fallbackText, // For backward compatibility  
+            body: textData, // Use the directly obtained text (renamed from fallbackText)
+            textData: textData, // NEW: Send pre-decoded text
             redirected: response.redirected,
             url: response.url, // Final URL after redirects
             type: response.type, // e.g., 'basic', 'cors'
             headers: headerObj,
-            rawData: arrayBuffer, // Send ArrayBuffer directly
+            rawData: arrayBuffer, // Send ArrayBuffer directly (may be null)
             // Include timestamp and original requestId if needed for debugging on page
             timestamp: Date.now(),
         };

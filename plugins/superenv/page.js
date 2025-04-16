@@ -15,12 +15,48 @@ import { createPageBridge } from '/scripts/plugin_bridge.js';
     console.warn("[superenv/page.js] window.Superpowers.Env already exists. Overwriting.");
   }
 
+  // In-memory cache for env vars to provide robustness against storage failures
+  let pageCachedEnv = {};
+
   // Instantiate the bridge for 'superenv'
   const envBridge = createPageBridge('superenv');
+  
+  // Store original bridge methods before overriding
+  const originalGetEnvVars = envBridge.getEnvVars;
 
-  // Assign the bridge directly to the new Env namespace.
-  // Method calls like Superpowers.env.getEnvVars(...) will be proxied.
-  window.Superpowers.Env = envBridge;
+  // Create the Env namespace with enhanced methods
+  window.Superpowers.Env = {
+    // Other bridge methods remain unchanged
+    proposeVars: envBridge.proposeVars,
+    listEnvSets: envBridge.listEnvSets,
+    getEnvSet: envBridge.getEnvSet,
+    setEnvSet: envBridge.setEnvSet,
+    deleteEnvSet: envBridge.deleteEnvSet,
+    
+    // Enhanced getEnvVars with caching for robustness
+    getEnvVars: async (...args) => {
+      try {
+        // Try to get fresh env vars from extension
+        const freshVars = await originalGetEnvVars(...args);
+        
+        // Update cache on success
+        pageCachedEnv = { ...pageCachedEnv, ...freshVars };
+        console.debug('[superenv/page] Cache updated from successful fetch.');
+        
+        return freshVars; // Return fresh data
+      } catch (error) {
+        console.warn('[superenv/page] Failed to fetch env vars, returning cached version:', error);
+        
+        // Return cached data instead of rejecting
+        return { ...pageCachedEnv };
+      }
+    },
+    
+    // New synchronous method to directly access cached env vars
+    getCachedEnvVars: () => {
+      return { ...pageCachedEnv };
+    }
+  };
 
   // Provide backwards compatibility for old names, but log a warning
   const warnDeprecated = (oldName, newName) => {
@@ -59,9 +95,12 @@ import { createPageBridge } from '/scripts/plugin_bridge.js';
     return Promise.resolve({ success: false, error: "Deprecated method" });
   };
 
-  /*
-  console.debug('[superenv/page.js] Initialized Superpowers.Env bridge.');
-  */
+  // Trigger an initial getEnvVars to populate the cache early
+  window.Superpowers.Env.getEnvVars().catch(error => {
+    console.warn("[superenv/page] Initial environment load failed:", error);
+  });
+
+  console.debug('[superenv/page.js] Initialized Superpowers.Env bridge with robust caching.');
 })();
 
 // The old sendSuperenvMessage helper and direct method assignments are removed.
