@@ -134,5 +134,19 @@ export async function initializePluginManager() {
   ));
 
   console.log("[plugin_manager] All plugin installations complete");
-  return pluginContext.registeredPlugins;
+
+  // Calculate overall success status
+  let overallSuccess = true;
+  for (const status of pluginContext.registeredPlugins.values()) {
+    if (!status.active) {
+      overallSuccess = false;
+      break; // No need to check further if one failed
+    }
+  }
+
+  // Return the final status object
+  return {
+    success: overallSuccess,
+    results: pluginContext.registeredPlugins
+  };
 }

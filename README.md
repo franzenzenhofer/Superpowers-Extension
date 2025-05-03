@@ -9,7 +9,7 @@
 - **Capture screenshots** or extract fully-rendered HTML from remote pages 
 - ...and more!
 
-This repo hosts all the extension’s source files, including the background `service_worker.js`, UI pages in `pages/`, and shared styles in `styles/`.
+This repo hosts all the extension's source files, including the background `service_worker.js`, UI pages in `pages/`, and shared styles in `styles/`.
 
 ---
 
@@ -34,6 +34,49 @@ This repo hosts all the extension’s source files, including the background `se
 git clone https://github.com/franzenzenhofer/Superpowers-Extension.git
 ```
 Then follow steps 2-5 from the Quick Install above.
+
+---
+
+## Using Superpowers in your web page
+
+### Required Setup
+
+To use Superpowers, you must include BOTH the meta tag AND the ready script in your HTML:
+
+```html
+<meta name="superpowers" content="enabled" />
+<script type="text/javascript" src="https://superpowers.franzai.com/v1/ready.js"></script>
+```
+
+### Initialization Events
+
+After including the required script, use the `Superpowers.ready()` function to ensure your code runs only when Superpowers is fully initialized:
+
+```javascript
+// Register a callback to run when Superpowers is fully initialized
+Superpowers.ready(function() {
+  console.log("✅ Superpowers extension is ready!");
+  
+  // Now it's safe to use any Superpowers API
+  Superpowers.fetch('https://example.com')
+    .then(response => response.json())
+    .then(data => console.log("Fetched data:", data));
+});
+```
+
+To handle cases where initialization fails:
+
+```javascript
+// Register a callback to run if initialization fails
+Superpowers.readyerror(function(errorDetails) {
+  console.error("❌ Superpowers failed to initialize:", errorDetails);
+  // errorDetails is an array of objects with name and error properties
+});
+```
+
+> **Important:** The ready script now provides the `Superpowers.ready()` and `Superpowers.readyerror()` functions. This is the required approach instead of using `setTimeout()` or polling for available APIs.
+
+See [README-READY.md](README-READY.md) for more detailed documentation on the initialization APIs.
 
 ---
 
@@ -75,20 +118,19 @@ Then follow steps 2-5 from the Quick Install above.
 
 ## Basic Usage
 
-1. In any local HTML file, add the following meta tag in the `<head>`:
+1. In any local HTML file, add the following meta tag AND ready script in the `<head>`:
    ```html
-   <meta name="superpowers" content="enabled">
+   <meta name="superpowers" content="enabled" />
+   <script type="text/javascript" src="https://superpowers.franzai.com/v1/ready.js"></script>
    ```
-   This signals the extension to inject `window.Superpowers` into the page.
+   This enables the extension to inject `window.Superpowers` and provides the necessary ready functions.
 
-2. In your page’s JavaScript, wait a short moment for injection and then use the Superpowers API. For example:
+2. In your page's JavaScript, use the `Superpowers.ready()` function to ensure the extension is fully initialized:
 
    ```html
    <script>
-   (async () => {
-     // Wait a short moment for the extension to inject
-     await new Promise(r => setTimeout(r, 300));
-
+   // Register a callback to run when Superpowers is fully initialized
+   Superpowers.ready(async function() {
      // 1) environment variables
      const env = await Superpowers.getEnvVars();
      console.log("My env variables:", env);
@@ -99,17 +141,22 @@ Then follow steps 2-5 from the Quick Install above.
        const data = await resp.json();
        console.log("Fetched data:", data);
      }
-   })();
+   });
+   
+   // Optionally handle initialization errors
+   Superpowers.readyerror(function(errorDetails) {
+     console.error("Superpowers failed to initialize:", errorDetails);
+   });
    </script>
    ```
 
-3. **Open the extension side panel** from the Superpowers icon (or via the extension’s “Open Side Panel” command) to manage your environment variables, credentials, or other settings.
+3. **Open the extension side panel** from the Superpowers icon (or via the extension's "Open Side Panel" command) to manage your environment variables, credentials, or other settings.
 
 ---
 
 ## Environment Variables
 
-- Click the extension icon or use “Open Side Panel” to open the **Env Manager**.
+- Click the extension icon or use "Open Side Panel" to open the **Env Manager**.
 - Add keys like `OPENAI_API_KEY`, `MY_SECRET_TOKEN`, etc.
 - Then call `await Superpowers.getEnvVars()` to fetch them in your page script.
 
@@ -126,7 +173,7 @@ console.log(vars.OPENAI_API_KEY); // Your stored key
 To use **Google Search Console** or **Analytics** from your local HTML page:
 
 1. **Create a Desktop OAuth Client** in Google Cloud Console and download your `client_secret_xxx.json`.
-2. In the extension side panel, click “Credentials Manager” (or open `pages/credentials_manager.html`).
+2. In the extension side panel, click "Credentials Manager" (or open `pages/credentials_manager.html`).
 3. Drag-and-drop your `client_secret.json` file; the extension can walk you through generating a `token.json`.
 4. Once stored, you can call:
    ```js
@@ -153,7 +200,7 @@ To use **Google Search Console** or **Analytics** from your local HTML page:
   - `imageGeneration({ prompt, size })`
   - `embeddings()`
   - `audioTranscription()`
-  - or any other standard OpenAI API route that’s been mapped.
+  - or any other standard OpenAI API route that's been mapped.
 
 ---
 
@@ -186,7 +233,7 @@ Great for scraping, testing, or any headless-like tasks directly from the browse
 
 ## Repo Overview
 
-Here’s the key structure:
+Here's the key structure:
 ```
 Superpowers-Extension/
 ├─ pages/
@@ -200,7 +247,7 @@ Superpowers-Extension/
    └─ superpowers.css       (Global styling for extension UI)
 ```
 
-You’ll find more advanced details in:
+You'll find more advanced details in:
 - **`pages/first-steps.html`** for a step-by-step usage guide
 - **`README-LLM.md`** (if provided) for large language model usage details
 

@@ -1,6 +1,6 @@
 {
   "name": "Superpowers by Franz Enzenhofer",
-  "version": "0.1.91",
+  "version": "0.2.01",
   "description": "A robust Chrome extension granting in-page superpowers (cross-domain fetch, env vars).",
   "manifest_version": 3,
 
@@ -44,7 +44,8 @@
         "pages/welcome.html",
         "pages/welcome.js",
         "README.md",
-        "README-LLM.md"
+        "README-LLM.md",
+        "initializer.js"
       ],
       "matches": ["<all_urls>"]
     }

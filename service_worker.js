@@ -6,6 +6,9 @@ import { initializeVersionChecker, checkVersionSidepanel } from './modules/versi
 
 console.debug("[SW] Modules imported successfully");
 
+// Store the final initialization status
+let superpowersInitializationStatus = null;
+
 // Keep original references
 const _origRuntimeSendMessage = chrome.runtime.sendMessage.bind(chrome.runtime);
 const _origTabsSendMessage = chrome.tabs.sendMessage.bind(chrome.tabs);
@@ -304,6 +307,30 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         finishRequest(tracked);
         return false; // Not async
 
+      case 'GET_INITIALIZATION_STATUS':
+        // Check if initialization has finished
+        if (superpowersInitializationStatus !== null) {
+          // Need to serialize the Map for sending
+          const payloadToSend = {
+            ...superpowersInitializationStatus,
+            // Convert Map to plain object for messaging
+            results: superpowersInitializationStatus.results ? Object.fromEntries(superpowersInitializationStatus.results) : {} 
+          };
+          
+          sendResponse({ 
+            success: true, 
+            status: "complete",
+            payload: payloadToSend
+          });
+        } else {
+          sendResponse({ 
+            success: true, 
+            status: "pending"
+          });
+        }
+        
+        return false; // Not async
+
       default:
         // Let plugins handle it or do nothing
         finishRequest(tracked);
@@ -582,18 +609,81 @@ async function initialize() {
 
   try {
     // Load & install plugin extensions
-    const plugins = await initializePluginManager();
-
-    // Store them in DEBUG state
-    DEBUG.state.plugins = plugins;
+    try {
+      superpowersInitializationStatus = await initializePluginManager();
+      console.log('[SW Init] Plugin initialization complete. Status:', superpowersInitializationStatus);
+      
+      // Ensure results is a Map, even if serialized/deserialized or empty
+      if (superpowersInitializationStatus.results && !(superpowersInitializationStatus.results instanceof Map)) {
+        try {
+          superpowersInitializationStatus.results = new Map(Object.entries(superpowersInitializationStatus.results));
+        } catch (e) {
+          console.warn('[SW Init] Could not reconstruct results map:', e);
+          superpowersInitializationStatus.results = new Map(); // Fallback
+        }
+      } else if (!superpowersInitializationStatus.results) {
+        superpowersInitializationStatus.results = new Map();
+      }
+      
+      // Store plugins in DEBUG state
+      DEBUG.state.plugins = superpowersInitializationStatus.results;
+    } catch (initError) {
+      console.error('[SW Init] CRITICAL: initializePluginManager failed!', initError);
+      superpowersInitializationStatus = {
+        success: false,
+        results: new Map([['plugin_manager', { name: 'plugin_manager', active: false, error: initError.message }]])
+      };
+      
+      // Store the error state in DEBUG
+      DEBUG.state.plugins = superpowersInitializationStatus.results;
+    }
+    
+    // Broadcast status to all tabs
+    console.log('[SW] Broadcasting initialization status to all tabs');
+    chrome.tabs.query({}, (tabs) => {
+      if (chrome.runtime.lastError) {
+        console.error('[SW] Error querying tabs:', chrome.runtime.lastError.message);
+        return;
+      }
+      
+      let broadcastCount = 0;
+      tabs.forEach((tab) => {
+        if (tab.id >= 0 && !tab.url.startsWith('chrome://')) { // Basic filtering
+          // Need to serialize the Map for sending
+          const payloadToSend = {
+            ...superpowersInitializationStatus,
+            // Convert Map to plain object for messaging
+            results: superpowersInitializationStatus.results ? Object.fromEntries(superpowersInitializationStatus.results) : {} 
+          };
+          
+          chrome.tabs.sendMessage(tab.id, {
+            type: "SUPERPOWERS_STATUS",
+            payload: payloadToSend
+          }, (response) => {
+            // Optional: Handle response or error from sendMessage
+            const err = chrome.runtime.lastError;
+            if (err) {
+              if (!err.message.includes("Receiving end does not exist")) {
+                console.warn(`[SW] Error sending status to tab ${tab.id}:`, err.message);
+              }
+            } else {
+              broadcastCount++;
+            }
+          });
+        }
+      });
+      
+      console.log('[SW] Sent status to', broadcastCount, 'of', tabs.length, 'tabs');
+    });
+    
     DEBUG.state.isInitialized = true;
 
     // Check if superenv is loaded and active - it's critical for other plugins
-    const superenvPlugin = plugins.get('superenv_extension');
+    const superenvPlugin = superpowersInitializationStatus.results.get('superenv_extension');
     if (!superenvPlugin || !superenvPlugin.active) {
       console.error("[SW] CRITICAL: superenv plugin is not loaded or not active!");
       logSW('superenv plugin missing or inactive', DEBUG.LEVELS.ERROR, {
-        installed: plugins.has('superenv_extension'),
+        installed: superpowersInitializationStatus.results.has('superenv_extension'),
         active: superenvPlugin?.active || false
       });
     } else {
@@ -601,7 +691,7 @@ async function initialize() {
     }
 
     // Check if all OpenAI-dependent plugins have what they need
-    const openaiPlugin = plugins.get('superopenai_extension');
+    const openaiPlugin = superpowersInitializationStatus.results.get('superopenai_extension');
     if (openaiPlugin) {
       console.log("[SW] superopenai plugin is loaded, checking status");
       if (!openaiPlugin.active) {
@@ -613,7 +703,7 @@ async function initialize() {
     }
 
     // Check if any plugin is inactive => big warning
-    const failures = Array.from(plugins.values()).filter(p => !p.active);
+    const failures = Array.from(superpowersInitializationStatus.results.values()).filter(p => !p.active);
     if (failures.length > 0) {
       console.error("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
       console.error("[SW] WARNING: Some plugins failed to load:");
@@ -625,9 +715,9 @@ async function initialize() {
 
     const duration = Math.round(performance.now() - initStart);
     logSW(`Initialization complete in ${duration}ms`, DEBUG.LEVELS.INFO);
-    logSW(`Active plugins: ${Array.from(plugins.keys()).join(', ')}`, DEBUG.LEVELS.INFO);
+    logSW(`Active plugins: ${Array.from(superpowersInitializationStatus.results.keys()).join(', ')}`, DEBUG.LEVELS.INFO);
   } catch (error) {
-    // If we get here, plugin_manager had some unexpected meltdown outside the per-plugin handling
+    // If we get here, there was an unexpected error outside the per-plugin handling
     logSW('Initialization failed', DEBUG.LEVELS.ERROR, {
       error,
       stack: error.stack
