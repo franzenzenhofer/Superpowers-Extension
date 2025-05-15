@@ -1,6 +1,6 @@
 {
   "name": "superpowers-extension",
-  "version": "0.2.03",
+  "version": "0.2.04",
   "description": "A robust Chrome extension granting in-page superpowers with Google Gemini integration",
   "main": "service_worker.js",
   "scripts": {

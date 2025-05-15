@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="superpowers" content="enabled"/>
+    <script type="text/javascript" src="https://superpowers.franzai.com/v1/ready.js"></script>
+    <title>Readme Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        #readme-content {
+            white-space: pre-wrap;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background-color: #f9f9f9;
+            overflow-y: auto;
+            max-height: 500px;
+        }
+        button {
+            padding: 10px 15px;
+            background-color: #4285f4;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-bottom: 10px;
+        }
+        button:hover {
+            background-color: #2a75f3;
+        }
+        h1 {
+            color: #333;
+        }
+        .status {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+    </style>
+</head>
+<body>
+    <h1>Readme-LLM.md Test</h1>
+    <p>This page tests the ability to load the Readme-LLM.md file using the Superpowers.readme.getLLMReadme() function.</p>
+    
+    <button id="load-readme">Load Readme-LLM.md</button>
+    <div id="status"></div>
+    <pre id="readme-content"></pre>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const loadButton = document.getElementById('load-readme');
+            const statusDiv = document.getElementById('status');
+            const contentPre = document.getElementById('readme-content');
+            
+            function setStatus(message, isError = false) {
+                statusDiv.textContent = message;
+                statusDiv.className = 'status ' + (isError ? 'error' : 'success');
+            }
+            
+            loadButton.addEventListener('click', function() {
+                // Reset display
+                contentPre.textContent = 'Loading...';
+                setStatus('Checking if Superpowers is ready...');
+                
+                if (!window.Superpowers) {
+                    setStatus('Error: Superpowers extension not detected. Please make sure it is installed and enabled.', true);
+                    contentPre.textContent = '';
+                    return;
+                }
+                
+                // Use the ready function to ensure all plugins are loaded
+                Superpowers.ready(function() {
+                    setStatus('Superpowers is ready. Loading Readme-LLM.md...');
+                    
+                    if (!Superpowers.readme || !Superpowers.readme.getLLMReadme) {
+                        setStatus('Error: Superpowers.readme.getLLMReadme() function not found.', true);
+                        contentPre.textContent = '';
+                        return;
+                    }
+                    
+                    Superpowers.readme.getLLMReadme()
+                        .then(content => {
+                            setStatus('Successfully loaded Readme-LLM.md!');
+                            contentPre.textContent = content;
+                            
+                            // Display some stats
+                            const lineCount = content.split('\n').length;
+                            const charCount = content.length;
+                            console.log(`Readme-LLM.md loaded: ${lineCount} lines, ${charCount} characters`);
+                        })
+                        .catch(error => {
+                            setStatus(`Error loading Readme-LLM.md: ${error.message}`, true);
+                            contentPre.textContent = '';
+                            console.error('Error loading readme:', error);
+                        });
+                });
+                
+                // Handle initialization errors
+                Superpowers.readyerror(function(error) {
+                    setStatus(`Error initializing Superpowers: ${error.message || 'Unknown error'}`, true);
+                    contentPre.textContent = '';
+                    console.error('Superpowers initialization error:', error);
+                });
+            });
+            
+            // Show initial instructions
+            setStatus('Click the "Load Readme-LLM.md" button to test the functionality.');
+        });
+    </script>
+</body>
+</html> 

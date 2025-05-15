@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <!-- CRITICAL: Both meta tag AND ready.js script are required -->
+    <meta name="superpowers" content="enabled">
+    <script type="text/javascript" src="https://superpowers.franzai.com/v1/ready.js"></script>
+    <title>Superpowers Gemini Plugin Test Suite</title>
+    <style>
+        :root {
+            --primary-color: #0078D4;
+            --secondary-color: #4CAF50; /* Green for Gemini */
+            --bg-color: #f8f9fa;
+            --text-color: #212529;
+            --border-color: #dee2e6;
+            --pre-bg: #e9ecef;
+            --error-bg: #f8d7da;
+            --error-text: #721c24;
+            --success-bg: #d4edda;
+            --success-text: #155724;
+            --warn-bg: #fff3cd;
+            --warn-text: #856408;
+            --info-bg: #cce5ff;
+            --info-text: #004085;
+            --disabled-opacity: 0.6;
+            --spacing-unit: 8px;
+        }
+
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            margin: 0;
+            padding: calc(var(--spacing-unit) * 3);
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background-color: #fff;
+            padding: calc(var(--spacing-unit) * 3);
+            border-radius: calc(var(--spacing-unit) * 1);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            color: var(--secondary-color);
+            border-bottom: 2px solid var(--secondary-color);
+            padding-bottom: var(--spacing-unit);
+            margin-bottom: calc(var(--spacing-unit) * 2);
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-unit);
+        }
+        h1::before { content: "🧪"; }
+
+        h2 {
+            color: var(--primary-color);
+            margin-top: calc(var(--spacing-unit) * 4);
+            margin-bottom: calc(var(--spacing-unit) * 1.5);
+        }
+
+        .user-doc {
+            background-color: var(--info-bg);
+            color: var(--info-text);
+            padding: calc(var(--spacing-unit) * 1.5);
+            margin-bottom: calc(var(--spacing-unit) * 3);
+            border-radius: var(--spacing-unit);
+            border: 1px solid var(--info-text);
+        }
+
+        pre {
+            background-color: var(--pre-bg);
+            padding: calc(var(--spacing-unit) * 2);
+            border-radius: var(--spacing-unit);
+            overflow-x: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            font-family: 'Courier New', Courier, monospace;
+            border: 1px solid var(--border-color);
+            margin-top: var(--spacing-unit);
+        }
+
+        .status {
+            padding: calc(var(--spacing-unit) * 1.5);
+            margin: calc(var(--spacing-unit) * 2) 0;
+            border-radius: var(--spacing-unit);
+            font-weight: 500;
+            border: 1px solid transparent;
+        }
+
+        .status.error { background-color: var(--error-bg); color: var(--error-text); border-color: var(--error-text); }
+        .status.success { background-color: var(--success-bg); color: var(--success-text); border-color: var(--success-text); }
+        .status.warning { background-color: var(--warn-bg); color: var(--warn-text); border-color: var(--warn-text); }
+        .status.info { background-color: var(--info-bg); color: var(--info-text); border-color: var(--info-text); }
+
+        button {
+            padding: calc(var(--spacing-unit) * 1) calc(var(--spacing-unit) * 2);
+            margin-right: var(--spacing-unit);
+            margin-top: var(--spacing-unit);
+            background-color: var(--secondary-color);
+            color: white;
+            border: none;
+            border-radius: calc(var(--spacing-unit) * 0.5);
+            cursor: pointer;
+            font-weight: 600;
+            transition: background-color 0.2s ease;
+        }
+        button:hover:not(:disabled) { background-color: #367c39; }
+        button:disabled { cursor: not-allowed; opacity: var(--disabled-opacity); }
+
+        label {
+            display: block;
+            margin-top: var(--spacing-unit);
+            font-weight: 500;
+        }
+        input[type="text"], textarea {
+            width: 100%;
+            padding: calc(var(--spacing-unit) * 1);
+            margin-top: calc(var(--spacing-unit) * 0.5);
+            margin-bottom: calc(var(--spacing-unit) * 1.5);
+            border: 1px solid var(--border-color);
+            border-radius: calc(var(--spacing-unit) * 0.5);
+            box-sizing: border-box; /* Ensures padding doesn't affect width */
+        }
+        textarea {
+            min-height: 100px;
+            font-family: 'Courier New', Courier, monospace;
+        }
+
+        .result-box {
+            border: 1px solid var(--border-color);
+            padding: calc(var(--spacing-unit) * 2);
+            margin-top: var(--spacing-unit);
+            border-radius: var(--spacing-unit);
+        }
+
+        .spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            border-left-color: var(--secondary-color);
+            animation: spin 1s ease infinite;
+            display: inline-block;
+            vertical-align: middle;
+            margin-left: var(--spacing-unit);
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .loading { display: none; }
+        button.processing .loading { display: inline-block; }
+        button.processing span { display: none; } /* Hide text when processing */
+
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Gemini Plugin Test Suite</h1>
+
+        <div class="user-doc">
+            <strong>How to Use:</strong>
+            <ol>
+                <li>Ensure the Superpowers extension is installed and enabled.</li>
+                <li>Open the Superpowers Side Panel (click extension icon).</li>
+                <li>Go to the Environment Variable Manager and set your <code>GEMINI_API_KEY</code>.</li>
+                <li>Refresh this page.</li>
+                <li>Click the buttons below to run tests against the Gemini API via Superpowers.</li>
+            </ol>
+        </div>
+
+        <div id="init-status" class="status info">Initializing Superpowers...</div>
+
+        <h2>1. API Key Check</h2>
+        <div id="api-key-status" class="status info">Checking for GEMINI_API_KEY...</div>
+
+        <h2>2. Basic Connectivity Test (Count Tokens)</h2>
+        <button id="btn-test-connectivity" disabled><span>Test Connectivity</span><div class="loading spinner"></div></button>
+        <div class="result-box">
+            <strong>Result:</strong>
+            <pre id="result-test-connectivity">Click button to run test...</pre>
+        </div>
+
+        <h2>3. Simple Content Generation Test</h2>
+        <button id="btn-generate-simple" disabled><span>Generate Simple Content</span><div class="loading spinner"></div></button>
+        <div class="result-box">
+            <strong>Result:</strong>
+            <pre id="result-generate-simple">Click button to run test...</pre>
+        </div>
+
+        <h2>4. Custom Content Generation</h2>
+        <div>
+            <label for="custom-model">Model Name (e.g., gemini-1.5-flash-latest):</label>
+            <input type="text" id="custom-model" value="gemini-1.5-flash-latest">
+
+            <label for="custom-prompt">Prompt:</label>
+            <textarea id="custom-prompt">Explain the concept of "Superpowers" in the context of a Chrome Extension in one paragraph.</textarea>
+
+            <button id="btn-generate-custom" disabled><span>Generate Custom Content</span><div class="loading spinner"></div></button>
+        </div>
+        <div class="result-box">
+            <strong>Result:</strong>
+            <pre id="result-generate-custom">Enter prompt and click button...</pre>
+        </div>
+    </div>
+
+    <script>
+        // DOM Elements
+        const initStatusEl = document.getElementById('init-status');
+        const apiKeyStatusEl = document.getElementById('api-key-status');
+        const btnTestConnectivity = document.getElementById('btn-test-connectivity');
+        const resultTestConnectivity = document.getElementById('result-test-connectivity');
+        const btnGenerateSimple = document.getElementById('btn-generate-simple');
+        const resultGenerateSimple = document.getElementById('result-generate-simple');
+        const inputCustomModel = document.getElementById('custom-model');
+        const inputCustomPrompt = document.getElementById('custom-prompt');
+        const btnGenerateCustom = document.getElementById('btn-generate-custom');
+        const resultGenerateCustom = document.getElementById('result-generate-custom');
+
+        // State
+        let geminiApiKeyExists = false; // Simplified: just whether the key seems to be there
+        let superpowersReady = false;
+        let geminiPluginAvailable = false;
+
+        // Logging Helper
+        const log = (level, message, data = null) => {
+            const timestamp = new Date().toISOString();
+            const prefix = `[${timestamp}] [${level.toUpperCase()}]`;
+            const fullMessage = `${prefix} ${message}`;
+
+            switch (level) {
+                case 'error': console.error(fullMessage, data || ''); break;
+                case 'warn': console.warn(fullMessage, data || ''); break;
+                case 'info': console.info(fullMessage, data || ''); break;
+                default: console.log(fullMessage, data || '');
+            }
+            return message;
+        };
+
+        // Update UI Helper
+        const updateStatus = (el, message, type) => {
+            if (el) {
+                el.textContent = message;
+                el.className = `status ${type}`;
+                log(type === 'error' || type === 'warning' ? 'warn' : 'info', `UI Update (${el.id}): ${message} [Type: ${type}]`);
+            } else {
+                log('error', 'UI Update failed: Element not found', { elementId: el?.id });
+            }
+        };
+
+        const updateResult = (el, data) => {
+            if (el) {
+                el.textContent = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
+                log('info', `UI Update (${el.id}): Displaying result`);
+            } else {
+                log('error', 'UI Update failed: Element not found', { elementId: el?.id });
+            }
+        };
+
+        const setButtonProcessing = (btn, isProcessing) => {
+            if (!btn) return;
+            btn.disabled = isProcessing;
+            if (isProcessing) {
+                btn.classList.add('processing');
+            } else {
+                btn.classList.remove('processing');
+            }
+             log('info', `UI Update (${btn.id}): Set to ${isProcessing ? 'processing': 'idle'}`);
+        };
+        
+        const enableTestButtons = (enable) => {
+            btnTestConnectivity.disabled = !enable;
+            btnGenerateSimple.disabled = !enable;
+            btnGenerateCustom.disabled = !enable;
+        };
+
+        // ----- Initialization Logic -----
+
+        const initializeApp = async () => {
+            log('info', 'Superpowers is ready! Initializing Gemini Test Suite...');
+            superpowersReady = true;
+            updateStatus(initStatusEl, '✅ Superpowers initialized successfully!', 'success');
+
+            if (window.Superpowers && window.Superpowers.Gemini) {
+                 geminiPluginAvailable = true;
+                 log('info', 'Superpowers.Gemini plugin found.');
+                 await checkApiKey(); // This will update geminiApiKeyExists
+
+                 if (geminiApiKeyExists) {
+                     enableTestButtons(true);
+                     log('info', 'API Key found, enabling test buttons.');
+                 } else {
+                     enableTestButtons(false);
+                     log('warn', 'GEMINI_API_KEY not found or check failed. Test buttons remain disabled.');
+                 }
+            } else {
+                geminiPluginAvailable = false;
+                const errorMsg = '❌ Superpowers.Gemini plugin not found. Ensure it is installed and enabled.';
+                updateStatus(initStatusEl, errorMsg, 'error');
+                updateStatus(apiKeyStatusEl, 'Cannot check key - Gemini plugin missing.', 'error');
+                enableTestButtons(false);
+                log('error', errorMsg);
+            }
+        };
+
+        const handleInitError = (errorDetails) => {
+            log('error', 'Superpowers initialization failed', errorDetails);
+            const errorMessage = '❌ Superpowers failed to initialize. Check console for details.';
+            updateStatus(initStatusEl, errorMessage, 'error');
+            updateStatus(apiKeyStatusEl, 'Cannot check key - Superpowers initialization failed.', 'error');
+            enableTestButtons(false);
+        };
+
+        Superpowers.ready(initializeApp);
+        Superpowers.readyerror(handleInitError);
+        log('info', 'Application started, waiting for Superpowers to initialize...');
+
+        // ----- API Key Check -----
+        const checkApiKey = async () => {
+            log('info', 'Attempting to fetch environment variables for GEMINI_API_KEY...');
+            updateStatus(apiKeyStatusEl, 'Fetching environment variables...', 'info');
+            try {
+                const envVars = await window.Superpowers.Env.getEnvVars();
+                log('info', 'Environment variables received.', envVars);
+
+                if (envVars?.GEMINI_API_KEY && envVars.GEMINI_API_KEY.trim() !== "") {
+                    geminiApiKeyExists = true;
+                    const maskedKey = envVars.GEMINI_API_KEY.substring(0, 4) + '...' + envVars.GEMINI_API_KEY.substring(envVars.GEMINI_API_KEY.length - 4);
+                    updateStatus(apiKeyStatusEl, `✅ Found GEMINI_API_KEY: ${maskedKey}`, 'success');
+                    log('info', 'GEMINI_API_KEY found.');
+                } else {
+                    geminiApiKeyExists = false;
+                    updateStatus(apiKeyStatusEl, '❌ GEMINI_API_KEY not found or empty. Please set it in the Superpowers side panel.', 'error');
+                    log('error', 'GEMINI_API_KEY not found or empty.');
+                }
+            } catch (err) {
+                geminiApiKeyExists = false;
+                const errorMsg = `Error fetching environment variables: ${err.message}`;
+                updateStatus(apiKeyStatusEl, `❌ ${errorMsg}`, 'error');
+                log('error', errorMsg, err);
+            }
+        };
+
+        // ----- Test Functions -----
+
+        const runConnectivityTest = async () => {
+            if (!geminiPluginAvailable || !geminiApiKeyExists) {
+                log('warn', 'Cannot run connectivity test: Plugin unavailable or API key missing.');
+                updateResult(resultTestConnectivity, 'Cannot run: Plugin unavailable or API key missing.');
+                return;
+            }
+            log('info', 'Running Superpowers.Gemini connectivity test...');
+            setButtonProcessing(btnTestConnectivity, true);
+            updateResult(resultTestConnectivity, 'Running test...');
+
+            try {
+                // A lightweight call to confirm the client can be initialized and a basic method works.
+                const genAI = window.Superpowers.Gemini;
+                
+                // Count tokens using the models API
+                const countResult = await genAI.models.countTokens({
+                    model: "gemini-1.5-flash-latest",
+                    contents: [{ role: "user", parts: [{ text: "hello" }] }]
+                });
+                
+                log('info', 'Superpowers.Gemini connectivity test result:', countResult);
+                updateResult(resultTestConnectivity, `Connectivity test successful. Token count for "hello": ${JSON.stringify(countResult, null, 2)}`);
+            } catch (err) {
+                const errorMsg = `Connectivity test failed: ${err.message}`;
+                log('error', errorMsg, err);
+                updateResult(resultTestConnectivity, `Error: ${errorMsg}`);
+            } finally {
+                setButtonProcessing(btnTestConnectivity, false);
+            }
+        };
+
+        const runGenerateSimple = async () => {
+             if (!geminiPluginAvailable || !geminiApiKeyExists) {
+                log('warn', 'Cannot run simple generation: Plugin unavailable or API key missing.');
+                updateResult(resultGenerateSimple, 'Cannot run: Plugin unavailable or API key missing.');
+                return;
+            }
+            log('info', 'Running simple Superpowers.Gemini content generation...');
+            setButtonProcessing(btnGenerateSimple, true);
+            updateResult(resultGenerateSimple, 'Generating...');
+
+            const simplePrompt = "Write a short, optimistic quote about the future of AI.";
+            try {
+                const genAI = window.Superpowers.Gemini;
+                
+                // Use generateContent with the models API
+                const result = await genAI.models.generateContent({
+                    model: "gemini-1.5-flash-latest",
+                    contents: [{ role: "user", parts: [{ text: simplePrompt }] }]
+                });
+                
+                // Process the response according to the Google API format
+                const textResult = result.candidates?.[0]?.content?.parts?.[0]?.text || 
+                             "No text generated";
+                
+                log('info', 'Simple generation result:', result);
+                updateResult(resultGenerateSimple, textResult);
+            } catch (err) {
+                const errorMsg = `Simple generation failed: ${err.message}`;
+                log('error', errorMsg, err);
+                updateResult(resultGenerateSimple, `Error: ${errorMsg}`);
+            } finally {
+                setButtonProcessing(btnGenerateSimple, false);
+            }
+        };
+
+        const runGenerateCustom = async () => {
+             if (!geminiPluginAvailable || !geminiApiKeyExists) {
+                log('warn', 'Cannot run custom generation: Plugin unavailable or API key missing.');
+                updateResult(resultGenerateCustom, 'Cannot run: Plugin unavailable or API key missing.');
+                return;
+            }
+            const modelName = inputCustomModel.value.trim();
+            const prompt = inputCustomPrompt.value.trim();
+
+            if (!modelName || !prompt) {
+                log('warn', 'Custom generation requires model and prompt.');
+                updateResult(resultGenerateCustom, 'Error: Please provide both model name and prompt.');
+                return;
+            }
+
+            log('info', `Running custom generation with model "${modelName}"...`);
+            setButtonProcessing(btnGenerateCustom, true);
+            updateResult(resultGenerateCustom, `Generating with model ${modelName}...`);
+
+            try {
+                const genAI = window.Superpowers.Gemini;
+                
+                // Configure generation parameters according to Gemini API docs
+                const generationConfig = {
+                    temperature: 0.7,
+                    topP: 0.95,
+                    maxOutputTokens: 2048,
+                };
+                
+                const safetySettings = [
+                    { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+                    { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+                    { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+                    { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+                ];
+
+                // Generate content with the models API
+                const result = await genAI.models.generateContent({
+                    model: modelName,
+                    contents: [{ role: "user", parts: [{ text: prompt }] }],
+                    generationConfig,
+                    safetySettings
+                });
+                
+                // Process the response according to the Google API format
+                const textResult = result.candidates?.[0]?.content?.parts?.[0]?.text || 
+                             "No text generated";
+                
+                log('info', 'Custom generation result:', result);
+                updateResult(resultGenerateCustom, textResult);
+            } catch (err) {
+                const errorMsg = `Custom generation failed: ${err.message}`;
+                log('error', errorMsg, err);
+                updateResult(resultGenerateCustom, `Error: ${errorMsg}\n\nCheck console for details.`);
+            } finally {
+                setButtonProcessing(btnGenerateCustom, false);
+            }
+        };
+
+        // ----- Event Listeners -----
+        btnTestConnectivity.addEventListener('click', runConnectivityTest);
+        btnGenerateSimple.addEventListener('click', runGenerateSimple);
+        btnGenerateCustom.addEventListener('click', runGenerateCustom);
+
+        log('info', 'Event listeners attached.');
+    </script>
+</body>
+</html> 

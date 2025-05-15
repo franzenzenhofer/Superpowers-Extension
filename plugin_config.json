@@ -125,6 +125,12 @@
       "extensionPath": "plugins/superreadme/extension.js",
       "contentScript": "plugins/superreadme/content.js",
       "pageScript": "plugins/superreadme/page.js"
+    },
+    {
+      "name": "gemini",
+      "extensionPath": "plugins/gemini/extension.js",
+      "contentScript": "plugins/gemini/content.js",
+      "pageScript": "plugins/gemini/page.js"
     }
   ]
 }

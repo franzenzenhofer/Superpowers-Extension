@@ -104,10 +104,26 @@ let logBuffer = [];
 let renderTimeout = null;
 
 function debugLog(message, data = null, level = "info") {
+  let dataString = "";
+  if (data !== null) {
+    if (data instanceof Error) {
+      dataString = String(data); // Use String() for Error objects to get a readable message
+    } else {
+      try {
+        dataString = JSON.stringify(data);
+      } catch (e) {
+        // Handle cases where stringification might fail (e.g., circular references)
+        dataString = "[Unserializable data]";
+      }
+    }
+  }
+
   const logEntry = {
     timestamp: Date.now(),
     level,
-    message: data ? `${message} ${JSON.stringify(data)}` : message,
+    // Combine message and dataString.
+    // If dataString is empty, just use the original message.
+    message: dataString ? `${message} ${dataString}` : message,
     source: 'sidepanel'
   };
   handleLogEntry(logEntry);
@@ -366,6 +382,14 @@ async function loadEnvVars() {
         debugLog("Defaulting OPENAI_API_KEY to empty string for UI.", null, "info");
         // Create a new object to avoid modifying the original potentially shared reference from storage directly
         defaultEnvVariables = { ...defaultEnvVariables, 'OPENAI_API_KEY': '' };
+    }
+
+    // Ensure GEMINI_API_KEY exists for the UI, even if empty
+    // Check using hasOwnProperty for robustness
+    if (!defaultEnvVariables.hasOwnProperty('GEMINI_API_KEY')) {
+        debugLog("Defaulting GEMINI_API_KEY to empty string for UI.", null, "info");
+        // Create a new object to avoid modifying the original potentially shared reference from storage directly
+        defaultEnvVariables = { ...defaultEnvVariables, 'GEMINI_API_KEY': '' };
     }
 
     debugLog("Loaded variables:", defaultEnvVariables, "info");

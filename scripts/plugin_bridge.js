@@ -87,7 +87,7 @@ export function createPageBridge(pluginName) {
                     pendingRequests.get(requestId).reject(new Error(`[${pluginName}] Request timeout for ${methodName}`));
                     pendingRequests.delete(requestId);
                 }
-            }, 30000); // 30s timeout
+            }, 300000); // 5 minute timeout (increased from 30s)
 
             pendingRequests.set(requestId, { resolve, reject, timeoutId });
 

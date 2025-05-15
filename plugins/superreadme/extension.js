@@ -32,7 +32,18 @@ export const superreadme_extension = {
     const methodHandlers = {
       // Handler for getLLMReadme method
       getLLMReadme: async (methodName, args, sender) => {
-        return fetchReadme("README-LLM.md");
+        // First try the new location: Readme-LLM.md
+        try {
+          return await fetchReadme("Readme-LLM.md");
+        } catch (error) {
+          // Fall back to the old location if needed: README-LLM.md
+          try {
+            return await fetchReadme("README-LLM.md");
+          } catch (fallbackError) {
+            console.error("[superreadme_extension] Failed to fetch LLM readme from both locations:", error, fallbackError);
+            throw new Error("Failed to fetch LLM readme: Not found in any expected location");
+          }
+        }
       },
       
       // Handler for getMainReadme method

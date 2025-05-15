@@ -24,6 +24,7 @@ import { superconsoleintercept_extension } from './plugins/superconsoleintercept
 import { ga_extension } from './plugins/ga/extension.js';
 import { storage_extension } from './plugins/storage/extension.js';  // Add this import
 import { superreadme_extension } from './plugins/superreadme/extension.js';
+import { gemini_extension } from './plugins/gemini/extension.js';
 
 
 /**
@@ -124,7 +125,8 @@ export async function initializePluginManager() {
     gsc_extension,
     ga_extension,
     storage_extension,
-    superreadme_extension
+    superreadme_extension,
+    gemini_extension
   ];
 
   // Install the rest of the plugins in parallel
