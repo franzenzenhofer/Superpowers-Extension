@@ -1,0 +1,17 @@
+{
+  "name": "superpowers-extension",
+  "version": "0.2.03",
+  "description": "A robust Chrome extension granting in-page superpowers with Google Gemini integration",
+  "main": "service_worker.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "update": "npm update @google/genai && node scripts/update-vendor-deps.js",
+    "docs": "node scripts/generate-readme-llm.js"
+  },
+  "author": "Franz Enzenhofer",
+  "license": "SEE LICENSE IN LICENSE",
+  "dependencies": {
+    "@google/genai": "^0.12.0",
+    "node-fetch": "^2.6.7"
+  }
+} 
